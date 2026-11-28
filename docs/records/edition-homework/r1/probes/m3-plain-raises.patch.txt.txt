@@ -1,0 +1,36 @@
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index 76e1956c..4909c9dd 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -112,7 +112,8 @@ public final class PureText {
+             }
+             if (kind == com.legend.lowering.LoweringForms.class) {
+                 // the lowering's two-form choices (the audit's K5, 2026-11-17): legend-pure's guarded words
+-                return kind.cast(EdgeLoweringForms.PCT);
++                return kind.cast(Boolean.getBoolean("probe.corpus.plainRaises") ? EdgeLoweringForms.PURE_V1
++                        : EdgeLoweringForms.PCT);
+             }
+             if (kind == com.legend.lowering.DateTimeTexts.class) {
+                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
+diff --git a/spec/BUILD.bazel b/spec/BUILD.bazel
+index b925c377..919ad790 100644
+--- a/spec/BUILD.bazel
++++ b/spec/BUILD.bazel
+@@ -190,7 +190,7 @@ corpus_lane(
+     # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
+     # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
+     # shows here as a verdict that moves, against the committed rosters
+-    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
++    jvm_flags = ["-Dlegend.diagnostics=decoded-plan", "-Dprobe.corpus.plainRaises=true"],
+     rosters = "duckdb",
+     runtime_deps = [":spec_tests_lib"],
+ )
+@@ -232,7 +232,7 @@ corpus_lane(
+     name = "corpus_h2",
+     memory_mb = 4096,
+     data = _CORPUS_INPUTS,
+-    jvm_flags = ["-Drcorpus.backend=h2"],
++    jvm_flags = ["-Drcorpus.backend=h2", "-Dprobe.corpus.plainRaises=true"],
+     rosters = "h2",
+     runtime_deps = [":spec_tests_lib"],
+ )

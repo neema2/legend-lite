@@ -140,8 +140,8 @@ class CanonicalFormTest {
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) 1L), List.of((Object) 2L), false);
         // (the SQL channel's agree/disagree/declined counters went with the byte channel, 2026-11-07)
-        assertEquals("agree=4 disagree=0 residue=0 | sql-verdict ulp-policy=0"
-                + " row-order-canon=0",
+        // (its ulp-policy count went 2026-11-24 with S15's deletion: no caller)
+        assertEquals("agree=4 disagree=0 residue=0 | sql-verdict row-order-canon=0",
                 CanonicalDivergence.summary());
         CanonicalDivergence.reset();
     }

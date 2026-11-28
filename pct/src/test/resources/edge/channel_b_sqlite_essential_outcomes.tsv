@@ -132,7 +132,7 @@ meta::pure::functions::date::tests::testDateDiffMinutes	PASS
 meta::pure::functions::date::tests::testDateDiffMonths	PASS	
 meta::pure::functions::date::tests::testDateDiffSeconds	PASS	
 meta::pure::functions::date::tests::testDateDiffWeeks	PASS	
-meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	ERROR	AssertFailed: expected [0], got []
+meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	ERROR	AssertFailed: expected: [0], actual: []
 meta::pure::functions::date::tests::testDateDiffYears	PASS	
 meta::pure::functions::date::tests::testDateFromDay	PASS	
 meta::pure::functions::date::tests::testDateFromHour	PASS	
@@ -251,9 +251,9 @@ meta::pure::functions::math::tests::toFloat::testDecimalToFloat	PASS
 meta::pure::functions::math::tests::toFloat::testDoubleToFloat	PASS	
 meta::pure::functions::math::tests::toFloat::testIntToFloat	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcCosine	PASS	
-meta::pure::functions::math::tests::trigonometry::testArcCosineError	ERROR	AssertFailed: expected the error "Unable to compute acos of 2.0", got "acos of a value outside [-1, 1] is NaN, which this database cannot hold"
+meta::pure::functions::math::tests::trigonometry::testArcCosineError	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcSine	PASS	
-meta::pure::functions::math::tests::trigonometry::testArcSineError	ERROR	AssertFailed: expected the error "Unable to compute asin of 2.0", got "asin of a value outside [-1, 1] is NaN, which this database cannot hold"
+meta::pure::functions::math::tests::trigonometry::testArcSineError	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcTangent	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcTangent2	PASS	
 meta::pure::functions::math::tests::trigonometry::testCoTangent	PASS	

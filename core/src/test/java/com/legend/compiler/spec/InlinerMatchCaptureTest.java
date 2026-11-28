@@ -66,8 +66,8 @@ class InlinerMatchCaptureTest {
     @Test
     void matchOverAComputedInput() throws Exception {
         // was [62.0, 62.0]
-        assertEquals(List.of("43.0", "47.0"), values("|[5.5, 7.5]->filter(z | $z > 0)->map(n | ($n + 1)->match(["
-                + "i: Integer[1] | 0, m: Number[1] | [10.0, 20.0]->filter(z | $z > 0)->map(n | $m + $n)->sum()]))"));
+        assertEquals(List.of("43.0", "47.0"), values("|[5.5, 7.5]->filter(z | $z > 0.0)->map(n | ($n + 1)->match(["
+                + "i: Integer[1] | 0, m: Number[1] | [10.0, 20.0]->filter(z | $z > 0.0)->map(n | $m + $n)->sum()]))"));
     }
 
     @Test

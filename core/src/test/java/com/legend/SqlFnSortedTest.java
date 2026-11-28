@@ -67,13 +67,29 @@ class SqlFnSortedTest {
      *  refusing it by name) -- its entry gone the same day: register S401 ruled by the user 2026-11-23 ("Okay"), two whole
      *  Variants refused by name at planning, so no plan compares two JSON documents. */
     static final Set<String> PRODUCT = Set.of(
-            "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
+            "ABS", "ACOS",
+            // ACOS_IN_DOMAIN, ASIN_IN_DOMAIN (2026-11-26; the user's ruling of 2026-11-25 that acos and asin raise outside
+            // [-1, 1] as legend-pure does, register S119): the database's function alone, under the statement's own
+            // guard, written by lowering.Scalars -- product code alone writes them: PRODUCT, by the standing rule
+            "ACOS_IN_DOMAIN",
+            "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN", "ASIN_IN_DOMAIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
-            "BIT_XOR", "BOOL_TO_TEXT", "CBRT", "CEILING", "CELL_TEXT", "CHR", "COALESCE", "CONCAT", "CONCAT_JOIN",
+            "BIT_XOR", "BOOL_TO_TEXT",
+            // CAST_INT, CAST_FLOAT (2026-11-26, the edition program's step 5): the database's own cast of a text, written
+            // by the lowering's named rules for the plain parses (NamedRules, which a door's table names) -- product
+            // code alone writes them: PRODUCT, by the user's standing rule of 2026-11-23 (dated here and reported)
+            "CAST_FLOAT", "CAST_INT",
+            "CBRT", "CEILING", "CELL_TEXT", "CHR", "COALESCE", "CONCAT", "CONCAT_JOIN",
             "CONCAT_WS", "COS", "COSH", "COT", "CURRENT_USER_FN", "DATETIME_CANON_TEXT", "DATETIME_TO_TEXT",
             "DATE_AT_TIME", "DATE_DIFF", "DATE_TRUNC", "DATE_TRUNC_DAY", "DAYNAME", "DECIMAL_TO_TEXT",
             "DECODE_BASE64", "DEGREES", "DIVIDE", "ENCODE_BASE64", "ENDS_WITH", "EPOCH_MS", "EPOCH_NS",
-            "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT", "FLOOR",
+            "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT",
+            // FLOAT_FULL_TEXT added 2026-11-25 (B2b, toCSV's Float cell exact; the user's ruling "okay make exact" and
+            // B3's (B) the same day, under the standing rule that a new function only product code writes is sorted
+            // PRODUCT with a dated note and reported): the database's own full-precision text of a double, written by
+            // lowering.ProductRelationText alone
+            "FLOAT_FULL_TEXT",
+            "FLOOR",
             "FLOOR_RAW", "FORMAT", "FROM_EPOCH_MS", "FROM_EPOCH_NS", "FROM_EPOCH_SECONDS", "GREATER", "GREATER_EQUAL",
             "GREATEST", "GUID", "HASH", "IN", "INT_DIVIDE", "IS_DISTINCT_FROM", "IS_NOT_NULL", "IS_NULL",
             // IS_NUMERIC added 2026-11-18 with J20 (222d136808, train 11, the user's ruling of 2026-11-17 23:05): the
@@ -91,7 +107,15 @@ class SqlFnSortedTest {
             "MONTHNAME", "NEGATE", "NOT", "NOT_EQUAL", "NOW", "NULL_SAFE_EQUAL", "NULL_SAFE_NOT_EQUAL", "OR",
             "PARSE_DATE", "PARSE_INT", "PI", "PLUS", "POW", "PURE_SPLIT_PART", "RADIANS", "RANDOM", "RANGE_FN",
             "REGEXP_EXTRACT", "REGEXP_EXTRACT_ALL", "REGEXP_FULL_MATCH", "REGEXP_REPLACE", "REM", "REPEAT_STR",
-            "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP", "RPAD", "RTRIM",
+            "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP",
+            // ROUND_RAW (2026-11-26, the edition program's step 5): the database's own ROUND, written by the lowering's
+            // named rule for it (DecimalKindRules.roundAsGiven, which a door's table names) -- product code alone
+            // writes it, so PRODUCT, by the user's standing rule of 2026-11-23 (dated here and reported)
+            "ROUND_RAW",
+            // DECIMAL_RAW (2026-11-26, step 5): the database's own DECIMAL with no precision written, written by the
+            // lowering's named rule for toDecimal (NamedRules, which a door's table names) -- product code alone
+            // writes it: PRODUCT, by the same standing rule
+            "DECIMAL_RAW", "RPAD", "RTRIM",
             "SAME_IN_ANY_ORDER", "SAME_IN_ORDER", "SHA1",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
             "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",
@@ -166,6 +190,10 @@ class SqlFnSortedTest {
     // lowering.LiteVerdictWords deleted with the database judge's sentence rows -- out of AND, COALESCE, CONCAT,
     // DATETIME_TO_TEXT, EQUAL, FLOAT_SHORTEST_TEXT, GREATER, LENGTH, LOWER, MINUS, REPLACE, STRPOS, SUBSTRING; and
     // VerdictSql writes no GREATER_EQUAL, NOT_EQUAL or STRING_AGG now)
+    // (2026-11-25, stage B's B2b S5a, measured by the full round: lowering.ProductRelationText joins the product's writers
+    // of COALESCE, GREATER, IS_NULL, OR, REPLACE and STRPOS (and of the aggregate STRING_AGG, BOTH_AGG) -- a relation's
+    // toString is lite's own text, computed by the database, the user's rulings of 2026-11-19 ~18:05 and ~18:36 and the
+    // orchestrator's go of 2026-11-24: the direct, measured cost of the ruled change, done and reported)
     static final Map<String, Set<String>> BOTH_WRITERS = Map.ofEntries(
             // the product's lowering and the edge's compositions (upstream's texts, its plans, its renderings) each
             // build calls of these, each with its product writers' top classes (the review of f788dd3230: names alone
@@ -182,7 +210,12 @@ class SqlFnSortedTest {
             // tolerance is the edge's own REGEXP_REPLACE, EdgeLoweringForms; the product's writers keep theirs)
             // AND: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
+            // AND: + sql.dialect.CorrelatedFiltersAsJoins (2026-11-26, the edition program's step 1, the user's ruling of
+            // 2026-11-25 on H2's lateral): the conjuncts a lateral's filter is split into are joined again by AND, for
+            // the join's ON and for what stays inside -- a shape rearranged, nothing computed
             Map.entry("AND", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
+                    "com.legend.sql.dialect.CorrelatedFiltersAsJoins",
                     "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.sql.ExistsJoins",
@@ -200,7 +233,15 @@ class SqlFnSortedTest {
             Map.entry("CELL_TEXT", Set.of(
                     "com.legend.lowering.Coercions", "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.CellTexts")),
+            // COALESCE and CONCAT: + lowering.Equalities (2026-11-27, the edition program's step 6, the user's "4 agreed"): a
+            // comparison of two types that can never be equal still evaluates both its sides, so a side that raises still
+            // raises as Pure says (Equalities.neverEqualButEvaluated: each side's text behind a different letter, compared)
             Map.entry("COALESCE", Set.of(
+                    // 2026-11-28, step 6B's slice 6: a side's folded list as the empty list where it has no row, beside
+                    // a side bound as its one value (SideEqualities.boundOnce)
+                    "com.legend.lowering.SideEqualities",
+                    "com.legend.lowering.Equalities",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     // (lowering.LiteVerdictWords, census J29's lite verdict sentences: gone 2026-11-22, item 3's S4 step 4)
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.Dedup", "com.legend.lowering.GraphAggDecorrelate",
@@ -212,6 +253,8 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CheckedDefectsToLists", "com.legend.sql.dialect.FoldToListReduce",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("CONCAT", Set.of(
+                    "com.legend.lowering.Equalities",   // 2026-11-27, step 6: see COALESCE above
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.LiteralSpelling",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.Pivots", "com.legend.lowering.RegexpRules",
@@ -224,12 +267,20 @@ class SqlFnSortedTest {
             Map.entry("DATETIME_TO_TEXT", Set.of(
                     "com.legend.lowering.Styled",
                     "com.legend.sql.dialect.DateTimeText", "com.legend.testdatagen.LitePrinting")),
-            Map.entry("ENDS_WITH", Set.of(
-                    "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.FloatShortestText")),
+            // (ENDS_WITH: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product until the user's ruling of 2026-11-25, S405, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
             // EQUAL: + sql.dialect.SameValuesForm (2026-11-22, item 3's S4, by the user's word that day ("Yes on list compare",
             // then "Yes, add it"): the portable form of two sides' values the same, moved from VerdictSql into the dialect)
+            // + lowering.NamedRules (2026-11-26, the edition program's step 5): the rule a door's table names for a text
+            // with no cased letter, lower(s) = upper(s), moved from the edge's forms into the lowering's named rules
+            // + lowering.Equalities (2026-11-27, the edition program's step 6, slice 6.4a): the product's == has one owner; the
+            // rule's body and the null-safe decision moved there from Scalars and NullSemantics as they stood (no SQL changes)
             Map.entry("EQUAL", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
+                    "com.legend.lowering.Equalities",
+                    "com.legend.lowering.NamedRules",
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5b: the CSV's empty String (S420)
                     "com.legend.sql.dialect.SameValuesForm",
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
@@ -256,6 +307,8 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.FloatShortestText")),
             Map.entry("FLOAT_TO_TEXT", Set.of("com.legend.lowering.LiteralSpelling")),
             Map.entry("GREATER", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CalendarAgg", "com.legend.lowering.CanonicalRenderSql",
                     "com.legend.lowering.CollectionLanes", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.DateShifts", "com.legend.lowering.Dedup", "com.legend.lowering.KeyedCounts",
@@ -273,10 +326,16 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated", "com.legend.testdatagen.TestDataPlanner")),
+            // IN: + lowering.TaggedLists (2026-11-26, the edition program's step 6.1, measured by the full run): a value's
+            // membership in a list WRITTEN in the query is a plain IN over the elements of the value's own type, with no
+            // list built in the SQL (the user's rulings of that day, "Yes apply fold rule" and "Whole numbers fine": the
+            // compiler compares only Strings, Booleans, enumeration values and whole numbers, so the rest is the
+            // database's IN) -- the direct cost of the ruled change, a product writer added, nothing moved to the edge
             Map.entry("IN", Set.of(
-                    "com.legend.lowering.CalendarAgg", "com.legend.lowering.Scalars",
+                    "com.legend.lowering.CalendarAgg", "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.sql.EnumValueTables", "com.legend.sql.dialect.FloatShortestText")),
             Map.entry("IS_NOT_NULL", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.CheckedEnvelope", "com.legend.lowering.CollectionLanes",
                     "com.legend.sql.ExistsJoins", "com.legend.lowering.Fold",
                     "com.legend.lowering.KeyedPivot", "com.legend.lowering.NullSemantics",
@@ -284,7 +343,12 @@ class SqlFnSortedTest {
                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VariantShapes",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.LateralExplodeToUnion", "com.legend.testdatagen.TestDataPlanner")),
+            // IS_NULL: + lowering.Equalities (2026-11-27, the edition program's step 6): a literal [] against a value that
+            // is no list is the other side's null check, moved with the == rule from Scalars as it stood
             Map.entry("IS_NULL", Set.of(
+                    "com.legend.lowering.Equalities",
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CheckedEnvelope",
                     "com.legend.lowering.Coercions", "com.legend.lowering.CollectionLanes",
                     "com.legend.sql.ExistsJoins", "com.legend.lowering.Fold",
@@ -295,11 +359,9 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
                     "com.legend.sql.dialect.FrameGuard", "com.legend.sql.dialect.LateralExplodeToUnion",
                     "com.legend.testdatagen.LitePrinting", "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("LENGTH", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.SnapshotEnvelope", "com.legend.lowering.VerdictSql",
-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
-                    "com.legend.testdatagen.TestDataPlanner")),
+            // (LENGTH: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product until the user's ruling of 2026-11-25, S405, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
             Map.entry("LESS", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.KeyedCounts",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
@@ -323,26 +385,17 @@ class SqlFnSortedTest {
                     "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.CheckedDefectsToLists",
                     "com.legend.sql.dialect.CommonSubexpressions", "com.legend.sql.dialect.FoldToListReduce")),
-            // LOWER and UPPER join 2026-11-18 on d-int11 18208beaa6 (J20, 222d136808, train 11): legend-engine's H2
-            // isNumeric, lower(x) = upper(x), is the edge's (EdgeLoweringForms); the product's writers keep theirs
-            Map.entry("LOWER", Set.of(
-                    "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.FloatShortestText", "com.legend.testdatagen.TestDataPlanner")),
+            // (LOWER and UPPER: both sides' no more, 2026-11-26, a shrink -- the edition program's step 5: legend-engine's
+            // isNumeric, lower(x) = upper(x), is a rule the lowering holds, lowering.NamedRules, which the door's table
+            // names; the edge's forms, which wrote the two since J20, 2026-11-18, write neither)
             Map.entry("LPAD", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
                     "com.legend.lowering.SnapshotEnvelope", "com.legend.sql.dialect.StringCountsAsInt")),
-            Map.entry("MINUS", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.CalendarAgg",
-                    "com.legend.lowering.Comparators", "com.legend.lowering.DateShifts",
-                    "com.legend.lowering.FeatureRules", "com.legend.lowering.InstanceEquality",
-                    "com.legend.lowering.ListEncodings",
-                    "com.legend.lowering.Lowerer", "com.legend.lowering.MixedEncoding",
-                    "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
-                    "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CheckedDefectsToLists",
-                    "com.legend.sql.dialect.QuantileOrder", "com.legend.sql.dialect.WindowAggregatesAsCorrelated",
-                    "com.legend.testdatagen.TestDataPlanner")),
+            // (MINUS: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product until the user's ruling of 2026-11-25, S405, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
             Map.entry("NOT", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.CheckedEnvelope", "com.legend.sql.ExistsJoins",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.NullSemantics",
                     "com.legend.lowering.RelationPredicates", "com.legend.lowering.Scalars",
@@ -358,6 +411,8 @@ class SqlFnSortedTest {
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars", "com.legend.sql.EnumValueTables",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("OR", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.EnumSourceValues", "com.legend.lowering.MixedEncoding",
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars",
@@ -365,15 +420,18 @@ class SqlFnSortedTest {
                     "com.legend.sql.DecodeShapes", "com.legend.sql.dialect.AsOfAsPick",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FrameGuard",
                     "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("PARSE_INT", Set.of("com.legend.lowering.Scalars")),
+            // (PARSE_INT: both sides' no more, 2026-11-26, a shrink -- the edition program's step 5: the edge's pass that
+            // read it to write the plain cast, PurePrintForms' UnguardedParses, is deleted; the plain parses are rows of
+            // legend-engine's door's table, written by lowering.NamedRules as CAST_INT)
             Map.entry("REGEXP_REPLACE", Set.of(
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.LetBinding",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CommonSubexpressions")),
-            Map.entry("REPLACE", Set.of(
+            Map.entry("REPLACE", Set.of(   // 2026-11-27, step 6: lowering.VerdictSql left this list (its comparison layer moved to SideEqualities)
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.LiteralSpelling",
-                    "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
-                    "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("RTRIM", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.LiteralSpelling",
@@ -382,23 +440,19 @@ class SqlFnSortedTest {
             Map.entry("STRFTIME", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.DateShifts", "com.legend.lowering.Fold",
                     "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
-                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText")),
-            Map.entry("STRPOS", Set.of(
-                    "com.legend.lowering.CanonicalRenderSql",
-                    "com.legend.lowering.LiteralSpelling", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.FloatShortestText",
-                    "com.legend.testdatagen.TestDataPlanner")),
-            Map.entry("SUBSTRING", Set.of(
-                    "com.legend.lowering.AsorReaders", "com.legend.lowering.FeatureRules", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
-                    "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.StringCountsAsInt",
-                    "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")),
+                    "com.legend.sql.dialect.DateTimeCanonText", "com.legend.sql.dialect.DateTimeText"))
+            // (STRPOS: both sides' no more, 2026-11-25, a shrink -- edge.RelationTextLowering, which wrote it,
+            // went with stage B's B2b S5c (a TDS's csv refused by name in the product until the user's ruling of 2026-11-25, S405, a last step's printed by the doors' Java
+            // printer); the product's writers keep theirs)
+            // (SUBSTRING: both sides' no more, 2026-11-25, a shrink -- the edge's toString SQL that wrote it went with
+            // stage B's B2b S5a, edge.RelationTextLowering's tdsCell and dateTimeTextTds; the product's writers keep theirs)
             // (DIVIDE, FLOOR, GREATEST, LN, POW and TIMES: both sides' no more -- compiled legend-pure's 2-ULP Float
             // tolerance, the edge's CompiledPureVerdictNumbers, left the database judge with its kind, VerdictNumbers,
             // in A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the user's
             // ruling of 2026-11-19 ~20:45 ("Approved to move guards down"): the host judge is the only judge in
             // compatibility, so the edge writes none of them; the product's writers keep their own)
-            // (J20, as LOWER's note)
-            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")));
+            // (UPPER: as LOWER's note above, gone 2026-11-26)
+            );
 
     /** The functions both sides write, as {@code writers} has them, each with its product writers' top classes. */
     static Map<String, Set<String>> bothProduct(Map<String, Set<String>> writers, Collection<String> names) {
@@ -669,6 +723,7 @@ class SqlFnSortedTest {
             // compare", then "Yes, add both entries"): the portable form of two sides' values the same, moved from
             // VerdictSql into the dialect, which owns it)
             Map.entry("COUNT", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.Aggregates", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.GraphAggDecorrelate", "com.legend.lowering.HostSideBatch",
                     "com.legend.lowering.KeyedCounts", "com.legend.lowering.KeyedPivot",
@@ -679,19 +734,23 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
                     "com.legend.sql.dialect.SameValuesForm", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("MIN", Set.of(
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.Aggregates", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.VerdictSql", "com.legend.planner.DataSources",
+                    // (lowering.VerdictSql: gone 2026-11-28, a shrink -- a side's one value is read by SideEqualities.single)
+                    "com.legend.planner.DataSources",
                     "com.legend.sql.dialect.AsOfAsPick", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.ExplosionMarkers")),
             // LIST: + VerdictSql (2026-11-22, item 3's S4 step 2, by the user's word, "Yes, add it": the database
             // judge's typed members carry each side's failing values as a typed LIST, decoded by exec, where they
             // carried a sentence's STRING_AGG; VerdictSql leaves STRING_AGG with step 4's deletion of the sentence SQL)
-            Map.entry("LIST", Set.of(
+            Map.entry("LIST", Set.of(   // 2026-11-27, step 6: lowering.VerdictSql left this list (its comparison layer moved to SideEqualities)
+                    "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars", "com.legend.lowering.StampCensus",
-                    "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql", "com.legend.sql.SqlExpr",
+                    "com.legend.lowering.ValueCollections", "com.legend.sql.SqlExpr",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated")),
             Map.entry("STRING_AGG", Set.of(
+                    "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     "com.legend.lowering.Aggregates", "com.legend.lowering.Fold", "com.legend.lowering.Lowerer",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.ValueCollections",

@@ -13,8 +13,10 @@ import java.util.List;
  * Lite's own CSV answer, written at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R3, R4; 2026-10-27), RFC 4180:
  * a header of the columns' names as legend-engine labels them, then each row, every line ended by CRLF (a result of no
  * row is its header alone); a cell is its value in Pure's text ({@link CellText#pure}), quoted when it holds a comma,
- * a quote, a line feed or a carriage return (a quote doubled), and a null is empty. A graph fetch's objects have no
- * CSV, refused by name.
+ * a quote, a line feed or a carriage return (a quote doubled), and a null is empty. An empty String is {@code ""}, so
+ * it is never read as the null (the user's ruling of 2026-11-25, "For csv we can do empty cell for null and "" or ''
+ * empty string"; register S420; Postgres COPY's and DuckDB's CSV convention). A graph fetch's objects have no CSV,
+ * refused by name.
  */
 public final class CsvWriter implements ResultSink {
 
@@ -62,9 +64,10 @@ public final class CsvWriter implements ResultSink {
     }
 
     /** RFC 4180's escape: quoted when the text holds a comma, a quote, a line feed or a carriage return, each quote
-     *  doubled; else as it is. */
+     *  doubled, or when it is empty (an empty String {@code ""}, never the null's empty field; only a String's text is
+     *  ever empty); else as it is. */
     static String escape(String s) {
-        if (s.indexOf(',') < 0 && s.indexOf('"') < 0 && s.indexOf('\n') < 0 && s.indexOf('\r') < 0) {
+        if (!s.isEmpty() && s.indexOf(',') < 0 && s.indexOf('"') < 0 && s.indexOf('\n') < 0 && s.indexOf('\r') < 0) {
             return s;
         }
         return '"' + s.replace("\"", "\"\"") + '"';

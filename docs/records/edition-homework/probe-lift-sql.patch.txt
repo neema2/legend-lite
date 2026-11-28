@@ -1,0 +1,74 @@
+diff --git a/core/src/main/java/com/legend/edge/UpstreamPrints.java b/core/src/main/java/com/legend/edge/UpstreamPrints.java
+index c7e878f1..48ec811e 100644
+--- a/core/src/main/java/com/legend/edge/UpstreamPrints.java
++++ b/core/src/main/java/com/legend/edge/UpstreamPrints.java
+@@ -73,7 +73,7 @@ public final class UpstreamPrints {
+     }
+ 
+     /** {@link #read(com.legend.TypedQuery, Reads)} with {@code printer}. */
+-    static com.legend.TypedQuery read(com.legend.TypedQuery typed, boolean writes, Reads reads,
++    public static com.legend.TypedQuery read(com.legend.TypedQuery typed, boolean writes, Reads reads,
+             Printer printer) {
+         List<TypedSpec> body = typed.body();
+         if (writes || !anyPrinted(body)) {
+diff --git a/spec/src/test/java/com/legend/rcorpus/LeanSqlCorpusTest.java b/spec/src/test/java/com/legend/rcorpus/LeanSqlCorpusTest.java
+index e255f8d6..6ec9124c 100644
+--- a/spec/src/test/java/com/legend/rcorpus/LeanSqlCorpusTest.java
++++ b/spec/src/test/java/com/legend/rcorpus/LeanSqlCorpusTest.java
+@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
+  */
+ @Tag("heavy")
+ class LeanSqlCorpusTest {
++    private static final int[] DUMPED = new int[1];
+ 
+     /** The pins' file in the source tree. */
+     static final String PINS = "spec/src/test/resources/rcorpus/lean-sql-baseline.tsv";
+@@ -61,6 +62,48 @@ class LeanSqlCorpusTest {
+                 TestPlan plan = com.legend.TestExecution.planBody(com.legend.edge.UpstreamTestBodies.admitted(
+                         Compiler.queryResolved(corpus.context(), resolved)), MinimalCorpus.RUNTIME, options);
+                 steps(plan.steps(), productSql, productNodes);
++                try {
++                    com.legend.TypedQuery admitted = com.legend.edge.UpstreamTestBodies.admitted(
++                            Compiler.queryResolved(corpus.context(), resolved));
++                    List<List<String>> reads = new ArrayList<>();
++                    com.legend.TypedQuery lifted = com.legend.edge.UpstreamPrints.read(admitted,
++                            com.legend.TestExecution.facts(admitted).effects(), (q, out) -> { },
++                            (side, read, rs) -> {
++                                List<String> s = new ArrayList<>();
++                                steps(com.legend.TestExecution.planBody(read, MinimalCorpus.RUNTIME, options).steps(), s,
++                                        new ArrayList<>());
++                                reads.add(s);
++                                return "probe";
++                            });
++                    List<String> body = new ArrayList<>();
++                    steps(com.legend.TestExecution.planBody(lifted, MinimalCorpus.RUNTIME, options).steps(), body,
++                            new ArrayList<>());
++                    java.util.Set<String> seen = new java.util.HashSet<>();
++                    int readStatements = 0;
++                    int dupStatements = 0;
++                    int inBody = 0;
++                    java.util.Set<String> bodySet = new java.util.HashSet<>(body);
++                    for (List<String> r : reads) {
++                        for (String st : r) {
++                            readStatements++;
++                            if (!seen.add(st)) {
++                                dupStatements++;
++                            } else if (bodySet.contains(st)) {
++                                inBody++;
++                            }
++                        }
++                    }
++                    if (family.equals("meta::relational::tests::mapping::relation") && readStatements - dupStatements - inBody > 0 && DUMPED[0]++ < 2) {
++                        System.out.println("LIFT-DUMP " + t.fqn());
++                        body.forEach(st -> System.out.println("  BODY " + st));
++                        reads.forEach(r -> r.forEach(st -> System.out.println("  READ " + st)));
++                    }
++                    System.out.println("LIFT\t" + family + "\t" + t.fqn() + "\t" + productSql.size() + "\t"
++                            + body.size() + "\t" + reads.size() + "\t" + readStatements + "\t" + dupStatements + "\t"
++                            + inBody);
++                } catch (RuntimeException probe) {
++                    System.out.println("LIFT-REFUSED\t" + family + "\t" + t.fqn() + "\t" + probe.getClass().getSimpleName());
++                }
+             } catch (RuntimeException e) {
+                 if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {
+                     throw e;

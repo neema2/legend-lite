@@ -421,6 +421,13 @@ class MongoDbPlanTest {
                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
             spelled.put("Pure's print of 1.5e-8", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT,
                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
+            // toCSV's Float cell (SqlFn.FLOAT_FULL_TEXT, 2026-11-25; the slice's review): the pipeline's own $toString,
+            // which must read back as the very double
+            double[] full = {1e20, 1.5e-8, 2.0, 0.30000000000000004, 123456789.12345679, -0.04999999999999999, 1e-300};
+            for (double d : full) {
+                spelled.put("full text of " + d, com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_FULL_TEXT,
+                        new com.legend.sql.SqlExpr.FloatLit(d)));
+            }
             Map<String, Object> got = new java.util.LinkedHashMap<>();
             for (var e : spelled.entrySet()) {
                 com.legend.sql.SqlSelect select = new com.legend.sql.SqlSelect(List.of(
@@ -438,8 +445,13 @@ class MongoDbPlanTest {
                 System.out.println("[mongodb-number-text] spelled " + e.getKey() + " -> " + r);
             }
             assertEquals("2.0", got.get("text of 2.0"));
-            assertEquals("100000000000000000000", got.get("the product's text of 1e20"));
-            assertEquals("0", got.get("the product's text of 1.5e-8"));
+            for (double d : full) {
+                assertEquals(d, Double.parseDouble(String.valueOf(got.get("full text of " + d))), "full text of " + d);
+            }
+            // a whole value keeps one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it
+            // as 2.0"; B2a, 2026-11-24)
+            assertEquals("100000000000000000000.0", got.get("the product's text of 1e20"));
+            assertEquals("0.0", got.get("the product's text of 1.5e-8"));
             assertEquals("100000000000000000000.0", got.get("Pure's print of 1e20"));
             assertEquals("0.000000015", got.get("Pure's print of 1.5e-8"));
         }

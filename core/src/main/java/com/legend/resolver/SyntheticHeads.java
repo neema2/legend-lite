@@ -1647,7 +1647,8 @@ final class SyntheticHeads {
                 TypedSpec rewrapped = un == paw.source() ? canon
                         : new TypedNativeCall(
                                 ((TypedNativeCall) paw.source()).callee(),
-                                List.of(canon), paw.source().info());
+                                List.of(canon), paw.source().info(), null,
+                                ((TypedNativeCall) paw.source()).outsideStore());
                 return new TypedPropertyAccess(rewrapped,
                         paw.property(), paw.info());
             }
@@ -1856,6 +1857,9 @@ final class SyntheticHeads {
                     new TypedCast(
                             f.apply(c.source()), c.target(), c.info(),
                             c.wire());
+            // (a comparison kept for its call, answered there: its sides are read as its call's are -- the
+            // substitution carries the record since step 6B's slice 3, so this walk must see inside it too)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison kept -> kept.mapChildren(f::apply);
             default -> n;
         };
     }

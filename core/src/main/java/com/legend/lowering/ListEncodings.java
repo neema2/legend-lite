@@ -111,6 +111,17 @@ final class ListEncodings {
             return new SqlExpr.NullLit();
         }
         SqlExpr mSrc = lw.scalar(m.source(), columns);
+        // A FUNCTION IS NOT APPLIED TO AN EMPTY SLOT (step 6B, slice 5): a list built by a map whose function may
+        // answer nothing holds a NULL slot for each element it answered nothing for, which is no element of the Pure
+        // list -- so a map OVER such a list reads it with those slots dropped. Until then
+        // [1, 2]->map(x | if($x == 1, |1, |[]))->map(y | 7) answered [7, 7]. Only where the query's text shows the
+        // source builds such slots: any other list is read as it is, and no statement that has no such source
+        // grows (compacting every mapped list where it is built added a filter to statements that never read the
+        // slots: the SQL size pins, the slice's first round).
+        if (CollectionLanes.buildsEmptySlots(m.source()) && !(mSrc instanceof SqlExpr.CompactList)
+                && !(mSrc instanceof SqlExpr.TaggedList)) {
+            mSrc = new SqlExpr.CompactList(mSrc);
+        }
         // requireBounded: a VAR stamp surviving to lowering stays LOUD
         // (the Lowerer.isMany contract this call replaced)
         boolean mToOne = !mult.requireBounded("lowering").isMany();
@@ -255,18 +266,21 @@ final class ListEncodings {
      * inclusive array_slice; NEGATIVE bounds clamp to the list head
      * (PCT — DuckDB reads a negative bound FROM THE END), and inverted
      * bounds RAISE real pure's message, in the database. */
-    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop, LoweringForms forms) {
+    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop, EditionTable edition) {
         SqlExpr lo = clamp0(start);
         SqlExpr hi = clamp0(stop);
         SqlExpr sliced = SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                 onePlus(lo), hi);
-        // the style's form (the audit's K5, 2026-11-17): the product's guard, or the database's own slice of inverted
-        // bounds where the style writes it plain (B7)
-        return forms.raise(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, () -> new SqlExpr.Case(List.of(
+        // the product's guard, or the database's own slice of inverted bounds where the door's table writes no check
+        // for it (EditionTable.checks; B7). A slice is its own node, no call: it carries no stamp
+        if (!edition.checks(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, null)) {
+            return sliced;
+        }
+        return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
                 SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, List.of(lo, hi))))),
-                sliced, SqlExpr.Reason.CARRIER), sliced);
+                sliced, SqlExpr.Reason.CARRIER);
     }
 
     /**

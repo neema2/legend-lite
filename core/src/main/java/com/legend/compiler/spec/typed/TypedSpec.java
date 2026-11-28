@@ -76,7 +76,8 @@ public sealed interface TypedSpec permits
         TypedTableReference,
         TypedNewInstance,
         TypedCopyInstance,
-        TypedRelationOp
+        TypedRelationOp,
+        TypedCrossTypeComparison, TypedRunTimeComparison
         {
 
     /** This node's resolved type and multiplicity. */

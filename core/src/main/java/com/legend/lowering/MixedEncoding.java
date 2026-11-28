@@ -41,9 +41,8 @@ final class MixedEncoding {
             return guardedRanks(new SqlExpr.ArrayLit(vals), computedIntegers);
         }
 
-        /** The selection: the candidate at the FIRST position of {@code winner} in the comparables (Pure's max and
-         *  min keep the first of equal elements), carried as a tagged value with the winner on the comparable
-         *  channel. */
+        /** The selection: the candidate at the FIRST position of {@code winner} in the comparables, carried as a
+         *  tagged value with the winner on the comparable channel. */
         SqlExpr tagged(SqlExpr winner) {
             return taggedAt(SqlExpr.Call.of(SqlFn.LIST_POSITION, valList(), winner), winner);
         }
@@ -53,6 +52,59 @@ final class MixedEncoding {
         SqlExpr taggedAt(SqlExpr position, SqlExpr winner) {
             return new SqlExpr.Tagged(position, winner, candidates);
         }
+
+        /**
+         * The selection where several elements hold the winning value: the one {@code pick} names. The elements are
+         * written in the query, so which is FIRST in a search is a matter of the order they are searched in, and that
+         * order is fixed when the query is planned by facts the types state (an element's type, its place in the
+         * list): the comparables and the candidates are written in that order and the first position of the winner
+         * is taken, with no SQL added. Where the order is the written one the SQL is {@link #tagged(SqlExpr)}'s.
+         */
+        SqlExpr tagged(SqlExpr winner, TiePick pick) {
+            List<Integer> order = new ArrayList<>(vals.size());
+            for (int i = 0; i < vals.size(); i++) {
+                order.add(i);
+            }
+            switch (pick) {
+                case FIRST_WRITTEN -> { }
+                case LAST_WRITTEN -> java.util.Collections.reverse(order);
+                case LEAST_TYPE -> order.sort(java.util.Comparator.comparingInt(i -> typePlace(candidates.get(i))));
+                case GREATEST_TYPE -> order.sort(java.util.Comparator.comparingInt(i -> -typePlace(candidates.get(i))));
+            }
+            List<SqlExpr> searched = new ArrayList<>(vals.size());
+            List<SqlExpr.Tagged.Candidate> picked = new ArrayList<>(vals.size());
+            for (int i : order) {
+                searched.add(vals.get(i));
+                picked.add(candidates.get(i));
+            }
+            return new MixedElems(searched, picked, computedIntegers).tagged(winner);
+        }
+
+        /** A candidate's place among equal values of different types: a number's by its family (an exact number,
+         *  then a Float); any other kind 0, so its elements keep the written order (a stable sort). */
+        private static int typePlace(SqlExpr.Tagged.Candidate candidate) {
+            return Math.max(0, numberTypePlace(candidate.kind()));
+        }
+    }
+
+    /** Which element a selection keeps where several hold the winning value ({@link MixedElems#tagged(SqlExpr,
+     *  TiePick)}): lite's own rule is by the order of types ({@link #LEAST_TYPE} for a least element, {@link
+     *  #GREATEST_TYPE} for a greatest: among equal numbers an exact one, then a Float; the first written of two exact ones); legend-pure's and legend-engine's
+     *  is by the fold their {@code max} and {@code min} are written as (run on all three upstream runtimes,
+     *  2026-11-26, docs/records/edition-homework/upstream-step6/answers.md): over a LIST the later element of a tie
+     *  ({@link #LAST_WRITTEN}), of TWO ARGUMENTS the left one ({@link #FIRST_WRITTEN}). */
+    enum TiePick { FIRST_WRITTEN, LAST_WRITTEN, LEAST_TYPE, GREATEST_TYPE }
+
+    /** A number kind's place among equal magnitudes: an exact number (an Integer, a Decimal) before a Float -- an
+     *  Integer and a Decimal of one value are EQUAL, so they share a place and keep the order they were written in
+     *  (the user's ruling of 2026-11-27; until then Integer, Float, Decimal, three types never equal); -1 for a kind
+     *  that is no number. */
+    static int numberTypePlace(String kind) {
+        return switch (family(kind)) {
+            case "Integer", "Decimal" -> 0;
+            case "Float" -> 1;
+            default -> -1;
+        };
     }
 
     /** The written subsecond digits a kind {@code DateTime(n)} carries; null for every other kind. */
@@ -328,10 +380,14 @@ final class MixedEncoding {
         } else {
             return null;
         }
-        // a date's precision, its tie-break after the instant (O2's D1, 2026-11-13): legend-pure's
-        // DateFunctions.compare compares component by component, and where one date lacks the other's finer
-        // component they are ordered coarser FIRST -- %2025-02-10 before %2025-02-10T00:00:00, which share an instant
-        SqlExpr p = group == 1 ? new SqlExpr.IntLit(precisionOf(t, e).ordinal()) : new SqlExpr.NullLit();
+        // a date's TYPE, its tie-break after the instant (O2's D1, 2026-11-13): a year, a year and month, a day and a
+        // date-time are four types, and where two of them share an instant the coarser is ordered FIRST --
+        // %2025-02-10 before %2025-02-10T00:00:00 (legend-pure's DateFunctions.compare, component by component). A
+        // date-time is ONE type whatever precision it was written at (the equality rule, register S399; the edition
+        // program's step 6, slice 6.1, 2026-11-26): two date-times at one instant are equal, so they tie here and
+        // keep the list's own order (until then the written precision ordered them, an hour before a second)
+        SqlExpr p = group == 1 ? new SqlExpr.IntLit(Math.min(precisionOf(t, e).ordinal(),
+                PureDateLiteral.Precision.HOUR.ordinal())) : new SqlExpr.NullLit();
         return new SqlExpr.StructLit(List.of(
                 new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
                 new SqlExpr.StructLit.Field("n", n != null ? n : new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE),
@@ -379,17 +435,32 @@ final class MixedEncoding {
         }
     }
 
-    /** The channel of a tagged list that holds a value of {@code kind} (a needle's static kind), else -1: a kind
-     *  with no channel is a member of nothing in the list (a {@code DateTime(n)} is its own kind: Pure's date
-     *  equality reads the subsecond text, the L1 audit's finding 2). */
-    static int channelOf(SqlExpr.TaggedList tl, String kind) {
+    /** The FAMILY a kind's values are equal within (the equality rule: within one type, the value, not its
+     *  spelling): a date-time at any written precision is a DateTime, equal by its instant (register S399); every
+     *  other kind is its own -- a Decimal's kind names no scale, so Decimals of two scales are one family already,
+     *  equal by their number (S139). The written digits stay the kind's for the value's PRESENTATION alone (the
+     *  result decoder reads them); no comparison reads them (the edition program's step 6, slice 6.1, 2026-11-26). */
+    static String family(String kind) {
+        return writtenDigits(kind) != null ? "DateTime" : kind;
+    }
+
+    /** Whether {@code kind} is an exact number's: an Integer's or a Decimal's. */
+    static boolean exactNumber(String kind) {
+        String family = family(kind);
+        return family.equals("Integer") || family.equals("Decimal");
+    }
+
+    /** The channels of a tagged list that hold values of {@code kind}'s family (a needle's static kind), in channel
+     *  order: a family with no channel is a member of nothing in the list. Several where the list holds Decimals at
+     *  two scales or date-times at two written precisions (one channel per slot). */
+    static List<Integer> channelsOf(SqlExpr.TaggedList tl, String kind, NumberFamilies numbers) {
+        List<Integer> out = new ArrayList<>();
         for (int k = 0; k < tl.channels().size(); k++) {
-            String ck = tl.channels().get(k).kind();
-            if (ck.equals(kind)) {
-                return k;
+            if (numbers.canEqual(tl.channels().get(k).kind(), kind)) {
+                out.add(k);
             }
         }
-        return -1;
+        return out;
     }
 
     /** The tagged kind of a needle's static type: the name a tagged list's channel carries, or null for a type no
@@ -432,6 +503,111 @@ final class MixedEncoding {
                     && !(cd.value() instanceof PureDateLiteral.DateWithSubsecond) ? "Date" : null;
         }
         return enumerationOf(t);
+    }
+
+    /**
+     * The kind of a value compared with a tagged value or list, where its static type may name none: its static kind
+     * ({@link #kindOf}); the kind of what an UPCAST asserts over (a widening cast is the value as it is,
+     * {@code CastPolicy}: {@code 1->cast(@Number)} is the Integer); and, for a value typed Number, Any or the abstract
+     * Date that is a relation's COLUMN, the kind the column's own SQL type names -- a column holds one type, so the
+     * column fixes it (the user's ruling of 2026-11-25, "runtime compare is fine": a value typed only at run time
+     * whose column fixes its type is compared by the column's type; slice 6.2 of the edition program's step 6).
+     * Null for any other shape of such a type (a CASE, a COALESCE, arithmetic, a parameter): there the SQL type is a
+     * PROMOTION of the branches' types or unknown, never the value's own, and the caller refuses by name.
+     */
+    static @com.legend.base.Nullable String kindOfValue(TypedSpec spec, SqlExpr value) {
+        String fixed = kindOf(spec);
+        if (fixed != null) {
+            return fixed;
+        }
+        Type t = spec.info().type();
+        boolean open = t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
+                || t instanceof Type.ClassType ct && PlatformTypes.isAny(ct);
+        if (!open) {
+            return null;
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
+                && c.target().equals(t) && (CastPolicy.isWidening(c.source().info().type(), t)
+                        || t instanceof Type.ClassType)) {
+            return kindOfValue(c.source(), value);
+        }
+        if (value instanceof SqlExpr.Column column && column.type() instanceof com.legend.sql.TypeFact.Typed typed) {
+            return kindName(Type.kindOfSqlType(typed.type()));
+        }
+        return null;
+    }
+
+    /** The kind of the value {@code spec} holds where the query's own TEXT names it: its static kind
+     *  ({@link #kindOf}); under an UPCAST to {@code Number}, {@code Any} or the abstract {@code Date}, the kind of
+     *  what the upcast is written over ({@code 1->cast(@Number)} is the Integer, {@code [1D]->cast(@Number)} holds
+     *  Decimals); through what keeps or reorders the values it is given ({@code filter}, {@code sort}, a
+     *  deduplication, {@code take}, {@code drop}, {@code slice}); and through {@code toOne}, {@code first},
+     *  {@code last}, {@code at} and {@code head}, which answer one of its values. Null for anything else of such a
+     *  type -- a column (its type is its column's: {@link #kindOfValue}), a conditional, arithmetic, a parameter:
+     *  the SQL type there is a promotion of several kinds or unknown, never the value's own, and no caller reads it
+     *  as one (review 5 of step 6B's slice 3, blocker 1). */
+    static @com.legend.base.Nullable String kindThroughUpcasts(TypedSpec spec) {
+        String fixed = kindOf(spec);
+        if (fixed != null) {
+            return fixed;
+        }
+        Type t = spec.info().type();
+        boolean open = t == Type.Primitive.NUMBER || t == Type.Primitive.DATE
+                || t instanceof Type.ClassType ct && PlatformTypes.isAny(ct);
+        if (!open) {
+            return null;
+        }
+        // (what keeps, reorders or picks among the values it is given holds what its source holds: a filter, a sort,
+        // a take, a deduplication, toOne, first, at -- the one list of them is the type-checker's,
+        // EqualityClasses.valuesOf; step 6B, slice 5: read past a sort, [2, 1]->cast(@Number)->sort() against Floats
+        // was the database's own = and answered true)
+        TypedSpec of = com.legend.compiler.spec.typed.HeldValues.valuesOf(spec);
+        if (of != null) {
+            return kindOfElements(of);
+        }
+        return spec instanceof com.legend.compiler.spec.typed.TypedCast c && !c.wire()
+                && c.target().equals(t) && (CastPolicy.isWidening(c.source().info().type(), t)
+                        || t instanceof Type.ClassType) ? kindThroughUpcasts(c.source()) : null;
+    }
+
+    /** The ONE kind the elements of the list {@code list} hold where the query's text names it: the list's own
+     *  ({@link #kindThroughUpcasts}), or, for a list written in the query, the kind every element names, all of one
+     *  family. Null where the text names none, or the elements are of several families (a mixed list: its own
+     *  comparisons). What a membership test reads of its list (step 6B, slice 5). */
+    static @com.legend.base.Nullable String kindOfElements(TypedSpec list) {
+        String whole = kindThroughUpcasts(list);
+        if (whole != null || !(list instanceof com.legend.compiler.spec.typed.TypedCollection written)
+                || written.elements().isEmpty()) {
+            return whole;
+        }
+        String first = kindThroughUpcasts(written.elements().get(0));
+        if (first == null) {
+            return null;
+        }
+        for (TypedSpec element : written.elements()) {
+            String kind = kindThroughUpcasts(element);
+            if (kind == null || !family(kind).equals(family(first))) {
+                return null;
+            }
+        }
+        return first;
+    }
+
+    /** The tagged kind a primitive names, of the seven a channel carries; null for any other. */
+    private static @com.legend.base.Nullable String kindName(@com.legend.base.Nullable Type kind) {
+        if (!(kind instanceof Type.Primitive p)) {
+            return null;
+        }
+        return switch (p) {
+            case INTEGER -> "Integer";
+            case FLOAT -> "Float";
+            case DECIMAL -> "Decimal";
+            case STRING -> "String";
+            case BOOLEAN -> "Boolean";
+            case STRICT_DATE -> "StrictDate";
+            case DATE_TIME -> "DateTime";
+            case BYTE, STRICT_TIME, NUMBER, DATE, LATEST_DATE -> null;
+        };
     }
 
     /** The abstract Enum declaration ({@link #enumerationOf}). */

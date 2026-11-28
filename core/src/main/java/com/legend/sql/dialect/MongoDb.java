@@ -998,6 +998,17 @@ public class MongoDb extends AnsiSqlRenderer {
         return arrayReduction(writer, rc.reducer(), nonNull, rc.extras());
     }
 
+    /** The "same values" instruction: its two-value form in order (step 6B, slice 1: two side values alone) is the
+     *  equality this pipeline wrote for two list values before the slice; its rows form, a verdict over two sides'
+     *  typed rows, is not a pipeline's to judge. */
+    private static SqlWriter sameInOrderElseRefused(SqlWriter writer, SqlExpr.Call c) {
+        if (c.fn() == SqlFn.SAME_IN_ORDER && c.args().size() == 2) {
+            return MongoJson.guardedOp(writer, "$eq", c.args());
+        }
+        throw new com.legend.sql.DialectCapability("a verdict over two sides' typed values (item 3's S4): MongoDB's"
+                + " pipeline judges no assert");
+    }
+
     /** {@code needle} in a collection value: null when the needle is null (SQL's answer); a list parameter is bound
      *  whole, as one array. */
     @Override
@@ -1042,7 +1053,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case GREATER -> MongoJson.guardedOp(writer, "$gt", a);
             case GREATER_EQUAL -> MongoJson.guardedOp(writer, "$gte", a);
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> MongoJson.op(writer, "$ne", a);
-            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> throw new com.legend.sql.DialectCapability("a verdict over two sides' typed values (item 3's S4): MongoDB's pipeline judges no assert");
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameInOrderElseRefused(writer, c);
             case NULL_SAFE_EQUAL -> MongoJson.op(writer, "$eq", a);
             case XOR -> MongoJson.guardedOp(writer, "$ne", a);
             // ---- arithmetic: MongoDB's operators answer null for a null operand already
@@ -1067,6 +1078,7 @@ public class MongoDb extends AnsiSqlRenderer {
             // ---- numbers
             case PARSE_INT -> guardedParse(writer, a.get(0), "^[+-]?[0-9]+$", "{\"$toLong\": " + G0 + "}",
                     com.legend.sql.RaiseKind.TEXT_NOT_INTEGER);
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case SQRT -> writer.append("{\"$sqrt\": ").piece(unfolded(a.get(0))).append("}");
             case CBRT -> cubeRoot(writer, a);
             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));
@@ -1081,6 +1093,9 @@ public class MongoDb extends AnsiSqlRenderer {
             case TAN -> MongoJson.op1(writer, "$tan", a.get(0));
             case ASIN -> domainGuarded(writer, "$asin", a);
             case ACOS -> domainGuarded(writer, "$acos", a);
+            // within the domain by the statement's own guard: the operator alone, over the unfolded operand (below)
+            case ASIN_IN_DOMAIN -> writer.append("{\"$asin\": ").piece(unfolded(a.get(0))).append("}");
+            case ACOS_IN_DOMAIN -> writer.append("{\"$acos\": ").piece(unfolded(a.get(0))).append("}");
             case ATAN -> MongoJson.op1(writer, "$atan", a.get(0));
             case ATAN2 -> MongoJson.op(writer, "$atan2", a);
             case SINH -> MongoJson.op1(writer, "$sinh", a.get(0));
@@ -1094,6 +1109,8 @@ public class MongoDb extends AnsiSqlRenderer {
             case FLOOR_RAW -> MongoJson.op1(writer, "$floor", a.get(0));
             case ROUND -> roundHalfEven(writer, a);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            case ROUND_RAW, DECIMAL_RAW -> throw new DialectCapability("the database's own function as given ("
+                    + c.fn() + "): MongoDB has no SQL function of its own to answer as");
             case SIGN -> sign(writer, a);
             case GREATEST -> MongoJson.op(writer, "$max", a);
             case LEAST -> MongoJson.op(writer, "$min", a);
@@ -1258,6 +1275,9 @@ public class MongoDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+            // a Float's full-precision text: the pipeline's own $toString (1e+20, 2: numberText's javadoc), never
+            // laid out
+            case FLOAT_FULL_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // ---- raising
@@ -1275,7 +1295,8 @@ public class MongoDb extends AnsiSqlRenderer {
     }
 
     /** A literal operand of an operator that raises on its value (a modulus by zero, the root of a negative, a range
-     *  of step zero) read through the row ({@link #UNFOLDED}, its length 0 added): the server's optimizer folds a
+     *  of step zero, an arc cosine or sine outside its domain: 2026-11-26, the lanes on batch A, "cannot apply $acos
+     *  to 2") read through the row ({@link #UNFOLDED}, its length 0 added): the server's optimizer folds a
      *  constant operator and raises while it plans, before the CASE that guards it runs (measured 8.0: "Failed to
      *  optimize pipeline :: caused by :: can't $mod by zero", where the guard's own message was due; 2026-10-20, the
      *  parity phase). Any other operand as it is. */
@@ -2891,27 +2912,35 @@ public class MongoDb extends AnsiSqlRenderer {
     }
 
     /** {@inheritDoc} The value as a Decimal128 rounded to six places, whose text MongoDB writes plain with its six
-     *  decimals, then its trailing zeros and point trimmed ({@code $rtrim}): a double's own {@code $toString} writes an
-     *  exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
+     *  decimals, then its trailing zeros trimmed ({@code $rtrim}), a whole value keeping one ({@code 2.0}): a double's
+     *  own {@code $toString} writes an exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros
-        // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
-        // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
+        // the value rounded to six decimals as a Decimal128, its text. Below 1e34, plain digits: a text with a point is
+        // trimmed of its trailing zeros and then the point, and a text that is then an integer ends '.0', a whole value
+        // keeping one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and 2026-11-23, "2.0");
+        // NaN and the infinities keep their names (the independent audit of 2026-11-24: an unconditional '.0' printed
+        // NaN.0). Decimal128 holds 34 digits, so from 1e28 the rounding keeps fewer than six fraction digits and at
+        // 1e33 none: a text without a point is never trimmed (measured 2026-11-24: the trim had eaten 1e33's zeros,
+        // printing 1). From 1e34 the text is d.dddE+n, so the digits are spelled out -- the mantissa's digits, then n
+        // less its fraction's length of zeros -- never trimmed, then '.0', every such value being whole (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
         writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
         MongoJson.op1(writer, "$toDecimal", x);
         return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
+                + " {\"$let\": {\"vars\": {\"t\": {\"$cond\": [{\"$lt\": [{\"$indexOfCP\": [\"$$s\", \".\"]}, 0]}, \"$$s\","
                 + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
-                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"
+                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}}]}},"
+                + " \"in\": {\"$concat\": [\"$$t\", {\"$cond\": [{\"$regexMatch\": {\"input\": \"$$t\","
+                + " \"regex\": \"^-?[0-9]+$\"}}, \".0\", \"\"]}]}}},"
                 + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
                 + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
                 + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"
                 + " \"in\": {\"$concat\": [{\"$replaceAll\": {\"input\": \"$$m\", \"find\": \".\", \"replacement\": \"\"}},"
                 + " {\"$reduce\": {\"input\": {\"$range\": [0, {\"$subtract\": [\"$$n\", {\"$cond\": [{\"$lt\": [\"$$p\", 0]},"
                 + " 0, {\"$subtract\": [{\"$subtract\": [{\"$strLenCP\": \"$$m\"}, \"$$p\"]}, 1]}]}]}]},"
-                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}]}}}}}]}}}}}");
+                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}, \".0\"]}}}}}]}}}}}");
     }
 }

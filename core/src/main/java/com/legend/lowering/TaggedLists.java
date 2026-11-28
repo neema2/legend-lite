@@ -59,6 +59,98 @@ final class TaggedLists {
         throw new IllegalStateException("a tagged list's rows are a subquery over its cells, not " + tl.rows());
     }
 
+    /** Whether no two channels of the list(s) are of one family: each family's values are in one array. */
+    static boolean oneChannelPerFamily(NumberFamilies numbers, SqlExpr.TaggedList... lists) {
+        java.util.Map<String, SqlType.Tagged.Slot> seen = new java.util.HashMap<>();
+        for (SqlExpr.TaggedList tl : lists) {
+            for (SqlType.Tagged.Slot s : tl.slots()) {
+                // (an Integer and a Decimal can be equal, so the two are one family held in two arrays)
+                SqlType.Tagged.Slot first = seen.putIfAbsent(numbers == NumberFamilies.TWO_FAMILIES
+                        && MixedEncoding.exactNumber(s.kind()) ? "exact number" : MixedEncoding.family(s.kind()), s);
+                if (first != null && !first.equals(s)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Two lists WRITTEN IN THE QUERY, every element present, are the same list where they are the same length and
+     * each position holds, on both sides, values of one family that are equal: no list in the SQL, one comparison
+     * per position, by the database's own comparison of the type -- a Decimal by its number (S139), a date-time by
+     * its instant (S399), an Integer and a Decimal by their value (two exact numbers; the user's ruling of
+     * 2026-11-27). A position whose two kinds can never be equal makes the lists different by the types alone: two
+     * values of different types are never equal (the equality rule; {@code 3} is not {@code 3.0}).
+     * Null where a list is not written out (a computed list, a reordered one).
+     */
+    static @com.legend.base.Nullable SqlExpr sameWrittenLists(SqlExpr.TaggedList a, SqlExpr.TaggedList b,
+            NumberFamilies numbers) {
+        List<SqlExpr.Tagged.Candidate> ea = a.literalElements();
+        List<SqlExpr.Tagged.Candidate> eb = b.literalElements();
+        if (ea == null || eb == null) {
+            return null;
+        }
+        // an answer by the types alone (the lengths, a position's two kinds) writes no element: taken only where no
+        // element can raise, or its error would be lost -- else the lists compare as arrays, every element evaluated
+        // (the re-check of this slice's audit, 2026-11-26: [$p.name->toOne(), 1] == ['x', 'y'])
+        boolean quiet = raiseNothing(ea) && raiseNothing(eb);
+        if (ea.size() != eb.size()) {
+            return quiet ? new SqlExpr.BoolLit(false) : null;
+        }
+        boolean differ = false;
+        List<SqlExpr> same = new ArrayList<>(ea.size());
+        for (int i = 0; i < ea.size(); i++) {
+            SqlExpr.Tagged.Candidate x = ea.get(i);
+            SqlExpr.Tagged.Candidate y = eb.get(i);
+            if (!numbers.canEqual(x.kind(), y.kind())) {
+                differ = true;
+                continue;
+            }
+            // a value that cannot be NULL (a literal) compares plainly; any other null-safe, as the array compare
+            // this replaces did, so the answer is always a Boolean (the audit of this slice: a bare = answered NULL
+            // for an element empty at run, and a NOT over it dropped the row)
+            same.add(neverNull(x.value()) && neverNull(y.value())
+                    ? SqlExpr.Call.of(SqlFn.EQUAL, x.value(), y.value())
+                    : SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, x.value(), y.value()));
+        }
+        if (differ || same.isEmpty()) {
+            return quiet ? new SqlExpr.BoolLit(false) : null;
+        }
+        SqlExpr all = same.get(0);
+        for (int i = 1; i < same.size(); i++) {
+            all = SqlExpr.Call.of(SqlFn.AND, all, same.get(i));
+        }
+        return all;
+    }
+
+    /** Whether {@code e} is a value WRITTEN in the query, which is never NULL: a literal, under the casts, the
+     *  grouping and the sign the lowering wraps one in. Read off the node, never off its type's nullable label, which
+     *  repeats the Pure multiplicity: a {@code [1]} property mapped to a nullable column says "never NULL" and may
+     *  hold one (the re-check of this slice's audit, 2026-11-26). */
+    private static boolean neverNull(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.Cast c -> neverNull(c.value());
+            case SqlExpr.Group g -> neverNull(g.inner());
+            case SqlExpr.Call c when c.fn() == SqlFn.NEGATE && c.args().size() == 1 -> neverNull(c.args().get(0));
+            case SqlExpr.StringLit s -> true;
+            case SqlExpr.IntLit i -> true;
+            case SqlExpr.FloatLit f -> true;
+            case SqlExpr.DecimalLit d -> true;
+            case SqlExpr.BoolLit b -> true;
+            case SqlExpr.DateLit d -> true;
+            case SqlExpr.TimestampLit t -> true;
+            case SqlExpr.TimeLit t -> true;
+            default -> false;
+        };
+    }
+
+    /** Whether no element of a written list can raise ({@link SqlExpr#raisesNothing}): only then may an answer be
+     *  given without writing the elements. */
+    private static boolean raiseNothing(List<SqlExpr.Tagged.Candidate> elements) {
+        return elements.stream().allMatch(c -> SqlExpr.raisesNothing(c.value()));
+    }
+
     /**
      * Two lists in their own order ({@link SqlExpr.TaggedList#identityPositions}) are the same list: the same size,
      * and for every kind either holds, the same channel array (null-safe: a NULL where the element is of another
@@ -68,19 +160,13 @@ final class TaggedLists {
     static SqlExpr sameListByKinds(SqlExpr.TaggedList a, SqlExpr.TaggedList b) {
         List<SqlExpr> conditions = new ArrayList<>();
         conditions.add(SqlExpr.Call.of(SqlFn.EQUAL, size(a), size(b)));
-        // every (kind, slot) either side holds, exactly: a Decimal at another scale, a DateTime at another written
-        // precision, is another kind (Pure's BigDecimal and PureDate equality: the scale, the subsecond text), so
-        // its values meet an all-NULL array (the L1 audit, 2026-10-29)
+        // every (kind, slot) either side holds: a kind one side has no channel for meets an all-NULL array. The
+        // caller sends two lists here only where each FAMILY is one slot across both (oneChannelPerFamily): Decimals
+        // at two scales, date-times at two written precisions, are one type's values in two arrays, compared element
+        // by element instead (the equality rule: by their number, by their instant; S139, S399)
         java.util.LinkedHashSet<SqlType.Tagged.Slot> slots = new java.util.LinkedHashSet<>();
         slots.addAll(a.slots());
         slots.addAll(b.slots());
-        for (SqlType.Tagged.Slot sa : a.slots()) {
-            for (SqlType.Tagged.Slot sb : b.slots()) {
-                if (!sa.equals(sb)) {
-                    refuseCrossingNumbers(sa.kind(), sa.type(), sb.kind(), sb.type(), "two mixed lists' equality");
-                }
-            }
-        }
         for (SqlType.Tagged.Slot slot : slots) {
             SqlExpr.TaggedList.Channel ca = channelOfSlot(a, slot);
             SqlExpr.TaggedList.Channel cb = channelOfSlot(b, slot);
@@ -93,36 +179,6 @@ final class TaggedLists {
             all = SqlExpr.Call.of(SqlFn.AND, all, conditions.get(i));
         }
         return all;
-    }
-
-    /**
-     * Pure's equality of two NUMBERS of different kinds is by their TEXTS (compiled legend-pure's
-     * {@code CompiledSupport.eq(Number, Number)}: {@code equals}, then {@code toString}): an Integer and a Decimal
-     * of scale zero are equal when their digits are ({@code 3 == 3D}), an Integer and a Float never are (a double's
-     * text always carries a point or an exponent), a Float and a Decimal are when the shortest digits agree
-     * ({@code 1.5 == 1.5D}, not {@code 1.50D}); the L2 audit, 2026-10-29. The kinds that can cross are NOT compared
-     * yet: refused by name (a static false stood here), the homework README's findings; the pairs that never cross
-     * keep their false.
-     */
-    private static void refuseCrossingNumbers(String kindA, @com.legend.base.Nullable SqlType slotA, String kindB,
-            @com.legend.base.Nullable SqlType slotB, String operation) {
-        if (kindA.equals(kindB)) {
-            return;
-        }
-        boolean crosses = (kindA.equals("Integer") && kindB.equals("Decimal") && scaleZero(slotB))
-                || (kindB.equals("Integer") && kindA.equals("Decimal") && scaleZero(slotA))
-                || (kindA.equals("Float") && kindB.equals("Decimal"))
-                || (kindB.equals("Float") && kindA.equals("Decimal"));
-        if (crosses) {
-            throw new com.legend.error.NotImplementedException(operation + " across the kinds " + kindA + " ("
-                    + slotA + ") and " + kindB + " (" + slotB + "): Pure equates two numbers of different kinds by"
-                    + " their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)");
-        }
-    }
-
-    private static boolean scaleZero(@com.legend.base.Nullable SqlType slot) {
-        // a Decimal slot of unknown scale may hold a scale-zero value: it can cross too
-        return !(slot instanceof SqlType.Decimal d) || d.scale() == 0;
     }
 
     private static SqlExpr.TaggedList.@com.legend.base.Nullable Channel channelOfSlot(SqlExpr.TaggedList tl,
@@ -215,7 +271,25 @@ final class TaggedLists {
 
     /** The list reversed. */
     static SqlExpr.TaggedList reverse(SqlExpr.TaggedList tl) {
-        return tl.withPositions(SqlExpr.Call.of(SqlFn.LIST_REVERSE, tl.positions())).withOrder(tl.order().reversed());
+        return tl.withPositions(reversed(tl.positions())).withOrder(tl.order().reversed());
+    }
+
+    /** The positions listed in the order of {@code key}: the sort's one ordered aggregate. */
+    private static SqlExpr positionsBy(SqlExpr position, SqlExpr key) {
+        return new SqlExpr.OrderedListAgg(position, key);
+    }
+
+    /** {@code positions} the other way round: the one construction of a reversed list's positions ({@link #members}
+     *  reads it back by building it again). */
+    private static SqlExpr reversed(SqlExpr positions) {
+        return SqlExpr.Call.of(SqlFn.LIST_REVERSE, positions);
+    }
+
+    /** The rows a sort reads its positions from, {@code SELECT UNNEST(positions) AS p}: the one construction of
+     *  them ({@link #members} reads it back by building it again). */
+    private static SqlSelect positionRows(SqlExpr positions) {
+        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.UNNEST, positions), "p", null)),
+                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
     }
 
     /**
@@ -224,20 +298,175 @@ final class TaggedLists {
      * spelling carrier's own shape (its ids ordered by its comparables), the identity now a position.
      */
     static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias) {
+        return sort(tl, alias, Ties.BY_TYPE);
+    }
+
+    /**
+     * How a sort places EQUAL NUMBERS OF DIFFERENT TYPES (3 and 3.0; a list of one number type has no such pair and
+     * is written the same under each):
+     * {@link #BY_TYPE} lite's own rule, an exact number (an Integer, a Decimal) before a Float, then the written
+     * order -- so an Integer and a Decimal of one value, which are equal, keep the order they were written in (the
+     * user's ruling of 2026-11-27, "Yes I like the rule, keep ordering strict"; until then Integer, Float, Decimal);
+     * {@link #AS_WRITTEN} the written order, a stable sort's, which is legend-pure's and legend-engine's sort (run on
+     * all three upstream runtimes, 2026-11-26: {@code [3.0, 3, 1]->sort()} is {@code [1, 3.0, 3]});
+     * {@link #LAST_WRITTEN_FIRST} the written order reversed, so the FIRST of a sorted list is the last written of
+     * its least elements: upstream's {@code min} over a list keeps the later element of a tie ({@code min.pure}'s
+     * fold), as its {@code max} does, which is the LAST of an {@link #AS_WRITTEN} sort.
+     */
+    enum Ties { BY_TYPE, AS_WRITTEN, LAST_WRITTEN_FIRST }
+
+    /** {@link #sort(SqlExpr.TaggedList, String)} with equal numbers of different types placed by {@code ties}. */
+    static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias, Ties ties) {
         refuseInexactRanks(tl);
         if (tl.rows() != null) {
-            return sortRows(tl, alias);
+            return sortRows(tl, alias, ties);
         }
-        SqlExpr unnested = SqlExpr.Call.of(SqlFn.UNNEST, tl.positions());
-        SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(unnested, "p", null)),
-                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
+        SqlSelect inner = positionRows(tl.positions());
         SqlExpr p = SqlExpr.Column.of(alias, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
+        SqlExpr typeOrder = numberTypeOrderAt(tl, p);
+        if (typeOrder != null || numberKinds(tl) > 1) {
+            // equal numbers of two types in the list: each position's PLACE by the comparable, then by what the
+            // ties rule says (an exact number before a Float, then the position; the position alone, either way), a
+            // row number over them, and the positions listed by their place -- an ordered aggregate over the
+            // comparable alone promises no order among equals (an Integer and a Decimal of one value are equal, and
+            // keep the order they were written in)
+            List<SqlSelect.SortKey> keys = new ArrayList<>(3);
+            keys.add(new SqlSelect.SortKey(tl.comparableAt(p), true, SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+            if (ties == Ties.BY_TYPE && typeOrder != null) {
+                keys.add(new SqlSelect.SortKey(typeOrder, true, null, null));
+            }
+            keys.add(new SqlSelect.SortKey(p, ties != Ties.LAST_WRITTEN_FIRST, null, null));
+            String placed = alias + "o";
+            SqlSelect places = new SqlSelect(List.of(new SqlSelect.Projection(p, "p", null),
+                    new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
+                            List.of()), List.of(), keys, null), "r", null)),
+                    false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
+                    null, null, List.of());
+            SqlSelect listed = new SqlSelect(List.of(new SqlSelect.Projection(positionsBy(
+                    SqlExpr.Column.of(placed, "p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED),
+                    SqlExpr.Column.of(placed, "r", SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED)),
+                    "s", null)),
+                    false, new SqlSource.Subselect(places, placed, null), null, List.of(), null, null, List.of(),
+                    null, null, List.of());
+            return tl.withPositions(new SqlExpr.ScalarSubquery(listed)).withOrder(ties == Ties.BY_TYPE
+                    && typeOrder != null
+                    ? SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE : SqlExpr.TaggedList.Order.COMPARABLE);
+        }
         SqlSelect outer = new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlExpr.OrderedListAgg(p, tl.comparableAt(p)), "s", null)),
+                positionsBy(p, tl.comparableAt(p)), "s", null)),
                 false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null, List.of(),
                 null, null, List.of());
         return tl.withPositions(new SqlExpr.ScalarSubquery(outer)).withOrder(SqlExpr.TaggedList.Order.COMPARABLE);
     }
+
+    /**
+     * The positions a list holds, any ORDERING of them undone. A root returns its rows in the list's order by its
+     * own ORDER BY (an unnest promises none), never in the positions array's order, so the ordered copy a sort or a
+     * reverse built need not be written for it: the positions the sort read are the same members (slice 6.2,
+     * measured 2026-11-26: a sorted mixed list returned as the answer carried its sort twice, once to order the
+     * positions and once to order the rows). Only the two shapes this class builds are read back ({@link #sort},
+     * {@link #reverse}), each checked in full; any other positions are returned as they are.
+     */
+    private static SqlExpr members(SqlExpr positions) {
+        if (positions instanceof SqlExpr.Call c && c.args().size() == 1 && c.equals(reversed(c.args().get(0)))) {
+            return members(c.args().get(0));
+        }
+        if (!(positions instanceof SqlExpr.ScalarSubquery q) || !(q.subquery() instanceof SqlSelect listed)
+                || listed.projections().size() != 1 || listed.where() != null
+                || !(listed.projections().get(0).expr() instanceof SqlExpr.OrderedListAgg agg)
+                || !(agg.value() instanceof SqlExpr.Column listedPosition) || !listedPosition.name().equals("p")) {
+            return positions;
+        }
+        // sort's own selects, down to SELECT UNNEST(positions) AS p; the windowed form has one select between
+        SqlSource from = listed.from();
+        for (int depth = 0; depth < 2 && from instanceof SqlSource.Subselect sub
+                && sub.inner() instanceof SqlSelect inner && inner.where() == null; depth++) {
+            if (inner.from() instanceof SqlSource.Dual && inner.projections().size() == 1
+                    && inner.projections().get(0).expr() instanceof SqlExpr.Call read && read.args().size() == 1
+                    && inner.equals(positionRows(read.args().get(0)))) {
+                return members(read.args().get(0));
+            }
+            from = inner.from();
+        }
+        return positions;
+    }
+
+    /** How many number types the list holds (an Integer's, a Float's, a Decimal's channels). */
+    private static int numberKinds(SqlExpr.TaggedList tl) {
+        java.util.Set<String> kinds = new java.util.HashSet<>();
+        for (int k = 0; k < tl.channels().size(); k++) {
+            if (MixedEncoding.numberTypePlace(tl.channels().get(k).kind()) >= 0) {
+                kinds.add(MixedEncoding.family(tl.channels().get(k).kind()));
+            }
+        }
+        return kinds.size();
+    }
+
+    /**
+     * The tie-break of EQUAL NUMBERS OF DIFFERENT TYPES in a mixed list's order (the equality rule's run-time
+     * reading, the user's ruling of 2026-11-25: among equal magnitudes Integer, then Float, then Decimal; slice 6.2
+     * of the edition program's step 6): {@code 3} and {@code 3.0} are two values, so a sort puts them in one order
+     * whatever order they were written in. The type is read off the element's {@code tag}, which names its channel
+     * and so its kind: no column and no rank field is added for it (measured 2026-11-26: carrying the type in the
+     * rank made every sort of an Integer and a Float two to seven times its SQL). Null where the list holds numbers
+     * of at most one type: nothing to break, and the sort is written as before.
+     */
+    private static @com.legend.base.Nullable SqlExpr numberTypeOrder(SqlExpr.TaggedList tl, SqlExpr tag) {
+        List<SqlExpr.Case.When> later = new ArrayList<>();
+        java.util.Set<Integer> places = new java.util.HashSet<>();
+        for (int k = 0; k < tl.channels().size(); k++) {
+            int place = MixedEncoding.numberTypePlace(tl.channels().get(k).kind());
+            if (place < 0) {
+                continue;
+            }
+            places.add(place);
+            if (place > 0) {
+                later.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
+                        new SqlExpr.IntLit(place)));
+            }
+        }
+        return places.size() < 2 ? null : new SqlExpr.Case(later, new SqlExpr.IntLit(0), SqlExpr.Reason.CARRIER);
+    }
+
+    /**
+     * {@link #numberTypeOrder} for the element at {@code position}. Where the list's tags are WRITTEN (a list built
+     * in the query: its tag array a literal), each position's type is known when the query is planned, so the order
+     * is a condition on the position alone -- {@code CASE WHEN p IN (1, 4) THEN 1 ELSE 0 END} -- and no array is read
+     * for it (measured 2026-11-26: reading the tag at the position cost a database that holds a list as JSON the
+     * whole array again, MySQL's sort family half as long again). Any other list reads its tag there.
+     */
+    private static @com.legend.base.Nullable SqlExpr numberTypeOrderAt(SqlExpr.TaggedList tl, SqlExpr position) {
+        if (!(tl.tags() instanceof SqlExpr.ArrayLit written)
+                || !written.elements().stream().allMatch(t -> t instanceof SqlExpr.IntLit)) {
+            return numberTypeOrder(tl, tl.tagAt(position));
+        }
+        java.util.Map<Integer, List<SqlExpr>> positionsOfPlace = new java.util.TreeMap<>();
+        java.util.Set<Integer> places = new java.util.HashSet<>();
+        for (int i = 0; i < written.elements().size(); i++) {
+            int channel = (int) ((SqlExpr.IntLit) written.elements().get(i)).value() - 1;
+            int place = MixedEncoding.numberTypePlace(tl.channels().get(channel).kind());
+            if (place < 0) {
+                continue;
+            }
+            places.add(place);
+            if (place > 0) {
+                positionsOfPlace.computeIfAbsent(place, k -> new ArrayList<>()).add(new SqlExpr.IntLit(i + 1));
+            }
+        }
+        if (places.size() < 2) {
+            return null;
+        }
+        List<SqlExpr.Case.When> later = new ArrayList<>();
+        for (java.util.Map.Entry<Integer, List<SqlExpr>> e : positionsOfPlace.entrySet()) {
+            List<SqlExpr> in = new ArrayList<>();
+            in.add(position);
+            in.addAll(e.getValue());
+            later.add(new SqlExpr.Case.When(in.size() == 2 ? SqlExpr.Call.of(SqlFn.EQUAL, in.get(0), in.get(1))
+                    : new SqlExpr.Call(SqlFn.IN, in), new SqlExpr.IntLit(e.getKey())));
+        }
+        return new SqlExpr.Case(later, new SqlExpr.IntLit(0), SqlExpr.Reason.CARRIER);
+    }
+
 
     /**
      * A list over its rows sorted (a relation's cells, {@code $t.rows.values->sort()}): its CELLS renumbered by the
@@ -342,7 +571,7 @@ final class TaggedLists {
         return null;
     }
 
-    private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
+    private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias, Ties ties) {
         SqlSelect cells = cellsOf(tl);
         var c = SqlExpr.Column.lookup(alias, cells.outputs());
         // the comparable's columns in the cells' order: __cmp, or a rank across kinds' __cmp_<field> columns
@@ -354,7 +583,13 @@ final class TaggedLists {
                         null));
             }
         }
-        keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), true, null, null));
+        // equal numbers of two types: the number's type before the position (numberTypeOrder), read off the cell's tag
+        SqlExpr typeOrder = ties == Ties.BY_TYPE ? numberTypeOrder(tl, c.apply(SqlExpr.TaggedList.ROW_TAG)) : null;
+        if (typeOrder != null) {
+            keys.add(new SqlSelect.SortKey(typeOrder, true, null, null));
+        }
+        keys.add(new SqlSelect.SortKey(c.apply(SqlExpr.TaggedList.ROW_POSITION), ties != Ties.LAST_WRITTEN_FIRST,
+                null, null));
         List<SqlSelect.Projection> renumbered = new ArrayList<>(cells.outputs().size());
         for (OutputCol o : cells.outputs()) {
             renumbered.add(o.name().equals(SqlExpr.TaggedList.ROW_POSITION)
@@ -377,8 +612,25 @@ final class TaggedLists {
         return tl.withPositions(Dedup.keptDedup(tl.positions(), depth, same));
     }
 
-    /** Two positions of {@code tl} hold the same element: the same channel, and that channel's values equal. */
-    static SqlExpr sameElement(SqlExpr.TaggedList tl, SqlExpr p, SqlExpr q) {
+    /** Two positions of {@code tl} hold the same element: channels of one family ({@link MixedEncoding#family}), and
+     *  their values equal. Where every family is one channel (no Decimal at a second scale, no date-time at a second
+     *  written precision) that is the same channel, read once. */
+    static SqlExpr sameElement(SqlExpr.TaggedList tl, SqlExpr p, SqlExpr q, NumberFamilies numbers) {
+        if (!oneChannelPerFamily(numbers, tl)) {
+            List<SqlExpr> arms = new ArrayList<>();
+            for (int k = 0; k < tl.channels().size(); k++) {
+                for (int j = 0; j < tl.channels().size(); j++) {
+                    if (numbers.canEqual(tl.channels().get(k).kind(), tl.channels().get(j).kind())) {
+                        arms.add(SqlExpr.Call.of(SqlFn.AND,
+                                SqlExpr.Call.of(SqlFn.AND,
+                                        SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(p), new SqlExpr.IntLit(k + 1)),
+                                        SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(q), new SqlExpr.IntLit(j + 1))),
+                                SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, p), tl.channelAt(j, q))));
+                    }
+                }
+            }
+            return anyOf(arms);
+        }
         List<SqlExpr.Case.When> whens = new ArrayList<>(tl.channels().size());
         for (int k = 0; k < tl.channels().size(); k++) {
             whens.add(new SqlExpr.Case.When(
@@ -395,7 +647,7 @@ final class TaggedLists {
      *  a kind only its runtime value names, which Pure's {@code eq} reads and no channel does) is refused by name,
      *  never answered false (the L1 audit, 2026-10-29). */
     static SqlExpr sameElement(SqlExpr.Tagged x, @com.legend.base.Nullable String kind, SqlExpr value,
-            Type valueType) {
+            Type valueType, NumberFamilies numbers) {
         if (kind == null) {
             throw new com.legend.error.NotImplementedException("a tagged value compared with a value of type "
                     + valueType + ", whose kind only its runtime value names: not lowered");
@@ -403,7 +655,7 @@ final class TaggedLists {
         List<SqlExpr> arms = new ArrayList<>();
         for (int i = 0; i < x.candidates().size(); i++) {
             SqlExpr.Tagged.Candidate a = x.candidates().get(i);
-            if (!a.kind().equals(kind)) {
+            if (!numbers.canEqual(a.kind(), kind)) {
                 continue;
             }
             arms.add(SqlExpr.Call.of(SqlFn.AND,
@@ -414,13 +666,13 @@ final class TaggedLists {
     }
 
     /** Two tagged lists are equal: the same size, and at each index the same element. */
-    static SqlExpr sameList(SqlExpr.TaggedList a, SqlExpr.TaggedList b) {
+    static SqlExpr sameList(SqlExpr.TaggedList a, SqlExpr.TaggedList b, NumberFamilies numbers) {
         String p = "_tlp";
         String i = "_tli";
         SqlExpr.Tagged other = b.element(SqlExpr.Call.of(SqlFn.LIST_GET, b.positions(), SqlExpr.Column.derived(null, i)));
         SqlExpr differing = SqlExpr.Call.of(SqlFn.LIST_FILTER, a.positions(),
                 new SqlExpr.Lambda(List.of(p, i), SqlExpr.Call.of(SqlFn.NOT,
-                        sameElement(a.element(SqlExpr.Column.derived(null, p)), other))));
+                        sameElement(a.element(SqlExpr.Column.derived(null, p)), other, numbers))));
         return SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, size(a), size(b)),
                 SqlExpr.Call.of(SqlFn.EQUAL,
@@ -431,14 +683,15 @@ final class TaggedLists {
 
     /** A tagged list equals a list of one {@code kind}: the same size, and at each index the tagged element is of
      *  that kind and equals the other list's element there. */
-    static SqlExpr sameListOfKind(SqlExpr.TaggedList a, String kind, SqlExpr other) {
+    static SqlExpr sameListOfKind(SqlExpr.TaggedList a, String kind, SqlExpr other,
+            NumberFamilies numbers) {
         String p = "_tlp";
         String i = "_tli";
         SqlExpr differing = SqlExpr.Call.of(SqlFn.LIST_FILTER, a.positions(),
                 new SqlExpr.Lambda(List.of(p, i), SqlExpr.Call.of(SqlFn.NOT,
                         sameElement(a.element(SqlExpr.Column.derived(null, p)), kind,
                                 SqlExpr.Call.of(SqlFn.LIST_GET, other, SqlExpr.Column.derived(null, i)),
-                                MixedEncoding.kindType(kind)))));
+                                MixedEncoding.kindType(kind), numbers))));
         return SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, size(a),
                         SqlExpr.Call.of(SqlFn.COALESCE, SqlExpr.Call.of(SqlFn.LIST_LENGTH, other),
@@ -460,16 +713,16 @@ final class TaggedLists {
         return SqlExpr.Call.of(SqlFn.COALESCE, any, new SqlExpr.BoolLit(false));
     }
 
-    /** Two tagged values are the same element: a channel of each with the same kind, both tags naming it, the
-     *  values equal. A kind one side has no channel for is never equal. */
-    static SqlExpr sameElement(SqlExpr.Tagged x, SqlExpr.Tagged y) {
+    /** Two tagged values are the same element: a channel of each of one family ({@link MixedEncoding#family}), the
+     *  tags naming them, the values equal as the database compares the type (a Decimal by its number, a date-time
+     *  by its instant). A family one side has no channel for is never equal. */
+    static SqlExpr sameElement(SqlExpr.Tagged x, SqlExpr.Tagged y, NumberFamilies numbers) {
         List<SqlExpr> arms = new ArrayList<>();
         for (int i = 0; i < x.candidates().size(); i++) {
             for (int j = 0; j < y.candidates().size(); j++) {
                 SqlExpr.Tagged.Candidate a = x.candidates().get(i);
                 SqlExpr.Tagged.Candidate b = y.candidates().get(j);
-                if (!a.kind().equals(b.kind())) {
-                    refuseCrossingNumbers(a.kind(), a.slot(), b.kind(), b.slot(), "two mixed values' equality");
+                if (!numbers.canEqual(a.kind(), b.kind())) {
                     continue;
                 }
                 arms.add(SqlExpr.Call.of(SqlFn.AND,
@@ -483,29 +736,58 @@ final class TaggedLists {
     }
 
     /**
-     * Whether the list holds {@code needle}, a value of the static {@code kind}: a position whose channel is the
-     * needle's kind's and whose value there equals the needle; a kind the list has no channel for is a member of
-     * nothing ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}: a double's text differs), but for the
-     * number kinds Pure's text equality can cross ({@link #refuseCrossingNumbers}).
+     * Whether the list holds {@code needle}, a value of the static {@code kind}: a position whose channel is of the
+     * needle's kind's family ({@link MixedEncoding#family}: a Decimal at any scale, a date-time at any written
+     * precision) and whose value there equals the needle, by the database's own comparison of the type (a Decimal
+     * by its number, a date-time by its instant); a family the list has no channel for is a member of nothing
+     * ({@code '1'} is not {@code 1}; {@code 1} is not {@code 1.0}: two values of different types are never equal,
+     * the equality rule; {@code 3} is {@code 3D}: an Integer and a Decimal are two exact numbers, equal by their
+     * value, the user's ruling of 2026-11-27).
      */
     static SqlExpr contains(SqlExpr.TaggedList tl, @com.legend.base.Nullable String kind, SqlExpr needle,
-            Type needleType) {
+            Type needleType, NumberFamilies numbers) {
         if (kind == null) {
             throw new com.legend.error.NotImplementedException("a mixed list's membership of a value of type "
                     + needleType + ", whose kind only its runtime value names: not lowered");
         }
-        int k = MixedEncoding.channelOf(tl, kind);
-        if (k < 0) {
-            SqlType needleSlot = needle.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
-            for (SqlExpr.TaggedList.Channel ch : tl.channels()) {
-                refuseCrossingNumbers(kind, needleSlot, ch.kind(), ch.slot(), "a mixed list's membership");
-            }
+        List<Integer> own = MixedEncoding.channelsOf(tl, kind, numbers);
+        if (own.isEmpty()) {
             return new SqlExpr.BoolLit(false);
         }
+        List<SqlExpr.Tagged.Candidate> written = tl.literalElements();
+        // (an element of another type is not written at all, so the plain form is taken only where no element can
+        // raise: its error would be lost; the re-check of this slice's audit, 2026-11-26)
+        if (written != null && raiseNothing(written)) {
+            // A LIST WRITTEN IN THE QUERY needs no list at all (the user, 2026-11-26, on the measured SQL of the fold
+            // rule): each element's kind is the compiler's, and only an element of the needle's kind can equal it
+            // (the equality rule), so membership is the plain IN over those elements, as a list of one type writes
+            // it. The elements are chosen by their TYPE; every value is compared by the database. Every element of
+            // the kind's family, whichever slot holds it: Decimals of two scales are one type, equal by their number
+            // (S139); date-times at two written precisions, by their instant (S399)
+            List<SqlExpr> flat = new ArrayList<>();
+            flat.add(needle);
+            for (SqlExpr.Tagged.Candidate c : written) {
+                if (numbers.canEqual(c.kind(), kind)) {
+                    flat.add(c.value());
+                }
+            }
+            // one element of the type: an equality (IN over one value that is a parameter is read as a LIST
+            // parameter by every dialect and refused; the audit of this slice, 2026-11-26)
+            SqlExpr found = flat.size() == 2 ? SqlExpr.Call.of(SqlFn.EQUAL, flat.get(0), flat.get(1))
+                    : new SqlExpr.Call(SqlFn.IN, flat);
+            return SqlExpr.Call.of(SqlFn.COALESCE, found, new SqlExpr.BoolLit(false));
+        }
         String p = "_tlp";
-        SqlExpr hit = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(SqlExpr.Column.derived(null, p)), new SqlExpr.IntLit(k + 1)),
-                SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, SqlExpr.Column.derived(null, p)), needle));
+        List<SqlExpr> inChannel = new ArrayList<>(own.size());
+        for (int k : own) {
+            inChannel.add(SqlExpr.Call.of(SqlFn.AND,
+                    SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(SqlExpr.Column.derived(null, p)), new SqlExpr.IntLit(k + 1)),
+                    SqlExpr.Call.of(SqlFn.EQUAL, tl.channelAt(k, SqlExpr.Column.derived(null, p)), needle)));
+        }
+        SqlExpr hit = inChannel.get(0);
+        for (int i = 1; i < inChannel.size(); i++) {
+            hit = SqlExpr.Call.of(SqlFn.OR, hit, inChannel.get(i));
+        }
         return SqlExpr.Call.of(SqlFn.COALESCE,
                 SqlExpr.Call.of(SqlFn.GREATER,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),
@@ -516,13 +798,13 @@ final class TaggedLists {
 
     /** Whether the list holds the tagged value {@code needle} (a mixed selection's winner): a position whose element
      *  is the same element ({@link #sameElement(SqlExpr.Tagged, SqlExpr.Tagged)}). */
-    static SqlExpr containsElement(SqlExpr.TaggedList tl, SqlExpr.Tagged needle) {
+    static SqlExpr containsElement(SqlExpr.TaggedList tl, SqlExpr.Tagged needle, NumberFamilies numbers) {
         String p = "_tlp";
         SqlExpr pos = SqlExpr.Column.derived(null, p);
         return SqlExpr.Call.of(SqlFn.COALESCE,
                 SqlExpr.Call.of(SqlFn.GREATER,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),
-                                new SqlExpr.Lambda(List.of(p), sameElement(tl.element(pos), needle)))),
+                                new SqlExpr.Lambda(List.of(p), sameElement(tl.element(pos), needle, numbers)))),
                         new SqlExpr.IntLit(0)),
                 new SqlExpr.BoolLit(false));
     }
@@ -651,8 +933,10 @@ final class TaggedLists {
                     null, List.of(new SqlSelect.SortKey(cell.apply(SqlExpr.TaggedList.ROW_POSITION), true, null,
                             null)), null, null, List.of());
         }
+        // the positions as MEMBERS: the rows are ordered below by the list's order, so a sort's or a reverse's ordered
+        // copy of them is not written (members)
         SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(
-                SqlExpr.Call.of(SqlFn.UNNEST, tl.positions()), "__p",
+                SqlExpr.Call.of(SqlFn.UNNEST, members(tl.positions())), "__p",
                 new OutputCol("__p", SqlType.Scalar.INTEGER, false))),
                 false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
         SqlExpr p = SqlExpr.Column.of(alias, "__p", SqlType.Scalar.INTEGER, false, OutputCol.Origin.DERIVED);
@@ -669,11 +953,19 @@ final class TaggedLists {
         }
         // the rows in the list's own order (an unnest promises none: round 18's BigQuery and MySQL): by position, or by
         // comparable with the position after it (a stable sort's ties), either way
-        boolean desc = tl.order() == SqlExpr.TaggedList.Order.POSITION_DESC
-                || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC;
+        SqlExpr.TaggedList.Order by = tl.order();
+        boolean desc = by == SqlExpr.TaggedList.Order.POSITION_DESC || by == SqlExpr.TaggedList.Order.COMPARABLE_DESC
+                || by == SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE_DESC;
+        boolean thenByType = by == SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE
+                || by == SqlExpr.TaggedList.Order.COMPARABLE_THEN_TYPE_DESC;
         List<SqlSelect.SortKey> order = new ArrayList<>();
-        if (tl.order() == SqlExpr.TaggedList.Order.COMPARABLE || tl.order() == SqlExpr.TaggedList.Order.COMPARABLE_DESC) {
+        if (by != SqlExpr.TaggedList.Order.POSITION && by != SqlExpr.TaggedList.Order.POSITION_DESC) {
             order.add(new SqlSelect.SortKey(tl.comparableAt(p), !desc, null, null));
+            // equal numbers of two types, where the sort placed them by type: the type before the position
+            SqlExpr typeOrder = thenByType ? numberTypeOrderAt(tl, p) : null;
+            if (typeOrder != null) {
+                order.add(new SqlSelect.SortKey(typeOrder, !desc, null, null));
+            }
         }
         order.add(new SqlSelect.SortKey(p, !desc, null, null));
         return new SqlSelect(out, false, new SqlSource.Subselect(inner, alias, null), null, List.of(), null, null,

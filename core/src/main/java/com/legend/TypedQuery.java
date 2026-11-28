@@ -30,27 +30,46 @@ public final class TypedQuery {
     /** Lite's own planning options this query is planned under (none unless asked for: {@link #withOptions}). */
     private final java.util.Set<com.legend.platform.PlanOption> options;
 
+    /** Whether the body is a rewrite's ({@link #withBody}), not the typing of {@code resolved}. */
+    private final boolean bodyRewritten;
+
     TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved) {
         this.ctx = ctx;
         this.resolved = resolved;
         this.specs = new SpecCompiler(ctx);
         this.options = java.util.Set.of();
+        this.bodyRewritten = false;
     }
 
     /** This query with {@code body} as its typed statements (a body the test door rewrote statement for statement, the
      *  places kept: {@code LetPlanner.unreadAsStatements}); the model, the resolved query and the spec compiler shared.
      *  An internal of the execution door's, public for the driver's tests as {@link #specs} is. */
     public TypedQuery withBody(List<TypedSpec> body) {
-        TypedQuery q = new TypedQuery(ctx, resolved, specs, options);
+        TypedQuery q = new TypedQuery(ctx, resolved, specs, options, true);
         q.body = List.copyOf(body);
         return q;
+    }
+
+    /** This query typed under {@code rule}, a door's comparison setting ({@link com.legend.compiler.spec.CrossTypeRule};
+     *  the edition program's step 2b, 2026-11-26): what a comparison across types is, in the query and in every body
+     *  it reaches. A new query with its own spec compiler -- typed bodies are remembered per query, so a model held for
+     *  two audiences never hands one the other's typing -- and nothing typed yet; a door asks for it where it types the
+     *  query, before anything reads the body. Refused for a query whose body was rewritten ({@link #withBody}): the
+     *  rewrite would be lost. */
+    public TypedQuery comparing(com.legend.compiler.spec.CrossTypeRule rule) {
+        if (bodyRewritten) {
+            throw new IllegalStateException("a query whose body was rewritten is not typed again under another"
+                    + " comparison setting: the door sets it where it types the query");
+        }
+        return new TypedQuery(ctx, resolved, new SpecCompiler(ctx, rule), options, false);
     }
 
     /** This query planned under lite's own planning options ({@link com.legend.platform.PlanOption}: each off unless
      *  asked for -- the tests ask for {@code DETERMINISTIC_AS_OF}). */
     public TypedQuery withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
         TypedQuery q = new TypedQuery(ctx, resolved, specs,
-                o.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(o)));
+                o.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(o)),
+                bodyRewritten);
         q.body = body;
         return q;
     }
@@ -61,11 +80,12 @@ public final class TypedQuery {
     }
 
     private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs,
-            java.util.Set<com.legend.platform.PlanOption> options) {
+            java.util.Set<com.legend.platform.PlanOption> options, boolean bodyRewritten) {
         this.ctx = ctx;
         this.resolved = resolved;
         this.specs = specs;
         this.options = options;
+        this.bodyRewritten = bodyRewritten;
     }
 
     /** The compiled model this query is typed against. */
@@ -92,7 +112,7 @@ public final class TypedQuery {
     public List<TypedSpec> body() {
         List<TypedSpec> b = body;
         if (b == null) {
-            b = List.copyOf(specs.typeQueryBody(resolved));
+            b = List.copyOf(specs.typeQueryBodyMarked(resolved));
             body = b;
         }
         return b;

@@ -1,0 +1,54 @@
+# crude estimate: drop "(CASE WHEN X IS NULL THEN NULL ELSE Y END)" -> "Y" when X is an ARRAY constructor (never NULL)
+import re,sys
+def match_paren(s,i):
+    # s[i]=='(' ; return index of matching ')'
+    d=0;q=False;j=i
+    while j<len(s):
+        c=s[j]
+        if q:
+            if c=="'": q=False
+        elif c=="'": q=True
+        elif c=='(': d+=1
+        elif c==')':
+            d-=1
+            if d==0: return j
+        j+=1
+    return -1
+def top_find(s,start,end,pat):
+    d=0;q=False;j=start
+    while j<end:
+        c=s[j]
+        if q:
+            if c=="'": q=False
+        elif c=="'": q=True
+        elif c=='(': d+=1
+        elif c==')': d-=1
+        elif d==0 and s.startswith(pat,j): return j
+        j+=1
+    return -1
+NN=re.compile(r"^(ARRAY[\[(]|CAST\(ARRAY|\(SELECT ARRAY\()")
+def simplify(s):
+    changed=True
+    while changed:
+        changed=False; i=0
+        while True:
+            i=s.find('(CASE WHEN ',i)
+            if i<0: break
+            e=match_paren(s,i)
+            if e<0: break
+            k=top_find(s,i+11,e,' IS NULL THEN NULL ELSE ')
+            if k>=0 and s.endswith(' END',0,e):
+                x=s[i+11:k].strip()
+                if NN.match(x) and top_find(s,k+24,e-4,' WHEN ')<0 and top_find(s,k+24,e-4,' END')<0 or (NN.match(x) and True):
+                    y=s[k+24:e-4]
+                    # make sure the ELSE part is the whole rest (no further WHEN at depth 0)
+                    if top_find(s,k+24,e-4,' ELSE ')<0 and top_find(s,k+24,e-4,' WHEN ')<0:
+                        s=s[:i]+'('+y+')'+s[e+1:]; changed=True; continue
+            i+=1
+    return s
+tot=0;new=0
+for l in open(sys.argv[1]):
+    db,i,n,f,e,s=l.rstrip('\n').split('\t',5)
+    if db!='Postgres' or n=='-1': continue
+    tot+=len(s); new+=len(simplify(s))
+print(tot,new,tot-new)

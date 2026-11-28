@@ -165,10 +165,6 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         return frame == null ? null : frame.timeZone();
     }
 
-    /** A Lowerer configured by this environment: its frame's time zone, and a relation's text asked of its plan
-     *  style's facet with the call's own refusal (B17 of the separation census, 2026-11-17: the product's style
-     *  refuses a {@code toCSV}, a TDS's {@code csv} and a relation's {@code toString} at lowering, by name; and the
-     *  texts only legend-pure writes, B8 (i); legend-engine's result envelope, Phase 6's B5). */
     /** An execution's trace text in a TDS cell: {@code id} with the style's comment around it, if it writes one. */
     private com.legend.sql.SqlExpr traceText(com.legend.sql.SqlExpr id) {
         com.legend.database.PlanStyle.TraceCell comment = style.traceCell();
@@ -183,12 +179,36 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         return new com.legend.lowering.Styled(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r),
                 style.twoForm(com.legend.lowering.LoweringForms.class, com.legend.lowering.ProductLoweringForms.INSTANCE),
                 style.twoForm(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.Styled.LITE_DATE_TIMES),
-                style.twoForm(com.legend.lowering.ListTexts.class, com.legend.lowering.ProductListTexts.INSTANCE));
+                style.twoForm(com.legend.lowering.ListTexts.class, com.legend.lowering.ProductListTexts.INSTANCE),
+                editionTable());
     }
 
+    /** The door's edition ({@link Edition}): the product's, or a compatibility door's own. */
+    public Edition edition() {
+        return style.twoForm(Edition.class, LiteEdition.INSTANCE);
+    }
+
+    /** The edition's table for this environment's statements: made for the database they run on, as the runtime's
+     *  connections declare it ({@code Compiler.executesOn}), where the edition's rows depend on it. A runtime that
+     *  binds model data alone declares none (it runs on the platform's own engine, register S27, which is no database
+     *  of the audience's), so its table is made for no database. The lowering is configured after the resolver has
+     *  decided the runtime, so the database is read no earlier than that. */
+    private com.legend.lowering.EditionTable editionTable() {
+        Edition edition = edition();
+        if (!edition.rowsByDatabase() || runtimeFqn == null) {
+            return edition.table(null);
+        }
+        return edition.table(com.legend.Compiler.executesOn(ctx, runtimeFqn) instanceof com.legend.database.Target.Declared d
+                ? d.type() : null);
+    }
+
+    /** A Lowerer configured by this environment: its frame's time zone, its style's text facets ({@link #styled}: the
+     *  texts only legend-pure writes, B8 (i)), legend-engine's result envelope asked of its style's facet with the
+     *  call's own refusal (Phase 6's B5) and the trace text. (A relation's text facet, B17, went 2026-11-25 with stage
+     *  B's B2b S5c: a relation's toString, its toCSV and a TDS's csv are lite's own texts, ProductRelationText; this
+     *  javadoc stood orphaned above traceText until the review of d6e94cdfe.) */
     public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
         return lowerer.withDbTimeZone(timeZone())
-                .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
                 .withStyled(styled())
                 .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r))
                 .withTraceText(this::traceText);

@@ -77,9 +77,7 @@ class HookRulingTest {
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             Map.entry(com.legend.lowering.PureOnlyTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class))),
-            // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
-            Map.entry(com.legend.lowering.RelationTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class))),
+            // (census B17, 2026-11-17, lowering.RelationTexts: gone 2026-11-25 with the facet, stage B's B2b S5c; a shrink)
             // census C4, 2026-11-17: the engine-text assert's arm, and the hook only its answers hand out (the
             // collector): each reached through the facet the product refuses. (The database judge's batch, BatchTexts,
             // the second such hook: deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A
@@ -229,9 +227,9 @@ class HookRulingTest {
      *  helper the product itself uses, and the set is pinned exactly -- shrink-only, a new one is seen. Every other
      *  method of a ruled hook is a bare signature. */
     static final Map<Class<?>, java.util.Set<String>> FACADES = Map.of(
-            // pureToString (Scalars', every value's text), dateTimeText (LiteralSpelling's, the product's cells),
-            // kindType (MixedEncoding's, the lowering's mixed lists)
-            com.legend.lowering.RelationTexts.class, java.util.Set.of("pureToString", "kindType"));   // dateTimeText gone 2026-11-17 (census B9: the edge's own, edge.EdgeDateTimeTexts)
+            // (lowering.RelationTexts' pureToString and kindType: gone 2026-11-25 with the facet, stage B's B2b S5c; a
+            // shrink -- its dateTimeText went 2026-11-17, census B9)
+            );
 
     /** The product's refusals of a ruled hook (criterion (b)): its own implementations, which refuse by name, pinned. */
     static final java.util.Set<String> PRODUCT_REFUSALS = java.util.Set.of(
@@ -318,11 +316,15 @@ class HookRulingTest {
         assertEquals(null, PlanStyle.PRODUCT.traceCell(), "the product writes the id alone");
         assertEquals(new PlanStyle.TraceCell("-- \"executionTraceID\" : \"", "\""),
                 com.legend.edge.PureText.UPSTREAM.traceCell());
-        // the raises a plan writes plain (B7, 2026-11-17; the two-form LoweringForms since the audit's K5): the
-        // product's none, PCT's and the corpus's none (legend-pure's guarded words), the pure/v1 route's legend-engine's
-        // census class A
+        // the raises a plan writes plain (B7, 2026-11-17; the door's edition's table since the edition program's
+        // step 3, 2026-11-26, the two-form LoweringForms until then): the product's none, PCT's and the corpus's none
+        // (legend-pure's guarded words), the pure/v1 route's legend-engine's census class A, inside a store query
+        // (2026-11-26, the user's ruling of 2026-11-25 on acos and asin, register S119 reopened: the product raises
+        // out of [-1, 1] as legend-pure does, and legend-engine's SQL is the bare function, so the new kind joins
+        // class A at its birth -- legend-engine's SQL for acos and asin is what it was)
         java.util.Set<com.legend.sql.RaiseKind> classA = java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO,
-                com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
+                com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
+                com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED,
                 com.legend.sql.RaiseKind.RANGE_STEP_ZERO, com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
                 com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
@@ -346,14 +348,13 @@ class HookRulingTest {
         // DateTimeTexts (census B9, 2026-11-17: a DateTime's text in a message); ListTexts (census B8, 2026-11-17,
         // TEXT_FORMS: a list's text, the product's JSON form, the edge's legend-pure one); JsonGrammar (census C1,
         // 2026-11-17, register S144: a judge's JSON grammar, the product's strict JSON, the edge's json-simple);
-        // RelationCounting (census C1, 2026-11-17, register S137: the product refuses a relation counted as one, the
-        // edge counts it as upstream does)
+        // (RelationCounting, census C1, 2026-11-17, register S137: left 2026-11-24, B3 step 2 -- the planner refuses a
+        // relation counted as one, upstream's count a body rewritten by the edge's test-body door before planning)
         assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
                 // A4 of the compatibility program (stage A ratified by the user 2026-11-19; moved down by the user's
                 // ruling of 2026-11-19 ~20:45 ("Approved to move guards down"); rule 4 of the rules of record):
                 // JsonGrammar, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts and GoldenNullWord
                 // left with the database judge's compatibility arms (each was asked by the database judge alone)
-                com.legend.compiler.spec.RelationCounting.class,
                 // TestDataPlanner.Printing (census C1, 2026-11-17, L9: a test-data timestamp's text)
                 com.legend.testdatagen.TestDataPlanner.Printing.class,
                 // ExecutedValues (train 17 item 2, 2026-11-18: a serialized root's string-entry value -- refused in the
@@ -365,11 +366,18 @@ class HookRulingTest {
                 // ActivityTexts (J40.PlanStyle, the orchestrator's ruling of 2026-11-18: an execute's activity SQL, lite's
                 // own in the product, legend-engine's text at the edge; until then PlanStyle.activitySql picked one of two)
                 com.legend.planner.ActivityTexts.class,
-                // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
+                // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise among them)
                 com.legend.lowering.LoweringForms.class,
                 // (VerdictWords, census J29's: left 2026-11-21, item 3's S3 -- one catalog words every assert failure)
                 // DatabaseSettingsForm (the audit's J22, RULED by the user 2026-11-17: a database's settings)
-                com.legend.sql.dialect.DatabaseSettingsForm.class),
+                com.legend.sql.dialect.DatabaseSettingsForm.class,
+                // Edition (the edition program's step 2, 2026-11-25;
+                // docs/records/edition-plan-to-finish-stage-b-2026-11-25.md sections 2.2 and 2.3: per native, the product
+                // rule a door's audience means, and where the audience's own code runs; the product's has no row and
+                // stamps nothing. The kind the other lowering forms fold into. 2026-11-26: the planner's Edition in the
+                // lowering's EditionTable's place -- it makes the table for the statement's database, which the
+                // lowering must not see: one kind before and after)
+                com.legend.planner.Edition.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
@@ -392,12 +400,6 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.ListTexts.class,
                 com.legend.lowering.ProductListTexts.INSTANCE) != com.legend.lowering.ProductListTexts.INSTANCE,
                 "the edge answers legend-pure's list text");
-        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.compiler.spec.RelationCounting.class,
-                com.legend.compiler.spec.RelationCountAsserts.REFUSED)
-                == com.legend.compiler.spec.RelationCountAsserts.REFUSED, "the product refuses a relation counted as one");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.RelationCounting.class,
-                com.legend.compiler.spec.RelationCountAsserts.REFUSED) == com.legend.edge.UpstreamRelationCounting.INSTANCE,
-                "the edge counts a relation as upstream does");
         // Printing's members (J7/K12 of the edge audit, 2026-11-17): the product answers lite's form; the edge its own,
         // the server routes' rules a third form of the edge's (edge.TestDataRoutes.ROUTE), never a boolean in the product
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testdatagen.TestDataPlanner.Printing.class,
@@ -451,8 +453,8 @@ class HookRulingTest {
         // asserted here: deleted, NARROWS A HOOK THE USER RULED, A4 of the compatibility program, stage A ratified by
         // the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"):
         // the host judge is the only judge in compatibility, so no compatibility body runs both judges isolated)
-        assertTrue(productHearing().renderedTexts() == com.legend.testexec.LiteRenderedTexts.STRINGS,
-                "lite's runs hold two differing strings as differing");
+        // (renderedTexts, lite's runs holding two differing strings as differing: the hook deleted 2026-11-24, B3 step
+        // 2b -- the two texts are the verdict on every route)
         assertTrue(productHearing().hostForms() == com.legend.testexec.LiteHostForms.STRICT,
                 "lite's runs never equal two number kinds");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
@@ -549,7 +551,6 @@ class HookRulingTest {
                 "EdgeRun <- com.legend.edge.AppealRun",
                 "Edge <- com.legend.edge.CompatEdge",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
-                "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1",
                 "EngineTestText <- com.legend.edge.EdgeEngineTestText",
@@ -829,15 +830,15 @@ class HookRulingTest {
         return new ClassFileImporter().importJars(jars.toArray(new java.util.jar.JarFile[0]));
     }
 
-    /** The raises {@code style}'s lowering forms write plain ({@code LoweringForms#raise}), asked kind by kind. */
+    /** The checks {@code style}'s edition's table does not write inside a store query (the call's check with no
+     *  stamp; {@code lowering.EditionTable#checks}; the edition program's step 3, 2026-11-26: until then the two-form
+     *  {@code LoweringForms#raise}), asked kind by kind. */
     private static java.util.Set<com.legend.sql.RaiseKind> plainOf(PlanStyle style) {
-        com.legend.lowering.LoweringForms forms = style.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.ProductLoweringForms.INSTANCE);
-        com.legend.sql.SqlExpr checked = new com.legend.sql.SqlExpr.StringLit("checked");
-        com.legend.sql.SqlExpr plain = new com.legend.sql.SqlExpr.StringLit("plain");
+        com.legend.lowering.EditionTable table = style.twoForm(com.legend.planner.Edition.class,
+                com.legend.planner.LiteEdition.INSTANCE).table(null);
         java.util.Set<com.legend.sql.RaiseKind> out = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
         for (com.legend.sql.RaiseKind k : com.legend.sql.RaiseKind.values()) {
-            if (forms.raise(k, () -> checked, plain) == plain) {
+            if (!table.checks(k, null)) {
                 out.add(k);
             }
         }

@@ -543,7 +543,7 @@ final class AssociationSynthesis {
                 List.of(), List.of())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(
                         SynthHat.ASSOC, md.qualifiedName(), am.associationName(),
-                        firstAm.propertyName()));
+                        firstAm.propertyName()).ofRelationalLanguage());
     }
 
     /**

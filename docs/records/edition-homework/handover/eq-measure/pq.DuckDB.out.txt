@@ -1,0 +1,204 @@
+== DuckDB product |1 == 1.0
+   OK [{"value":true}]
+== DuckDB product |1 == 1D
+   OK [{"value":true}]
+== DuckDB product |1.0 == 1D
+   OK [{"value":true}]
+== DuckDB product |1.5 == 1.5D
+   OK [{"value":true}]
+== DuckDB product |1D == 1.00D
+   OK [{"value":true}]
+== DuckDB product |1 != 1.0
+   OK [{"value":false}]
+== DuckDB product |1.5 != 1.5D
+   OK [{"value":false}]
+== DuckDB product |[1, 2]->contains(1.0)
+   OK [{"value":true}]
+== DuckDB product |[1D, 2D]->contains(1)
+   OK [{"value":true}]
+== DuckDB product |[1.0, 2.0]->contains(1)
+   OK [{"value":true}]
+== DuckDB product |1.0->in([1, 2])
+   OK [{"value":false}]
+== DuckDB product |1->in([1.0, 2.0])
+   OK [{"value":false}]
+== DuckDB product |[1, 2]->indexOf(2.0)
+   OK [{"value":1}]
+== DuckDB product |[1.5D, 2.5D]->indexOf(2.5)
+   OK [{"value":1}]
+== DuckDB product |[1, 1.0, 1D]->removeDuplicates()->size()
+   OK [{"value":3}]
+== DuckDB product |[1.0, 1D]->removeDuplicates()->size()
+   OK [{"value":2}]
+== DuckDB product |[1, 1.0]->distinct()->size()
+   OK [{"value":2}]
+== DuckDB product |[1, 2] == [1.0, 2.0]
+   OK [{"value":true}]
+== DuckDB product |[1, 2]->sort() == [2.0, 1.0]->sort()
+   OK [{"value":true}]
+== DuckDB product |2 * 1.5 == 3
+   TypeInferenceException: no overload of 'meta::pure::functions::math::times' structurally matches the argument types (ExprType[type=ClassType[fqn=meta::pure::metamodel::type::Any], multiplicity=Bounded[lower=2, upper=2]]); [TypedParameter[name=ints, type=INTEGER, multiplicity=Bounded[lower=0, upper=null]]]; [TypedParameter[name=decimal, type=DECIMAL, multiplicity=Bounded[lower=0, upper=null]]]; [TypedParameter[name=ints, type=FLOAT, multiplicity=Bounded[lower=0, upper=null]]]; [TypedParameter[name=numbers, type=NUMBER, multiplicity=Bounded[lower=0, upper=null]]]
+== DuckDB product |10 / 4 == 2.5
+   TypeInferenceException: in call to 'meta::pure::functions::math::divide', argument 2: expected Number, got Boolean
+== DuckDB product |[1, 2]->sum() == 3.0
+   OK [{"value":true}]
+== DuckDB product |1.5->toDecimal() == 1.5
+   OK [{"value":true}]
+== DuckDB product |1.5->toDecimal() == 1.5D
+   OK [{"value":true}]
+== DuckDB product |[1, 2.5] == [1.0, 2.5]
+   OK [{"value":false}]
+== DuckDB product |[1, 2.5]->contains(2.5D)
+   NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)
+== DuckDB product |[1, 2.5]->at(0) == 1.0
+   OK [{"value":true}]
+== DuckDB product |p::Q.all()->filter(x | $x.e == 1.5)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::Q.all()->filter(x | $x.e == 1.5D)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::Q.all()->filter(x | $x.f == 3)->map(x | $x.id)
+   OK [{"value":2}]
+== DuckDB product |p::Q.all()->filter(x | $x.f == 3.0)->map(x | $x.id)
+   OK [{"value":2}]
+== DuckDB product |p::Q.all()->filter(x | $x.id == 1.0)->map(x | $x.id)
+   OK [{"value":1}]
+== DuckDB product |p::Q.all()->filter(x | $x.f->in([3, 4]))->map(x | $x.id)
+   OK [{"value":2}]
+== DuckDB product |p::Q.all()->filter(x | $x.e->in([1.5, 2.0]))->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::P.all()->filter(x | $x.d == 1)->map(x | $x.id)
+   OK [{"value":1}]
+== DuckDB product |p::P.all()->filter(x | $x.d == 1D)->map(x | $x.id)
+   OK [{"value":1}]
+== DuckDB product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.e == 1.5)
+   OK [{"value":true},{"value":false},{"value":true}]
+== DuckDB product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.f == 3)
+   OK [{"value":false},{"value":true},{"value":false}]
+== DuckDB product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.f != 3)
+   OK [{"value":true},{"value":false},{"value":true}]
+== DuckDB product |p::Q.all()->filter(x | [3, 4]->contains($x.f))->map(x | $x.id)
+   OK [{"value":2}]
+== DuckDB product |t::E.A == 'A'
+   OK [{"value":false}]
+== DuckDB product |t::E.A != 'A'
+   OK [{"value":true}]
+== DuckDB product |t::E.A->in(['A', 'B'])
+   OK [{"value":false}]
+== DuckDB product |['A']->contains(t::E.A)
+   OK [{"value":false}]
+== DuckDB product |['A', 'B']->indexOf(t::E.A)
+   OK [{"value":0}]
+== DuckDB product |t::E.A == p::E.A
+   OK [{"value":false}]
+== DuckDB product |t::E.A->cast(@Any) == 'A'
+   OK [{"value":false}]
+== DuckDB product |'A'->cast(@Any) == t::E.A
+   OK [{"value":false}]
+== DuckDB product |[t::E.A, 'A']->at(1) == t::E.A
+   OK [{"value":false}]
+== DuckDB product |[t::E.A, 'A']->removeDuplicates()->size()
+   OK [{"value":2}]
+== DuckDB product |t::E.A->toString() == 'A'
+   OK [{"value":true}]
+== DuckDB product |p::QE.all()->filter(x | $x.e == 'a')->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::QE.all()->filter(x | $x.e == 'A')->map(x | $x.id)
+   OK []
+== DuckDB product |p::QE.all()->filter(x | $x.e == p::EE.A)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::QE.all()->filter(x | $x.e->in(['a', 'b']))->map(x | $x.id)
+   OK []
+== DuckDB product |%2020-01-02 == %2020-01-02T00:00
+   OK [{"value":true}]
+== DuckDB product |%2020-01-02 == %2020-01-02T00:00:00.000
+   OK [{"value":true}]
+== DuckDB product |%2020-01-02 != %2020-01-02T00:00
+   OK [{"value":false}]
+== DuckDB product |%2020-01-01T10:00:00 == %2020-01-01T10:00:00.000
+   OK [{"value":false}]
+== DuckDB product |%2020-01-01T10 == %2020-01-01T10:00
+   OK [{"value":false}]
+== DuckDB product |%2020-01 == %2020-01-01
+   OK [{"value":false}]
+== DuckDB product |%2020 == %2020-01
+   OK [{"value":false}]
+== DuckDB product |%2020-01-01T10:00:00.123456789 == %2020-01-01T10:00:00.123456
+   OK [{"value":false}]
+== DuckDB product |[%2020-01-01, %2020-01-02]->contains(%2020-01-01T00:00:00)
+   OK [{"value":true}]
+== DuckDB product |[%2020-01-01T00:00:00, %2020-01-02T00:00:00]->contains(%2020-01-01)
+   OK [{"value":true}]
+== DuckDB product |%2020-01-01T00:00:00->in([%2020-01-01])
+   OK [{"value":false}]
+== DuckDB product |[%2020-01-01, %2020-01-02]->indexOf(%2020-01-02T00:00)
+   OK [{"value":1}]
+== DuckDB product |[%2020-01-01T00:00, %2020-01-01]->removeDuplicates()->size()
+   OK [{"value":2}]
+== DuckDB product |%2020-01-01->adjust(1, DurationUnit.DAYS) == %2020-01-02T00:00
+   OK [{"value":true}]
+== DuckDB product |date(2020, 1, 1) == %2020-01-01T00:00:00
+   OK [{"value":true}]
+== DuckDB product |%2020-01-01T10:00:00->datePart() == %2020-01-01T00:00:00
+   OK [{"value":true}]
+== DuckDB product |%2020-01-01T10:00:00->datePart() == %2020-01-01
+   OK [{"value":true}]
+== DuckDB product |p::Q.all()->filter(x | $x.d == %2020-01-01T00:00:00)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::Q.all()->filter(x | $x.d == %2020-01-01)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::R.all()->filter(x | $x.t == %2020-01-01)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::R.all()->filter(x | $x.t == %2020-01-01T00:00:00)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::Q.all()->filter(x | $x.d->in([%2020-01-01T00:00:00]))->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::Q.all()->filter(x | $x.t == %2020-01-01T10:00)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== DuckDB product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.d == %2020-01-01T00:00:00)
+   OK [{"value":true},{"value":false},{"value":true}]
+== DuckDB product |p::N.all()->filter(x | $x.t == %2020-01-01T10:00:00.123456789)->map(x | $x.id)
+   OK [{"value":1}]
+== DuckDB product |p::N.all()->filter(x | $x.t == %2020-01-01T10:00:00.123456)->map(x | $x.id)
+   OK [{"value":2}]
+== DuckDB product |fromJson('1') == 1
+   OK [{"value":false}]
+== DuckDB product |fromJson('1')->to(@Integer) == 1.0
+   OK [{"value":true}]
+== DuckDB product |fromJson('1')->to(@Integer) == 1
+   OK [{"value":true}]
+== DuckDB product |fromJson('1.0')->to(@Float) == 1
+   OK [{"value":true}]
+== DuckDB product |pair(1, 1.0) == pair(1, 1)
+   OK [{"value":true}]
+== DuckDB product |pair(1, 1D) == pair(1, 1)
+   OK [{"value":true}]
+== DuckDB product |pair(1, %2020-01-01) == pair(1, %2020-01-01T00:00:00)
+   OK [{"value":true}]
+== DuckDB product |pair(1, t::E.A) == pair(1, 'A')
+   OK [{"value":true}]
+== DuckDB product |^p::KNum(n=1) == ^p::KNum(n=1.0)
+   OK [{"value":true}]
+== DuckDB product |^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01) == ^p::KD(d=1.00D, b=true, e=t::E.A, sd=%2020-01-01)
+   OK [{"value":false}]
+== DuckDB product |^p::K(id=1, at=%2020-01-01T00:00:00, note='x') == ^p::K(id=1, at=%2020-01-01T00:00:00.000, note='y')
+   OK [{"value":true}]
+== DuckDB product |^p::KA(a=t::E.A) == ^p::KA(a='A')
+   DataError: Invalid Input Error: Malformed JSON at byte 0 of input: unexpected character.  Input: "A" kind=DATABASE_ERROR pos=null
+== DuckDB product |^p::KA(a=1) == ^p::KA(a=1.0)
+   OK [{"value":false}]
+== DuckDB product |[^p::KNum(n=1)]->contains(^p::KNum(n=1.0))
+   OK [{"value":true}]
+== DuckDB product |list([1, 2]) == list([1.0, 2.0])
+   OK [{"value":true}]
+== DuckDB product |[pair(1, 1)]->contains(pair(1, 1.0))
+   OK [{"value":true}]
+== DuckDB product |'1' == 1
+   OK [{"value":true}]
+== DuckDB product |true == 1
+   OK [{"value":true}]
+== DuckDB product |[1, 'a'] == [1.0, 'a']
+   OK [{"value":false}]
+== DuckDB product |[] == []
+   OK [{"value":true}]
+== DuckDB product |[1, 'a']->contains(1.0)
+   OK [{"value":false}]

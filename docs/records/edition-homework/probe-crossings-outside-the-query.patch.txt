@@ -1,0 +1,87 @@
+diff --git a/core/src/main/java/com/legend/compiler/spec/Overloads.java b/core/src/main/java/com/legend/compiler/spec/Overloads.java
+index a3468db4..8204a03c 100644
+--- a/core/src/main/java/com/legend/compiler/spec/Overloads.java
++++ b/core/src/main/java/com/legend/compiler/spec/Overloads.java
+@@ -128,7 +128,7 @@ final class Overloads {
+         // a closure body by signatures too; it pastes nothing)
+         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
+             // a function's body typed into the call: the database's comparisons, never marked (B3 step 5)
+-            return t.markingCrossings(false, () -> inlineNormalized(af, a, env));
++            return Typer.probed("inline " + a.chosen().qualifiedName(), () -> t.markingCrossings(false, () -> inlineNormalized(af, a, env)));
+         }
+         TypedSpec shadow = derivedShadow(af, a, env);
+         if (shadow != null) {
+@@ -141,6 +141,15 @@ final class Overloads {
+         // compatibility door (EqualityClasses); typed anywhere else (a function's body, a planning-time frame, a
+         // mapping's operation) it is the call, the database's comparison
+         if (!t.marksCrossings()) {
++            EqualityClasses.crossing(a.chosen(), a.args(), ctx).ifPresent(c -> {
++                java.util.ArrayDeque<String> where = Typer.PROBE.get();
++                String place = where.isEmpty() ? "unscoped " + java.util.Arrays.stream(Thread.currentThread().getStackTrace())
++                        .map(f -> f.getClassName().replace("com.legend.", "") + "." + f.getMethodName())
++                        .filter(f -> !f.startsWith("compiler.spec.") && !f.startsWith("java.") && !f.startsWith("jdk."))
++                        .limit(3).collect(java.util.stream.Collectors.joining(" < ")) : String.join(" < ", where);
++                System.err.println("PROBE-CROSS\t" + place + "\t" + c.operator() + "\t" + c.left() + "\t" + c.right()
++                        + "\t" + af.pos());
++            });
+             return call;
+         }
+         return EqualityClasses.crossing(a.chosen(), a.args(), ctx)
+diff --git a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+index 5deeaf7e..9d4fad3d 100644
+--- a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
++++ b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+@@ -321,7 +321,10 @@ public final class SpecCompiler {
+ 
+     /** {@link #typeQueryBody} for the body a door receives ({@code TypedQuery.body}): each comparison across types in it
+      *  typed as the marker the planner refuses and a compatibility door rewrites (B3 step 5, the one equality). */
++    private static final java.util.concurrent.atomic.AtomicLong PROBE_SEQ = new java.util.concurrent.atomic.AtomicLong();
++
+     public List<TypedSpec> typeQueryBodyMarked(ValueSpecification query) {
++        System.err.println("PROBE-QUERY\t" + PROBE_SEQ.incrementAndGet());
+         return typer.markingCrossings(true, () -> typeQueryBody(query));
+     }
+ 
+diff --git a/core/src/main/java/com/legend/compiler/spec/Typer.java b/core/src/main/java/com/legend/compiler/spec/Typer.java
+index dfe41545..ebf65d9e 100644
+--- a/core/src/main/java/com/legend/compiler/spec/Typer.java
++++ b/core/src/main/java/com/legend/compiler/spec/Typer.java
+@@ -144,8 +144,27 @@ final class Typer {
+ 
+     /** Type under {@code fn}'s type-parameter frame: its parameters resolve
+      * as type VARIABLES in annotations and are RIGID in the kernel. */
++    static final ThreadLocal<java.util.ArrayDeque<String>> PROBE = ThreadLocal.withInitial(java.util.ArrayDeque::new);
++
++    static <R> R probed(String place, java.util.function.Supplier<R> body) {
++        PROBE.get().push(place);
++        try {
++            return body.get();
++        } finally {
++            PROBE.get().pop();
++        }
++    }
++
+     <R> R inFunctionScope(com.legend.compiler.element.TypedFunction fn,
+             java.util.function.Supplier<R> body) {
++        if (true) {
++            return probed("fn " + fn.qualifiedName(), () -> inFunctionScope0(fn, body));
++        }
++        return inFunctionScope0(fn, body);
++    }
++
++    <R> R inFunctionScope0(com.legend.compiler.element.TypedFunction fn,
++            java.util.function.Supplier<R> body) {
+         java.util.List<String> rigid = new ArrayList<>(fn.typeParameters());
+         rigid.addAll(fn.multiplicityParameters());
+         // a function's body is no body a door receives: its comparisons across types are the calls (B3 step 5)
+@@ -253,8 +272,8 @@ final class Typer {
+             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
+             // an island compares by its own language's rule (SQL's, Cypher's: 100 against a Float column is a valid
+             // comparison there), so its comparisons are the database's, never marked (B3 step 5, 2026-11-25)
+-            case com.legend.protocol.spec.SqlIsland si -> markingCrossings(false,
+-                    () -> synth(SqlIslands.desugar(si, this, ctx, env), env));
++            case com.legend.protocol.spec.SqlIsland si -> probed("island", () -> markingCrossings(false,
++                    () -> synth(SqlIslands.desugar(si, this, ctx, env), env)));
+             case com.legend.protocol.spec.GqlIsland gi ->
+                     throw new com.legend.error.NotImplementedException(
+                             "#GQL{...}# expression islands are not compilable"

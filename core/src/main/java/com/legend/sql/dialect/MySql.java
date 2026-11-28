@@ -103,10 +103,11 @@ public class MySql extends MariaDb {
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         return switch (c.fn()) {
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
-                 DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
+                 DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CAST_INT, CAST_FLOAT, CONCAT, LENGTH, UPPER,
                  LOWER, GREATEST, LEAST, CONCAT_JOIN, CONCAT_WS, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT,
                  LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH,
-                 SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
+                 SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ATAN,
+                 ATAN2, SINH, COSH, TANH,
                  CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
                  BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, IS_NUMERIC, MAP_FROM_LISTS,
                  MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, SUBSTRING_AS_GIVEN, STRPOS,
@@ -121,7 +122,7 @@ public class MySql extends MariaDb {
                  LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
                  LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
                  NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, SAME_IN_ORDER, SAME_IN_ANY_ORDER, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_SHORTEST_TEXT, FLOAT_TO_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT, VARIANT_ELEMENTS,
+                 ROUND_HALF_UP, ROUND_RAW, DECIMAL_RAW, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_SHORTEST_TEXT, FLOAT_TO_TEXT, FLOAT_FULL_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT, VARIANT_ELEMENTS,
                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
         };
     }
@@ -438,7 +439,9 @@ public class MySql extends MariaDb {
         super.floatToText(writer, x);
         writer.append(" ELSE CONCAT(REPLACE(FORMAT(").expr(d, 0).append(" / POW(10, FLOOR(LOG10(ABS(").expr(d, 0)
                 .append("))) - 20), 0, 'en_US'), ',', ''), REPEAT('0', FLOOR(LOG10(ABS(").expr(d, 0)
-                .append("))) - 20)) END");
+                // a whole value keeps one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
+                // 2026-11-23): every value from 1e60 is whole
+                .append("))) - 20), '.0') END");
         return writer;
     }
 }

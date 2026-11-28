@@ -57,6 +57,9 @@ class CompatSpellingGuardTest {
             "trying to get an element at offset", "Unable to compute sqrt of", "Cannot cast a collection of size",
             "can't be higher than the high bound", "Invalid day: ", "Cast exception: ", "range step must not be 0",
             "Unable to evaluate constraint",
+            // legend-pure's (and legend-engine's) default constraint sentence (stage B's B2b S3, 2026-11-24: until then
+            // a literal in resolver/GraphEmission.java, unlisted; now the one catalog's, listed so a product copy fails)
+            "violated in the Class",
             // narrowed 2026-11-12 (D1.1): the whole of lite's old insert sentence, so the product's own wording of an
             // index's raise (exec.RaisedErrors, "index out of bounds") is no hit
             "add(set, index, value): index out of bounds",
@@ -92,8 +95,10 @@ class CompatSpellingGuardTest {
             "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
             "TDSNull",
-            // legend-pure's assert sentences (census J29, 2026-11-18; since item 3's S2, 2026-11-21, no source holds them:
-            // one catalog of lite's words on every route, Q15 = A; a planted one in a product source turns this guard red)
+            // legend-pure's assert sentences (census J29, 2026-11-18; from item 3's S2, 2026-11-21, no source held them:
+            // one catalog of lite's words on every route, Q15 = A; since B3 step 3, 2026-11-24, the catalog's own
+            // sentences are legend-pure's where cheap -- error/AssertKind.java's RULED rows below, the user's rulings
+            // of 2026-11-24 -- and a planted one in any other product source still turns this guard red)
             "No error was thrown", "Expected non-empty collection", "Execution error message mismatch",
             "Execution error line mismatch", "Execution error column mismatch", "^Assert failed$",
             "should not equal", " does not contain ", "is not equivalent to", "the element references differ",
@@ -173,6 +178,19 @@ class CompatSpellingGuardTest {
             // "no arm of"); "Division by zero" is legend-pure's interpreted runtime (Java's BigDecimal; the compiled one
             // prints the divisor, finding F46); "Cast exception: " is Cast.java's for both kinds. The lite-own kinds (S138's
             // and S181's refusals, the load's width, INSERT_OUT_OF_BOUNDS, LIST_LENGTHS_DIFFER) spell nothing listed here
+            // the assert catalog's sentences, legend-pure's own where cheap (B3 step 3, the user's rulings of 2026-11-24:
+            // "keep errors close to pure when cheap/fast so don't have to reword everything on compatibility", and
+            // "Agree with both proposals" -- one line, lite's value forms in the slots); read from the pinned legend-pure
+            // sources (platform/pure/essential/tests/*.pure), docs/records/compat-b3-homework/catalog-words-vs-legend-pure.md
+            "error/AssertKind.java |  does not contain  | 1 | RULED",
+            "error/AssertKind.java | Assert failed | 2 | RULED",
+            "error/AssertKind.java | Execution error column mismatch | 1 | RULED",
+            "error/AssertKind.java | Execution error line mismatch | 1 | RULED",
+            "error/AssertKind.java | Execution error message mismatch | 2 | RULED",
+            "error/AssertKind.java | Expected non-empty collection | 1 | RULED",
+            "error/AssertKind.java | No error was thrown | 1 | RULED",
+            "error/AssertKind.java | Should not be identical to | 1 | RULED",
+            "error/AssertKind.java | should not equal | 2 | RULED",
             "error/ErrorKind.java | Cannot cast a collection of size | 2 | RULED",
             "error/ErrorKind.java | Cannot divide  | 1 | RULED",
             "error/ErrorKind.java | Cast exception:  | 2 | RULED",
@@ -188,6 +206,9 @@ class CompatSpellingGuardTest {
             "error/ErrorKind.java | Unable to compute sqrt of | 1 | RULED",
             "error/ErrorKind.java | Unable to evaluate constraint | 1 | RULED",
             "error/ErrorKind.java | Unsupported number of bits to shift | 1 | RULED",
+            // stage B's B2b S3 (2026-11-24): legend-pure's default constraint sentence in the one catalog, RULED by the
+            // user's ruling of 2026-11-24 ("keep errors close to pure when cheap/fast", relayed by the orchestrator)
+            "error/ErrorKind.java | violated in the Class | 1 | RULED",
             "error/ErrorKind.java | add(set, index, value): index out of bounds | 1 | RULED",
             "error/ErrorKind.java | can't be higher than the high bound | 1 | RULED",
             "error/ErrorKind.java | range step must not be 0 | 1 | RULED",

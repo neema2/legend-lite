@@ -156,7 +156,12 @@ public class SpecBodyCensusTest {
         // 2. TYPE — every function the model holds (the spec's Pure-bodied
         // functions plus every derived property lifted to <owner>$prop$<name>),
         // each body typed once through the ordinary compile entry
-        SpecCompiler specs = new SpecCompiler(ctx);
+        // the census types UPSTREAM's code (legend-pure's and legend-engine's own Pure), so its comparisons across
+        // types are that code's meaning, never lite's mistakes: typed under a compatibility door's kind of setting,
+        // which answers the call, not lite's, which refuses it (the edition program's step 4, 2026-11-26: lite strict
+        // inside bodies refused ten of upstream's own test bodies, testEqEnum, testCompareMixedTypes and the like,
+        // which compare two types on purpose)
+        SpecCompiler specs = new SpecCompiler(ctx, UPSTREAMS_COMPARISONS);
         List<String> ok = new ArrayList<>();
         Map<String, String> failures = new TreeMap<>();
         Map<String, String> stdlibFailures = new TreeMap<>();
@@ -334,6 +339,27 @@ public class SpecBodyCensusTest {
         }
         return "";
     }
+
+    /** Upstream's code's comparisons across types: the call as typed, in the query and in a body. */
+    private static final com.legend.compiler.spec.CrossTypeRule UPSTREAMS_COMPARISONS =
+            new com.legend.compiler.spec.CrossTypeRule() {
+        @Override
+        public com.legend.compiler.spec.typed.TypedSpec inQuery(
+                com.legend.compiler.spec.typed.TypedCrossTypeComparison crossing) {
+            return crossing.comparison();
+        }
+
+        @Override
+        public boolean readsBodies() {
+            return false;
+        }
+
+        @Override
+        public com.legend.compiler.spec.typed.TypedSpec inBody(
+                com.legend.compiler.spec.typed.TypedCrossTypeComparison crossing) {
+            return crossing.comparison();
+        }
+    };
 
     private static void bump(Map<String, Integer> m, String k) {
         m.merge(k, 1, Integer::sum);

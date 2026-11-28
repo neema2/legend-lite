@@ -69,7 +69,7 @@ class PureTestRunnerTest {
             assertEquals(PureTestRunner.Status.FAIL, fails.status());
             // the platform raises the assert's own failure (expected/actual, whole,
             // on one line); that IS the reason — never truncated, never re-derived
-            assertEquals("AssertFailed: expected 3, got 2", fails.reason(),
+            assertEquals("AssertFailed: expected: 3, actual: 2", fails.reason(),
                     "the failed assert's own message is the reason: " + fails.reason());
             assertEquals(Set.of("t::setUp"), runner.inertSetups(),
                     "a setup with no statement effects is derived inert and never runs");

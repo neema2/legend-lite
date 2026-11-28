@@ -66,8 +66,8 @@ public class Test_LegendLite_Snowflake_EssentialFunctions_PCT extends PCTReportC
             // refused by name (Pure's Float has no NaN), no longer parsed from its text
             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
+            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
+            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
             // NOTE 2026-10-21 (the plan route on Snowflake, first measured by the Snowflake lane session at 6c8de4e
             // against the merge-base 59b547a5e, where every pin here held): the three folds pass (object identity),

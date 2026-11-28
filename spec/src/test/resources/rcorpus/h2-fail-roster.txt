@@ -180,7 +180,6 @@ meta::relational::graphFetch::domain::tests::testGraphFetch
 meta::relational::graphFetch::tests::chain::testRelationalChainExecutionNested
 meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty_Checked
 meta::relational::graphFetch::tests::milestoning::testMilestonedProperty
-meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
 meta::relational::graphFetch::tests::simple::testCheckedOneComplexProperty
 meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints
 meta::relational::graphFetch::tests::simple::testGraphFetchCheckedWithSize
@@ -218,6 +217,7 @@ meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWith
 meta::relational::tests::functions::pureToSqlQuery::addDriverTablePkForProject
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeDateRange
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRangeOnSaturday
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwDateRangeOnSunday
@@ -228,7 +228,6 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCy
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCyminus3DateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testFilterBeforeCalendar
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testMtdDateRange
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testMtdValue
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12MtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WaDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WtdDateRange
@@ -261,7 +260,6 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPy
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testQtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testReportenddayDateRange
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testSubclassValue
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testWtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdDateRange
 meta::relational::tests::functions::pureToSqlQuery::simpleFunctionExpressionTranslationAdjust
@@ -292,9 +290,6 @@ meta::relational::tests::functions::sqlstring::testToSQLStringComposite
 meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
 meta::relational::tests::functions::sqlstring::testToSQLStringNonPrestoSchemaNameShouldNotConvertDollarSign
 meta::relational::tests::functions::sqlstring::testToSQLStringReverse
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregationDB2
@@ -311,7 +306,6 @@ meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuar
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfThisYear
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfYear
 meta::relational::tests::functions::sqlstring::testTrim
-meta::relational::tests::groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath
 meta::relational::tests::groupBy::testGroupByPercentile
 meta::relational::tests::groupBy::testGroupByWithJoinDB2
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwice
@@ -330,7 +324,6 @@ meta::relational::tests::mapping::inheritance::relational::testGetAll
 meta::relational::tests::mapping::inheritance::relational::union::testGetAll
 meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDatesInClass
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
-meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
 meta::relational::tests::mapping::sqlFunction::base64::testBase64H2
@@ -399,9 +392,6 @@ meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep
 meta::relational::tests::query::filter::exists::testIsNotEmpty
 meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection
 meta::relational::tests::query::function::distinct::testCollectionDistinctFunction
-meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
-meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
-meta::relational::tests::query::function::testFilterUsingSubstringFunction
 meta::relational::tests::query::function::testJoinStringFunction
 meta::relational::tests::query::legacyNullUnsafeEquals::testDefaultOptionalParamIsNullSafe
 meta::relational::tests::query::legacyNullUnsafeEquals::testDefaultProjectionIsNullSafe

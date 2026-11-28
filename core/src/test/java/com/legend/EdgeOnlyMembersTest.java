@@ -105,6 +105,25 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // B3 step 5 (the one equality; the user's ruling of 2026-11-24, "Love it"): the typer's marker of a comparison
+            // across types, its components what a door reads to answer it (the product refuses the whole marker); and
+            // the catalog's assertSameElements overloads, which the door's order-free rewrite builds its typed call from
+            // (TypedCrossTypeComparison#kind() and #operator(): the product reads them too since 2026-11-27, the edition
+            // program's step 6 -- lite's setting keeps a generic body's comparison for its call by its kind and operator,
+            // compiler.spec.LiteCrossTypeRule -- no longer the edge's alone, so their pins are deleted: a shrink)
+            // (TypedCrossTypeComparison#left() and #right(): the product reads them too since 2026-11-26, the literal
+            // rule, compiler.spec.NumberLiterals -- no longer the edge's alone, so their pins are deleted: a shrink)
+            // 2026-11-26 (the edition program's step 2b: the comparison setting in the type-checker): the door hands
+            // the type-checker its setting for the query here; lite's own road never asks (lite's setting is the spec
+            // compiler's own), so only the compatibility doors call it
+            Map.entry("com.legend.compiler.spec.CrossTypeComparisons#in(java.util.List)",
+                    "2026-11-26: the markers a typed body holds, read by legend-pure's door to refuse by name the one"
+                            + " comparison its setting cannot answer yet, once the query is typed (the independent"
+                            + " audit of step 2b, finding 1); the product's planner refuses a marker through refuse()"),
+            Map.entry("com.legend.TypedQuery#comparing(com.legend.compiler.spec.CrossTypeRule)",
+                    "2026-11-26: a door's comparison setting for the query it admits (the edition program's step 2b)"),
+            // (Pure#AT_ASSERTS_ASSERT_SAME_ELEMENTS: deleted 2026-11-27, a shrink -- the product reads it again: the
+            // typer's comparison rule reads an assert's two sides, compiler.spec.EqualityClasses)
             // (EnvelopeParts#relation/#objects, RelationParts#names/#typeNames/#cells: moved 2026-11-18 to
             // HookRulingTest.HOOK_ENTRIES by the orchestrator's ruling -- the ResultEnvelopes facet's argument types)
             // the orchestrator's ruling of 2026-11-18 (train 18, J40.VerdictSql, E-Java's 9dd14f6fdc): VerdictSql keeps the
@@ -217,8 +236,7 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
             Map.entry("com.legend.lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
-            Map.entry("com.legend.lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)",
-                    "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
+            // (ReprParts#heldAsInteger left 2026-11-24, B2a's end design audit: the edge holds its own check; a shrink)
             Map.entry("com.legend.lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
             Map.entry("com.legend.plan.EnumMappings#of(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
@@ -230,8 +248,13 @@ class EdgeOnlyMembersTest {
             // the orchestrator's ruling of 2026-11-18 (train 20, the TS host's J40.ModelInput move found it; it hid behind
             // ModelInput.Data while that was a product class): lite's compiler door over its own protocol records, the
             // caller only wording each error -- legend-engine's compile route its one caller; J40.Compiler closes
-            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
-                    "2026-11-18: lite's compiler door over its own protocol records, the caller wording each error (the orchestrator's ruling)"),
+            // (2026-11-26, the edition program's step 4: the two-argument form went; the route passes its door's
+            // comparison setting too, so that lite's strictness inside bodies does not reach legend-engine's compile
+            // route -- the same door, the same ruling, one more argument; the text form's twin joins it)
+            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function, com.legend.compiler.spec.CrossTypeRule)",
+                    "2026-11-18, 2026-11-26: lite's compiler door over its own protocol records, the caller wording each error and naming its comparison setting (the orchestrator's ruling)"),
+            Map.entry("com.legend.Compiler#compileErrors(java.lang.String, java.util.function.Function, com.legend.compiler.spec.CrossTypeRule)",
+                    "2026-11-26: the same door over a model's text, for legend-engine's compile route (the edition program's step 4)"),
             // stage B's B1 (2026-11-20, errors as records; D2, the user's pre-approval of B1's guard moves, ~17:00): a raised
             // error's site record, read by type (the edge's WebAssembly planner holds no exec class) -- the edge words
             // legend-pure's sentence from it after the run
@@ -256,8 +279,8 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: lite's query plan's own plan and root type (QueryPlan's ruling, train 19)"),
             Map.entry("com.legend.plan.QueryPlan#shape()",
                     "2026-11-18: lite's query plan's own columns and shape"),
-            Map.entry("com.legend.planner.PlanEnv#withFeatures(java.util.Set)",
-                    "2026-11-18: lite's planning environment's own features and lets"),
+            // (PlanEnv#withFeatures(Set): unpinned 2026-11-26, the edition program's step 2 -- the product's statement
+            // road uses it again, for the flags a statement carries at a door that reads them; a pin moving down)
             Map.entry("com.legend.planner.PlanEnv#withOwnQueryLets()",
                     "2026-11-18: lite's planning environment's own features and lets"),
             Map.entry("com.legend.planner.PlanEnv#withQueryLets(java.util.Map)",
@@ -284,8 +307,8 @@ class EdgeOnlyMembersTest {
             Map.entry("com.legend.server.LiteV1Api$Runner#run(com.legend.TypedQuery, java.lang.String, com.legend.result.Output)",
                     "2026-11-18: lite v1's own answer and runner seams"),
             // (ModelInput$Data#model, ModelInput$Text#code: gone 2026-11-18 with the type to the edge, J40.ModelInput)
-            Map.entry("com.legend.sql.DateFmt#TIME_ONLY",
-                    "2026-11-18: a MIR date format, lite's own vocabulary (the edge cannot add one: MIR is sealed)"),
+            // (DateFmt#TIME_ONLY: gone 2026-11-25, a shrink -- its one reader, edge.RelationTextLowering, went with stage B's
+            // B2b S5c, and the format with it)
             Map.entry("com.legend.sql.SqlDdl$DropSchema#<init>(java.lang.String, boolean)",
                     "2026-11-18: MIR DDL, lite's own vocabulary (the edge cannot add one: MIR is sealed)"),
             Map.entry("com.legend.testdatagen.TestDataPlanner#seedFacts(com.legend.compiler.element.ModelContext, com.legend.testdatagen.TestDataPlanner$Seed)",

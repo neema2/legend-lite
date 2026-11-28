@@ -164,8 +164,9 @@ public abstract class SqlRewriter {
             case SqlExpr.Membership m -> {
                 SqlExpr n2 = rewriteExpr(m.needle());
                 SqlExpr c2 = rewriteExpr(m.collection());
-                yield n2 == m.needle() && c2 == m.collection() ? m
-                        : new SqlExpr.Membership(n2, c2);
+                SqlExpr r2 = m.rows() == null ? null : rewriteExpr(m.rows());
+                yield n2 == m.needle() && c2 == m.collection() && r2 == m.rows() ? m
+                        : new SqlExpr.Membership(n2, c2, r2);
             }
             case SqlExpr.ReduceCollection rc -> {
                 SqlExpr col = rewriteExpr(rc.collection());
@@ -286,8 +287,8 @@ public abstract class SqlRewriter {
                     same &= x == c;
                     cs.add(x);
                 }
-                // its words as data kept (2026-11-15: until then a rewritten operand dropped them)
-                yield same ? r : new SqlExpr.RaiseText(r.kind(), cs, r.asData());
+                // its kind kept, its operands rewritten (its words as data went with B2b's S7a, 2026-11-25)
+                yield same ? r : new SqlExpr.RaiseText(r.kind(), cs);
             }
             case SqlExpr.Tagged t -> {
                 java.util.List<SqlExpr> cs = new java.util.ArrayList<>();

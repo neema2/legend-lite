@@ -1,0 +1,12 @@
+{"model": "", "expression": "|[1, 'a', true]->meta::pure::functions::collection::contains('a')"}
+{"model": "", "expression": "|[1, 'a', true]->meta::pure::functions::collection::removeDuplicates()"}
+{"model": "", "expression": "|[1, 'a', true]->meta::pure::functions::collection::sort()"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::collection::sort()"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::collection::filter(x|$x > 1)"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::collection::map(x|$x * 2)"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::collection::removeDuplicates()"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::collection::reverse()"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::collection::tail()"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::math::max()"}
+{"model": "", "expression": "|[3, 1, 2]->meta::pure::functions::collection::indexOf(1)"}
+{"model": "", "expression": "|[1, 'a', true]->meta::pure::functions::collection::reverse()"}

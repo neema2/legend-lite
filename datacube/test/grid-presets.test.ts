@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { element } from '../../pure-protocol/src/index.ts';
+import { element, toJson } from '../../pure-protocol/src/index.ts';
 import { binColumns, grainColumn, gridShowAsColumns } from '../src/calc-presets.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../src/grid-presets.ts';
 import { CubeRefusal, type CubeSnapshot } from '../src/snapshot.ts';
@@ -58,7 +58,7 @@ describe("the grid's presets: one rule for the header menu and Python (grid-pres
   it("a share divides by the measure at that grain: the grand total's, the parent row's; a running share by its own end", () => {
     const [all, allShare] = gridShowAsColumns('percentOfTotal', 'notional', ['region'], 'n');
     assert.deepEqual(all, { name: 'n__total', grain: { of: 'notional', at: 'all' } });
-    assert.match(JSON.stringify(allShare), /"property":"n__total"/);
+    assert.match(toJson(allShare), /"property":"n__total"/);
     assert.deepEqual(gridShowAsColumns('percentOfParent', 'notional', ['region'], 'n')[0],
       { name: 'n__parent', grain: { of: 'notional', at: 'parent' } });
     const [running, total, share] = gridShowAsColumns('percentRunningTotal', 'notional', ['region'], 'n');

@@ -99,7 +99,7 @@ final class Coercions {
                         && CollectionLanes.valueLane(n.args().get(0))
                         && !CollectionLanes.scalarCarriedIf(
                                 n.args().get(0))) {
-                    return Scalars.guarded(
+                    return Scalars.guarded(n,
                             new SqlExpr.Call(SqlFn.IS_NULL,
                                     List.of(args.get(0))),
                             SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1]"),
@@ -138,7 +138,7 @@ final class Coercions {
                 com.legend.sql.RaiseKind k = com.legend.sql.RaiseKind.valueOf(kind.value());
                 // its operands: the two types, or a match's value's type alone
                 com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(k,
-                        List.of(from, to), null), n.pos());
+                        List.of(from, to)), n.pos());
                 return n.info().type() instanceof com.legend.compiler.element.type.Type.Primitive p && p != com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                         ? new com.legend.sql.SqlExpr.Cast(raised, PureSql.type(p), com.legend.sql.SqlExpr.Reason.RAISE)
                         : raised;
@@ -155,7 +155,7 @@ final class Coercions {
                         && k != com.legend.sql.RaiseKind.ASSERT_NOT_EMPTY) {
                     throw new IllegalStateException("assertRaise's argument is the guard's assert kind: " + args);
                 }
-                com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(k, List.of(), null),
+                com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(k, List.of()),
                         n.pos());
                 return n.info().type() instanceof com.legend.compiler.element.type.Type.Primitive p && p != com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                         ? new com.legend.sql.SqlExpr.Cast(raised, PureSql.type(p), com.legend.sql.SqlExpr.Reason.RAISE)

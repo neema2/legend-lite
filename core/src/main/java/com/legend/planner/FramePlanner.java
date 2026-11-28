@@ -129,7 +129,7 @@ public final class FramePlanner {
                     .prepareLegendQuery(ec, letPrefix, specs);
             var lqChain = ExecuteChainAssembly
                     .chain(lq, ec, letPrefix, specs, env.runtimeFqn(),
-                            env.queryLets());
+                            env.queryLets(), env.edition().stampsTestBodies());
             // the string entry's value is the plan style's (train 17 item 2, 2026-11-18): the edge writes legend-engine's
             // envelope -- a relation's and a class root's with the activity's SQL, rendered only when the edge's form
             // asks (activitySql) -- the product refuses each by name; any other root is the compiler's
@@ -170,7 +170,7 @@ public final class FramePlanner {
         }
         var assembled = ExecuteChainAssembly
                 .chain(prepared, ec, letPrefix, specs, env.runtimeFqn(),
-                        env.queryLets());
+                        env.queryLets(), env.edition().stampsTestBodies());
         return new FrameChain(ec, assembled.chain(), assembled.chain(), assembled.relationRooted(), false, env);
     }
 
@@ -259,7 +259,7 @@ public final class FramePlanner {
         if (fc.chain() instanceof TypedFrom fr
                 && ResultEnvelopeSplice.plainExtentRoot(fr.source())
                         instanceof TypedGetAll root
-                && BodyPlanner.resolver(specs, env).plainClassPipeline(fr, root)) {
+                && BodyPlanner.resolver(specs, env, com.legend.resolver.StampedCode.NONE).plainClassPipeline(fr, root)) {
             // rung 12: a PLAIN class-rooted let (Class.all() under filters, the
             // class bound by filters over ONE table) planned ONCE — the fold's
             // root rows (its from / where over the root table's physical

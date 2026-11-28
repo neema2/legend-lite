@@ -21,6 +21,13 @@ public enum SqlFn {
     // spell its golden 'integer' while execution casts BIGINT (the
     // per-dynafunction origin tag audit 19 F3 called for)
     PARSE_INT,
+    /** CAST_INT(text), CAST_FLOAT(text): the database's OWN cast of a text to its 64-bit integer and to its double
+     *  (the edition program's step 5, 2026-11-26): every dialect writes its plain CAST, with no grammar check before
+     *  it, so a text the database cannot convert is the database's own conversion error. Not {@link #PARSE_INT} nor
+     *  a user's cast to a Float, which the product checks against Pure's grammar and raises as its own. Written by
+     *  two of the lowering's named rules ({@code NamedRule.TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}), which
+     *  an edition's table alone names. */
+    CAST_INT, CAST_FLOAT,
     // Strings
     CONCAT, LENGTH, UPPER, LOWER, GREATEST, LEAST,
     // joinStrings over a literal element list in VALUE (map) position:
@@ -59,6 +66,10 @@ public enum SqlFn {
     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
     SQRT, CBRT, EXP, LN, LOG10, POW, PI,
     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
+    /** acos and asin of a value the statement's own guard holds within [-1, 1] (the lowering's rule raises outside it,
+     *  as legend-pure does: register S119): the database's function alone, with none of the dialect's own handling of
+     *  a value outside the domain, which {@link #ACOS} and {@link #ASIN} keep for a style that writes the raise plain. */
+    ACOS_IN_DOMAIN, ASIN_IN_DOMAIN,
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
     REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH,
@@ -70,13 +81,13 @@ public enum SqlFn {
     MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
     SUBSTRING,
-    /** substringAsGiven(str, start[, length]): the database's OWN SUBSTRING over the arguments as given (A3 of the
+    /** SUBSTRING_AS_GIVEN(str, start[, length]): the database's OWN SUBSTRING over the arguments as given (A3 of the
      *  compatibility program, 2026-11-19, docs/records/compat-homework/A3-engine-rewrite-design.md): every dialect
      *  writes it as its plain SUBSTRING, and no pass rewrites it -- {@code SubstringClamp} raises a start below 1 on
      *  {@link #SUBSTRING} alone -- so a start of 0 or below and a negative length answer as that database reads them,
-     *  which is legend-engine's answer by definition. Lowered from {@code meta::legend::lite::substringAsGiven}, and
-     *  from {@code meta::legend::lite::substrAsGiven} over {@code start + 1} and {@code end - start} (2026-11-20), which
-     *  the legend-engine door's {@code engine} rewrite alone writes. */
+     *  which is legend-engine's answer by definition. Written by two of the lowering's named rules
+     *  ({@code NamedRule.SUBSTRING_AS_GIVEN}, and {@code SUBSTR_AS_GIVEN} over {@code start + 1} and
+     *  {@code end - start}, 2026-11-20), which an edition's table alone names. */
     SUBSTRING_AS_GIVEN,
     STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
     LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART,
@@ -146,7 +157,21 @@ public enum SqlFn {
     /** {@link #SAME_IN_ORDER} in any order: the two sides as multisets. */
     SAME_IN_ANY_ORDER,
     STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-    ROUND_HALF_UP, ERROR, FLOOR_RAW,
+    ROUND_HALF_UP,
+    /** ROUND_RAW(x[, places]): the database's OWN ROUND over the arguments as given (the edition program's step
+     *  5, 2026-11-26): every relational dialect writes it as its plain ROUND, whatever that database's ROUND does with
+     *  a value exactly halfway (away from zero on DuckDB and H2). It is not {@link #ROUND}, Pure's half to even on
+     *  every database, nor {@link #ROUND_HALF_UP}, half away from zero on every database. Written by one of the
+     *  lowering's named rules ({@code NamedRule.ROUND_AS_GIVEN}), which an edition's table alone names. */
+    ROUND_RAW,
+    /** DECIMAL_RAW(x): the database's OWN cast of a value to its DECIMAL with no precision written (the edition
+     *  program's step 5, 2026-11-26): whatever precision and scale that database gives a bare DECIMAL -- three
+     *  places on DuckDB, none on H2, where 3.8 is 4 (measured,
+     *  docs/records/edition-homework/r3/measured-step5-facts.md A1, B6). No type is stated for it: it differs by
+     *  database. Written by one of the lowering's named rules ({@code NamedRule.CAST_TO_BARE_DECIMAL}), which an
+     *  edition's table alone names; a dialect whose database's answer is not read refuses it by name. */
+    DECIMAL_RAW,
+    ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
     /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic
@@ -160,18 +185,30 @@ public enum SqlFn {
      *  fractional ones from 1e-17 below 2^53), at least one fraction digit, NaN and the infinities by name. One call per
      *  value, which each dialect spells (dialect/FloatShortestText the portable decomposition; a dialect whose text of a
      *  double is long reads it once). A message's text of a Float (the judges', both judges alike, G2); legend-pure's
-     *  print form is the same text, so the compatibility edge writes this node for a relation text's Float cell
-     *  (edge/RelationTextLowering), legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere. Outside the
+     *  print form is the same text (the compatibility edge wrote this node for a relation text's Float cell until B2b's
+     *  S5a-S5c deleted its relation texts; legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere). Outside the
      *  windows the database's own exponent notation stays, which differs per database: logged for after separation
      *  ("one canonical Float text outside the windows"). */
     FLOAT_SHORTEST_TEXT,
     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
-     *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
-     *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
-     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms) and
-     *  {@link #FLOAT_SHORTEST_TEXT}, legend-pure's print form, for a relation text's cell (edge/RelationTextLowering;
-     *  PR #118 fix round, 2026-11-18). */
+     *  zeros trimmed, a whole value keeping one ({@code 2.0}), NaN and the infinities by name (the user's ruling of
+     *  2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15; S311 amended by the user's ruling of 2026-11-23, "I think
+     *  we do it as 2.0") -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
+     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms; its
+     *  relation texts' {@link #FLOAT_SHORTEST_TEXT} cells, PR #118's fix round, went with B2b S5a-S5c). */
     FLOAT_TO_TEXT,
+    /** A Float's FULL-PRECISION TEXT AS THE DATABASE ITSELF WRITES IT ({@code (x)}, one operand, a double; NULL stays
+     *  NULL): toCSV's Float cell (the user's ruling of 2026-11-25, "okay make exact": each database's own full-precision
+     *  text, its cast; S311's amendment). Each dialect writes its database's own cast or format function and never
+     *  composes a text in SQL (B3's (B), 2026-11-25, under the user's objection to text algorithms composed in SQL):
+     *  the plain cast to text on DuckDB, H2, Postgres (a whole value {@code 2}), Trino (always its exponent form,
+     *  {@code 1.5E0}), Databricks and BigQuery, {@code CAST AS CHAR} on MariaDB and
+     *  MySQL, {@code toString} on ClickHouse, {@code printf('%!.17g')} on SQLite (its cast writes fifteen digits),
+     *  {@code $toString} on MongoDB, and on Snowflake its DECFLOAT cast, NaN and the infinities by its plain cast (its
+     *  format models cap a FLOAT at sixteen digits, measured 2026-10-24; B3 agreed the same day). The text differs by database
+     *  ({@code 1e-07} on DuckDB, {@code 1.0E-7} on H2). Unlike {@link #FLOAT_SHORTEST_TEXT} it is never one spelling
+     *  across databases: it is each database's own. */
+    FLOAT_FULL_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
      *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
@@ -199,7 +236,7 @@ public enum SqlFn {
     // the id at lowering through the plan style's PureOnlyTexts facet, read by Scalars.pureToString under the caller's
     // explicit Styled; the product refuses at lowering)
     // (a relation's text: gone 2026-11-17, the separation census's B8 -- the edge's
-    // RelationTextLowering writes the text itself at lowering (B17's facet); the product refuses at lowering)
+    // RelationTextLowering wrote the text itself at lowering (B17's facet) until B2b S5c deleted it, 2026-11-25)
     // (a user's toRepresentation: gone 2026-11-17, the separation census's B8 (i) -- the edge
     // writes legend-pure's representation at lowering through the plan style's PureOnlyTexts facet; the product
     // refuses at lowering)
@@ -222,8 +259,8 @@ public enum SqlFn {
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
     public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
-            PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
-            MAKE_TIMESTAMP));
+            PARSE_INT, CAST_INT, CAST_FLOAT, DECIMAL_RAW, PARSE_DATE, ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN,
+            ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE, MAKE_TIMESTAMP));
 
     /** The functions that may leave an argument unevaluated on SOME dialect: AND, OR and COALESCE (SQL promises no
      *  order of evaluation), and every function a dialect renders with a branch -- a CASE, ClickHouse's
@@ -253,6 +290,9 @@ public enum SqlFn {
                     // a Float's and a DateTime's text, branching on the value's magnitude and kind (D's W3, its
                     // instrument, and S312's form, 2026-11-16; found by MaySkipCensusTest at the merge of PR1's head)
                     FLOAT_TO_TEXT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
+                    // a Float's full-precision text: SQLite keeps a NULL by a CASE around printf, Snowflake picks its
+                    // DECFLOAT cast or its plain cast by a CASE (toCSV's Float cell, 2026-11-25)
+                    FLOAT_FULL_TEXT,
                     // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
                     // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
                     CONCAT_WS));

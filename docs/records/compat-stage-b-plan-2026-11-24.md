@@ -1,5 +1,16 @@
 # Stage B after item 3: the order, and the one equality (2026-11-24)
 
+> **Amended again 2026-11-25 (late night): the edition program replaces what is left of Stage B; its current direction is `docs/records/edition-v4-direction-2026-11-25.md`, and `edition-program-START-HERE-2026-11-25.md` §0.0 maps every Stage B item to it.** The amendment below (E1-E7) is superseded by that mapping.
+>
+> **Amended 2026-11-25: the edition governs what is left of stage B.** The user ruled the edition design
+> (`docs/records/edition-design-2026-11-25.md`; "Edition seems best of all options", "Yes to all the amendments"). B3's
+> step 5 (the one equality as door rewrites) is replaced by its phases E1 and E2; B3's rewrites of legend-engine's test
+> code (S137, S144, the order-free `assertEquals`) and A3's `substring` become E4; B2's S6 meaning parts (Float text,
+> `TDSNull`, the unguarded parses) become E3; B4 is classified by the census
+> (`docs/records/edition-census-2026-11-25.md`); B5 becomes E5 to E7 (`PlanStyle` deleted, `platform.Feature` out of the
+> lowering, the guards), its goal "the switch counts read one, the edition". B1, item 3, B3 steps 1 to 4, B3 step 6,
+> B2's format work and B6 are unchanged. The design's §10d holds the item-by-item mapping.
+
 The plan of record for the compatibility program's stage B once item 3 (assert verdicts as typed records, PR #132)
 lands. Written at the user's request ("write this plan down so we don't forget", 2026-11-24). Ruled: the order (below)
 and the equality's semantics -- strict typing everywhere (the user, 2026-11-24: "Either all numbers by value or all
@@ -8,8 +19,12 @@ strict typing including ordering, "I like it" and "Love it").
 
 ## Stage B in full
 
-The program's plan (`docs/records/compat-design-and-plan-plain-2026-11-19.md` on `claude/compat-program`, ruled
-2026-11-19 ~13:25, "Okay agree with all"), with what has happened since.
+**The detailed plan of record is `docs/records/compat-stage-b-plan-2026-11-20.md` on `claude/compat-program`** (557
+lines: B1, BE, B3, B2, B4, B5, B6, each with what changes, what it deletes, how it is proven, and every decision ruled,
+its time given; B3 written down whole at the user's ask of 2026-11-20 ~23:55, "write all the B3 stuff down so we dont
+forget"). It governs; this document adds only what was decided after it: item 3, the order below, B2's split, and the
+one equality as B3's last step with the strict-typing rule. The summary table is from the program's plain-English plan
+(`docs/records/compat-design-and-plan-plain-2026-11-19.md`, ruled 2026-11-19 ~13:25, "Okay agree with all").
 
 | Item | What (the program's words) | How we know it worked (the program's) | State, 2026-11-24 |
 |---|---|---|---|
@@ -25,19 +40,35 @@ rides the very hooks B3 reshapes, so building B2 first would mean writing it twi
 with B2 in parallel) keeps that: **B2 splits in two.**
 
 - **B2a, now, in parallel (lite's own route, the product side; touches no hook B3 reshapes):**
-  1. the product bug the B2 prototype exposed ("must be fixed first"; find it in the prototype's record on
-     `claude/compat-program`);
-  2. a relation's `toString()` printed by the database on lite's route, replacing today's refusal (rule 1; measured
-     2026-11-19, H14: 390 of PCT's 423 table tests pass on DuckDB, every database printing the same text);
-  3. a whole Float prints `2.0` (Q10 amended 2026-11-23, "I think we do it as 2.0");
-  4. a date with a time prints lite's standard `...000000Z` (the user, 2026-11-19 ~18:05).
-- **B2b, after B3 step 1 (the edge formatters, on the reshaped hooks):** legend-pure's printed tables (where a
+  1. the product bug the B2 prototype exposed ("must be fixed first"): the window-in-list lowering, already fixed on
+     main (#128) -- verified, no code;
+  2. a whole Float prints `2.0` (Q10 amended 2026-11-23, "I think we do it as 2.0"; S311 amended);
+  3. a date with a time prints lite's standard text, ISO 8601 in UTC with nine fraction digits (S312 as amended by the
+     user 2026-11-22, "Yes always pretty print to iso nanos", superseding 2026-11-19's `...000000Z`).
+  **Held for B2b (the user, 2026-11-24, option C):** a relation's `toString()` printed by the database on lite's route
+  (rule 1; H14: 390 of PCT's 423 table tests pass on DuckDB this way). Landing it before B2b's presenter would either
+  change the compatibility routes' table text or need a temporary two-form facet and guard moves B2b would revert.
+- **B2b, after B3 step 1 (the edge formatters, on the reshaped hooks):** lite's own relation `toString()` in the
+  database (held from B2a), legend-pure's printed tables (where a
   relation's `toString` is the program's last step, the database returns typed rows and Java prints legend-pure's
   text; where the text is used further in the query, the database computes lite's text and the difference is
   recorded, ~18:12), legend-pure's printed values, legend-engine's result envelopes; S398 retired (legend-pure's assert
   words written at the edge from item 3's records); about 2,000 lines of SQL-built text deleted.
 
-**B3 step 1, corrected (2026-11-24):** the second host rulebook is `edge/CompiledPureHostForms` (compiled
+**B3, from the plan of record (2026-11-20), unchanged:** lite runs every test body as lite and the test planner plans
+nothing for compatibility; the judge has ONE rulebook, lite's (E1 withdrawn, ~21:00), and no compatibility code runs
+during the run -- compatibility changes the program only at the door, before planning (E0 = A), and formats output
+after it; the SQL-text fallback becomes harness code (the assert's query through the public `from()` door after the
+body, compared with the referee's golden rows); the test runner splits into public prepare and run halves; the input
+rewrites S137 (a relation's `assertSize`/`assertEmpty`/`assertNotEmpty` as legend-engine counts it) and S144 (the two
+goldens' JSON literals cleaned); the leniencies lite added -- S15, S132, S131 -- removed only after each test they carry
+is placed against legend-engine's own answer on that database (switch off on both corpus lanes; ask the engine runner;
+class each; counts and names to the user before deletion; H6 measured 0 PCT verdicts moving, the corpus DuckDB 69 and H2
+29); Q15, Q16b (reclaim all 7 shapes), Q16c, R1, Q4 as ruled; about 3,449 lines out of the core. **Added 2026-11-24:**
+legend-engine's door rewrites `==`, `!=`, `in` and `contains` to the database's comparison (neutral until the core's
+`==` changes), and the one equality (strict typing) as B3's last step.
+
+**B3's rulebook, measured again (2026-11-24):** the second host rulebook is `edge/CompiledPureHostForms` (compiled
 legend-pure's), used by the compatibility routes; lite's is `testexec/LiteHostForms`. They differ in four rules:
 
 | Rule | compiled legend-pure (the edge's today) | lite's |
@@ -157,7 +188,7 @@ What strict means, all of it:
    follow their arguments (`Pair<Integer, Float>` against `Pair<Integer, Integer>` is a compile error; `List<Number>`
    against `List<Integer>` compares at run time).
 7. **The doors carry upstream's looseness:** legend-pure's door rewrites a cross-type `==` to `false` (Pure's answer),
-   legend-engine's to the database's comparison; upstream programs still compile, lite's own do not.
+   legend-engine's to the database's comparison; upstream programs still compile, lite's own do not. **Mechanism ruled 2026-11-24 ("Love it"):** the typer types a comparison across types as a marker node, never a warning mode in the core; the product refuses the marker before planning, legend-engine's door rewrites it to the database's comparison, legend-pure's to `false`; each door lists what it loosened, a migration report (docs/records/compat-b3-progress.md).
 8. **Implementable on every database:** the static case sends no SQL (a compile error) or one SQL type's `=` (single-
    typed lists keep the native list functions, DuckDB's `list_contains` and the rest); the run-time case reuses the tagged
    list's row forms, which already run on every lane. H2's missing list functions are a gap with or without this (step

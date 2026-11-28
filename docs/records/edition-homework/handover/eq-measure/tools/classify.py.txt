@@ -1,0 +1,79 @@
+# usage: classify.py runsdir -> per-body cause class for every (a)/(b) difference, per database
+import json, re, sys, collections
+rd = sys.argv[1]
+rows = json.load(open(rd + '/rows.json'))
+
+def cause(a, b, va, vb):
+    vv = (va or '') + ' || ' + (vb or '')
+    if re.search(r'\bis\(', b): return 'other:is-not-native'
+    if 'the program road does not plan this body' in vv: return 'other:assert-planning'
+    if 'assertTrue' in a and 'unknown function' in vv: return 'other:assertTrue-unknown'
+    if re.search(r"DialectCapability: (LIST_|UNNEST|collection forAll)", vb or '') and not re.search(r"DialectCapability: (LIST_|UNNEST|collection forAll)", va or ''):
+        return 'lists/order:dialect-has-no-list-encoding'
+    if re.search(r'Syntax error in SQL statement .*JSON_ARRAY', vb or ''): return 'lists/order:mixed-list-equality-SQL-error'
+    if "Decimal's arithmetic" in (vb or ''): return 'other:SQLite-Decimal-arithmetic(tolerance)'
+    if 'instanceOf undecidable' in vv: return 'other:instanceOf-refused'
+    if "a constant side of type" in vv: return 'other:mixed-list-side-refused-in-assert'
+    if re.search(r'->cast\(@Any\)\) != \(\'a', b): return 'other:cross-type-primitives'
+    if re.search(r'fromJson|toVariant', a): return 'variants'
+    if re.search(r'#TDS|project\(', a): return 'grids'
+    if re.search(r'\^p::|\^t::|pair\(|list\(|newMap|p::Q\.all\(\)->at|p::Q\.all\(\)->sortBy\(x\|\$x\.id\)->at|p::Q\.all\(\)->filter\(x\|\$x\.id == 1\)\)|p::Q\.all\(\), |\$xs|\$f->eval', a):
+        return 'instances/keys'
+    if re.search(r'E\.[AB]', a): return 'enum-vs-String'
+    if re.search(r"'1'|'true'|true, 1\)|%2020-01-01, '2020", a): return 'other:cross-type-primitives'
+    if re.search(r'Unimplemented type for cast \(\w+(\(\d+,\d+\))? -> |subqueries in lambda|list_sort\(VARCHAR|list_contains\(VARCHAR', vv):
+        if re.search(r'%\d', a) and 'subqueries in lambda' not in vv and '->tail' not in a and 'SameElements' not in a:
+            pass
+        return 'lists/order'
+    if 'p::P.all()' in a: return 'number-kinds'
+    if re.search(r"^\{\|assertEquals\(\[\], ", a): return 'nulls/empties'
+    if re.search(r'%-?\d|\)\.t\b|\)\.d\b|\.t\)|\.d\)|toOne\(\)\.[dt]\b|date\(', a): return 'dates'
+    if re.search(r"\[\]|filter\(\w ?\| ?\$\w (>|==) ", a): return 'nulls/empties'
+    if re.search(r'\d\.\d|\dD\b|\.e\b|\.f\b|\.d\b|sum\(|/ 4|\.id\b|max\(', a): return 'number-kinds'
+    return 'other'
+
+def date_sub(a, va, vb, ca, cb):
+    if 'values holding both days and date-times' in (va or ''): return 'mixed-day-list-refused-in-assert'
+    if re.search(r'nanosecond|Timestamp\(NS\)|subsecond digits', (va or '') + (vb or '')) or re.search(r'\.\d{7,}', a): return 'nanoseconds'
+    if 'invalid timestamp field format' in (vb or ''): return 'hour-literal-render'
+    lits = re.findall(r'%[\d\-T:.+]+', a)
+    day = any(re.fullmatch(r'%-?\d+-\d\d-\d\d\)?', l) for l in lits) or re.search(r'\.d\b|\.d\)|toOne\(\)\.d|p::R\.|date\(2020, 1, 1\)|datePart|adjust\(1, DurationUnit.DAYS\)', a)
+    dt = any('T' in l for l in lits) or re.search(r'\)\.t\b|toOne\(\)\.t', a)
+    if day and dt and not re.search(r'%\d{4}-\d\d\)|%\d{4}\)|%\d{4},', a): return 'day-vs-datetime-kinds'
+    return 'written-precision/instant'
+
+hostdiff = {(x['id'], x['db']) for x in rows if x['mode'] == 'HOST' and x['ca'] != x['cb']}
+out = collections.OrderedDict()
+for x in rows:
+    if x['ca'] == x['cb']: continue
+    c = cause(x['a'], x['b'], x['va'], x['vb'])
+    if c == 'dates': c = 'dates:' + date_sub(x['a'], x['va'], x['vb'], x['ca'], x['cb'])
+    if x['mode'] == 'DATABASE' and x['ca'] == 'REFUSED' and (x['id'], x['db']) not in hostdiff and 'UNJUDGED' in (x['va'] or ''):
+        c = 'assert-gap:database-judge-unjudged(host=b)'
+    x['cause'] = c
+    out.setdefault(x['id'], {})[(x['db'], x['mode'])] = x
+json.dump([dict(id=i, a=list(d.values())[0]['a'], b=list(d.values())[0]['b'], cause=list(d.values())[0]['cause'],
+                per={'%s/%s' % k: [v['ca'], v['cb'], v['va'], v['vb']] for k, v in d.items()}) for i, d in out.items()],
+          open(rd + '/classified.json', 'w'), indent=1)
+DBS = sorted({x['db'] for x in rows})
+print('bodies with any difference:', len(out))
+tab = collections.defaultdict(lambda: collections.Counter())
+for i, d in out.items():
+    tab[list(d.values())[0]['cause']]['ANY'] += 1
+    for db in DBS:
+        ks = [k for k in d if k[0] == db]
+        if ks: tab[d[ks[0]]['cause']][db] += 1
+tot = collections.Counter()
+for i, d in out.items():
+    for db in DBS:
+        if any(k[0] == db for k in d): tot[db] += 1
+print('bodies differing per database:', dict(tot))
+print('%-40s %6s ' % ('cause (bodies)', 'ANY') + ' '.join('%7s' % d for d in DBS))
+for c in sorted(tab, key=lambda c: -tab[c]['ANY']):
+    print('%-40s %6d ' % (c, tab[c]['ANY']) + ' '.join('%7d' % tab[c][d] for d in DBS))
+# direction per class (HOST mode, per db)
+dirn = collections.defaultdict(collections.Counter)
+for x in rows:
+    if x['ca'] != x['cb'] and x['mode'] == 'HOST':
+        dirn[x['cause']][(x['db'], x['ca'] + '>' + x['cb'])] += 1
+json.dump({c: {'%s %s' % k: v for k, v in d.items()} for c, d in dirn.items()}, open(rd + '/directions.json', 'w'), indent=1)

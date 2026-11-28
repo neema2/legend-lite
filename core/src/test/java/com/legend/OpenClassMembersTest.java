@@ -47,18 +47,9 @@ class OpenClassMembersTest {
                     "public abstract com.legend.sql.SqlExpr formatPadded(com.legend.sql.SqlExpr, com.legend.sql.SqlExpr$IntLit)",
                     "public abstract com.legend.sql.SqlExpr instanceText(com.legend.sql.SqlExpr)",
                     "public abstract com.legend.sql.SqlExpr representation(com.legend.sql.SqlExpr)")),
-            // B17 (the listed facade of the relation text: ArchitectureTest.PLANNER_ENTRIES)
-            Map.entry("com.legend.lowering.RelationTexts", Set.of(
-                    // re-cut 2026-11-17 on d-stage c37207858: train 7's J26 (af4c03ba5c) and E-SQL's pforms (449c51793a)
-                    // -- each facet method takes the planner's own Styled, pureToString takes it in place of the two
-                    // facets, and the substitute's lambda went with J26; relationToString and toCsv lost their map of
-                    // relation types 2026-11-18 with E-SQL's J40 (9822fd89c8: DeferredTdsString out of the product MIR,
-                    // the edge's relation text typing its own) -- train 17
-                    "public abstract com.legend.sql.SqlExpr csvProperty(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
-                    "public abstract com.legend.sql.SqlExpr relationToString(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
-                    "public abstract com.legend.sql.SqlExpr toCsv(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
-                    "public static com.legend.compiler.element.type.Type kindType(java.lang.String)",
-                    "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),
+            // (B17, com.legend.lowering.RelationTexts, the listed facade of the relation text: gone 2026-11-25 with the
+            // facet, stage B's B2b S5c -- a relation's toString and toCSV are lite's own texts, ProductRelationText, and a
+            // TDS's csv was refused by name (lite's CSV since the ruling of 2026-11-25, S405); a shrink)
             // (com.legend.lowering.Repr: gone 2026-11-17, C5 step A -- legend-pure's representation moved to the
             // edge, edge.EdgePureOnlyTexts; its product parts the listed facade lowering.ReprParts)
             // B5 (a ruled hook)

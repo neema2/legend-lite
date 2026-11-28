@@ -297,11 +297,10 @@ public final class BodyDriver {
         if (!assertShaped) {
             return null;
         }
-        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
-        single.add(bare);
-        var inliner = new com.legend.compiler.spec.UserCallInliner(specs, hook);
-        java.util.List<TypedSpec> body = new java.util.ArrayList<>(inliner.inlineBody(single));
-        env.queryLets().putAll(inliner.queryLets());
+        // the planner's one inlining of a side (the lets spliced, its lets kept for the resolver; a test body's own
+        // code stamped where the door's edition stamps test bodies)
+        java.util.List<TypedSpec> body = com.legend.planner.BodyPlanner.inlinedSide(bare, letPrefix, specs, env.plan(),
+                hook);
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, com.legend.planner.PlanTextRoutines.of(specs, env.plan())));
@@ -312,15 +311,22 @@ public final class BodyDriver {
         preRoot = foldPairProjection(preRoot);
         boolean assertHelper = isAssertHelper(call.callee(), specs, 0);
         if (assertHelper && preRoot instanceof com.legend.compiler.spec.typed.TypedCBoolean decided && decided.value()
-                && body.size() == single.size()) {
+                && body.size() == letPrefix.size() + 1) {
             // the compiler decided the helper's assert (LiteralUnroll folds an assert over spelled values to true): the
             // assert it is, holding -- assert(true), planned by both judges as any assert (the asserts-as-plan-nodes
             // program, step 3: assertNotEq(1, 2) inlined to assert(!eq(1, 2), ...) folds so)
             return com.legend.compiler.spec.AssertMessages.holds(specs);
         }
-        return isHelperAssertRoot(bare, preRoot) || assertHelper && preRoot instanceof
+        TypedSpec root = isHelperAssertRoot(bare, preRoot) || assertHelper && preRoot instanceof
                 com.legend.compiler.spec.typed.TypedNativeCall nc && assertsPackageNative(nc)
                 && com.legend.builtin.NativeFn.Verdict.of(nc.callee().id()).isPresent() ? preRoot : null;
+        if (root != null) {
+            // the helper's assert under the order rule too, read with the inlined lets before it (B3 step 4's review,
+            // H1, 2026-11-24: an assertEquals of unordered rows inside a helper escaped the refusal)
+            com.legend.compiler.spec.OrderedAsserts.rewrite(root, body.subList(0, body.size() - 1),
+                    com.legend.compiler.spec.OrderedAsserts::refused);
+        }
+        return root;
     }
 
     /** The statement's env widened with the tableReplace maps of every

@@ -344,9 +344,9 @@ public final class MinimalCorpus {
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(),
-                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode)
-                        // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                        .withStyle(com.legend.edge.PureText.UPSTREAM));
+                // the judge mode alone: the style is the audience's (B3 step 2b, 2026-11-24 -- a style set here was
+                // dropped by judgedAs, which keeps the judge mode alone: the review of step 2's M1)
+                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -589,30 +589,52 @@ public final class MinimalCorpus {
             com.legend.harness.ReplayReferee.mirrorSuspend(on);
         }
 
+        /** legend-engine's audience for {@code t} (B3 step 2b, 2026-11-24: its options, its run hook and its door
+         *  together, so none is chosen apart from the others): the compatibility edge's options in upstream's plan style,
+         *  the corpus's appeals heard at the edge and decided by its referee, and the edge's test-body door. */
         @Override
-        public com.legend.ExecuteOptions options(PureTests.TestCase t, boolean shared) {
-            // the raw-SQL ledger of THIS test (Phase 2b): the session's seed
-            // prefix, then everything the setups and the body execute; the
-            // executor appends through the options, the referee reads it
-            recorder = new com.legend.edge.RawLedger.Recorder(
-                    shared ? seedLedger : List.of());
-            referee = new com.legend.harness.ReplayReferee(recorder);
-            // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
-            // 2026-11-09): a CSV load's plan names its file by reference and digest, the run reads it from here
-            // the same stores the edge's: the referee's copy of a CSV load reads the bytes the plan's load read (B2b)
-            com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
-                    Corpus.RELATIONAL.getParent().getParent());
-            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
-                    // backwards-compatibility mode, the judges' leniencies that meet legend-engine's goldens: the
-                    // rules the CompatEdge names (census C1, 2026-11-17: Edge.rules(), the edge's CompatRules)
-                    // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                    .withStyle(com.legend.edge.PureText.UPSTREAM);
-        }
+        public com.legend.test.Audience audience(PureTests.TestCase t) {
+            return new com.legend.test.Audience() {
+                @Override
+                public com.legend.ExecuteOptions options(boolean shared) {
+                    // the raw-SQL ledger of THIS test (Phase 2b): the session's seed
+                    // prefix, then everything the setups and the body execute; the
+                    // executor appends through the options, the referee reads it
+                    recorder = new com.legend.edge.RawLedger.Recorder(
+                            shared ? seedLedger : List.of());
+                    referee = new com.legend.harness.ReplayReferee(recorder);
+                    // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md
+                    // L1, 2026-11-09): a CSV load's plan names its file by reference and digest, the run reads it from
+                    // here; the same stores the edge's: the referee's copy of a CSV load reads the bytes the plan's load
+                    // read (B2b)
+                    com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
+                            Corpus.RELATIONAL.getParent().getParent());
+                    return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
+                            // legend-engine's texts, spelled by the edge (phase D's D1.0); legend-engine's own
+                            // tests' style since the edition program's step 3 (2026-11-26): the queries a test's
+                            // execute()s run get legend-engine's meaning, the test's own code Pure's
+                            .withStyle(com.legend.edge.PureText.ENGINE_TESTS);
+                }
 
-        @Override
-        public com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase t) {
-            // the corpus's appeals heard at the edge, decided by its referee (census C2, 2026-11-17)
-            return com.legend.edge.AppealRun.with(referee);
+                @Override
+                public com.legend.testexec.EdgeRun edgeRun() {
+                    // the corpus's appeals heard at the edge, decided by its referee (census C2, 2026-11-17)
+                    return com.legend.edge.AppealRun.with(referee);
+                }
+
+                @Override
+                public com.legend.TypedQuery admitted(com.legend.TypedQuery typed) {
+                    // legend-engine's tests read as its runner reads them: the edge's test-body door (B3 step 2)
+                    return com.legend.edge.UpstreamTestBodies.admitted(typed);
+                }
+
+                @Override
+                public com.legend.TypedQuery read(com.legend.TypedQuery typed,
+                        com.legend.testexecutionplan.BodyFacts facts, Reads reads) {
+                    // a relation's printed text, legend-pure's, read before the body (B3 step 2b)
+                    return com.legend.edge.UpstreamPrints.read(typed, facts.effects(), reads::read);
+                }
+            };
         }
 
         @Override

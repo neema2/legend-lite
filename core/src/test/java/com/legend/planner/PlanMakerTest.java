@@ -311,7 +311,8 @@ class PlanMakerTest {
 
     /** A double that is no number prints as Pure prints it ({@code NaN}; {@code Infinity} and {@code -Infinity}
      *  the same way), whatever the database writes for it: the channel A shadow run of 2026-10-18 found
-     *  {@code acos(2.0)} printed {@code nan.0} on DuckDB (the plan path program's step 7). */
+     *  {@code acos(2.0)} printed {@code nan.0} on DuckDB (the plan path program's step 7). The NaN is a parsed
+     *  text's since 2026-11-26: {@code acos} outside its domain raises now (register S119). */
     @Test
     void aDoubleThatIsNoNumberPrintsAsPurePrintsIt() throws Exception {
         assertNoNumberPrintsAsPure(Databases.PLATFORM);    // and on H2: PlanMakerH2Test
@@ -321,7 +322,8 @@ class PlanMakerTest {
     static void assertNoNumberPrintsAsPure(DatabaseType type) throws Exception {
         try (Connection c = fresh(type)) {
             assertEquals("value\r\nNaN\r\n",
-                    PlanCases.write(plan(type, "|2.0->acos()", Written.CSV), c, java.util.Map.of(), Written.CSV::writer),
+                    PlanCases.write(plan(type, "|'NaN'->parseFloat()", Written.CSV), c, java.util.Map.of(),
+                            Written.CSV::writer),
                     type.name());
         }
     }
@@ -450,7 +452,8 @@ class PlanMakerTest {
     @Test
     void aListOfDecimalsIsRefusedByName() {
         var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(Databases.PLATFORM,
-                "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ps))}", Written.JSON));
+                // the Integer column read as a Decimal: a Decimal against Decimals (B3 step 5's one equality)
+                "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->toDecimal()->in($ps))}", Written.JSON));
         assertTrue(refused.getMessage().contains("PARK-20"), refused.getMessage());
     }
 

@@ -60,8 +60,8 @@ public class Test_LegendLite_Databricks_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             // 2026-10-19, step 9, the plan route (as on DuckDB): the NaN cell is spelled NaN and Pure's parseFloat
             // refuses the character (the legacy route's Java BigDecimal said "Infinite or NaN")
-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
+            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
+            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
             // DATABRICKS' OWN LIMIT: a date-time past Spark's range overflows (measured)
             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L DAY to TIMESTAMP '2016-02-29 00:00:00'."),

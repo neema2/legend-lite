@@ -81,12 +81,29 @@ class BigQueryDialectTest {
     @Test
     void aFloatsTextIsSixDecimalsTrimmed() {
         String sql = render(SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, X), null);
-        // a negative value that rounds to zero is 0 (round 56, 2026-11-15: its -0.000000 written 0.000000 first)
-        assertTrue(sql.contains("REPLACE(REPLACE(RTRIM(RTRIM(REPLACE(FORMAT('%.6f', `t`.`x`), '-0.000000', '0.000000'),"
-                + " '0'), '.'), 'nan', 'NaN'),"
+        // a negative value that rounds to zero is 0.0 (round 56, 2026-11-15: its -0.000000 written 0.000000 first); a
+        // whole value's .000000 marked .# before the trim and written 0 after (S311 amended, the user's ruling of
+        // 2026-11-23, "I think we do it as 2.0"; B2a, 2026-11-24)
+        assertTrue(sql.contains("REPLACE(REPLACE(REPLACE(RTRIM(REPLACE(REPLACE(FORMAT('%.6f', `t`.`x`), '-0.000000',"
+                + " '0.000000'), '.000000', '.#'), '0'), '#', '0'), 'nan', 'NaN'),"
                 + " 'inf', 'Infinity')"), sql);
         assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, sql);
         assertFalse(sql.contains("(SELECT"), sql);
+    }
+
+    /** BigQuery orders no STRUCT ("ORDER BY does not support expressions of type STRUCT", measured on the account,
+     *  2026-11-26: a mixed list's sort, whose key is the rank across kinds): a struct key is written as its fields in
+     *  order, each with its NULLs last; a scalar key as before. */
+    @Test
+    void anOrderedListsStructKeyIsWrittenFieldByField() {
+        SqlType.Struct rank = new SqlType.Struct(List.of(new SqlType.Struct.Field("g", SqlType.Scalar.BIGINT),
+                new SqlType.Struct.Field("n", SqlType.Scalar.DOUBLE)));
+        SqlExpr key = SqlExpr.Column.of("t", "k", rank, true, OutputCol.Origin.PHYSICAL);
+        String sql = render(new SqlExpr.OrderedListAgg(X, key), null);
+        assertTrue(sql.contains("ARRAY_AGG(`t`.`x` ORDER BY ((`t`.`k`).`g`) IS NULL ASC, (`t`.`k`).`g` ASC,"
+                + " ((`t`.`k`).`n`) IS NULL ASC, (`t`.`k`).`n` ASC)"), sql);
+        String scalar = render(new SqlExpr.OrderedListAgg(X, X), null);
+        assertTrue(scalar.contains("ARRAY_AGG(`t`.`x` ORDER BY (`t`.`x`) IS NULL ASC, `t`.`x` ASC)"), scalar);
     }
 
     /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError); a DATETIME

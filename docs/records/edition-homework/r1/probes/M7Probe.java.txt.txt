@@ -1,0 +1,509 @@
+// TEMPORARY MEASUREMENT PROBE (M7, never committed): a typed census of a corpus test body OUTSIDE its execute()
+// argument -- the constructs whose meaning differs between legend-pure and legend-engine -- printed to the pass's log.
+
+package com.legend.test;
+
+import com.legend.compiler.element.TypedFunction;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedCrossTypeComparison;
+import com.legend.compiler.spec.typed.TypedFrom;
+import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedUserCall;
+import com.legend.compiler.spec.typed.TypedVariable;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+final class M7Probe {
+
+    private M7Probe() {
+    }
+
+    /** The calls whose first argument is the query (legend-engine's side), never the harness. */
+    private static final Set<String> QUERY_CALLS = Set.of("execute", "executeInternal", "executionPlan",
+            "executeLegendQuery", "toSQLString", "toSQLStringPretty", "toSQL", "generatePlan", "executeInDb");
+
+    private static final Set<Type> TEXT_TYPES = Set.of(Type.Primitive.FLOAT, Type.Primitive.DATE_TIME,
+            Type.Primitive.STRICT_DATE, Type.Primitive.DATE);
+
+    private static final Set<Type> NUMBER_KINDS = Set.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
+            Type.Primitive.DECIMAL);
+
+    private static final Set<String> COMPARISONS = Set.of("equal", "eq", "lessThan", "lessThanEqual", "greaterThan",
+            "greaterThanEqual", "compare", "in", "contains", "max", "min");
+
+    private static final Set<String> ASSERT_COMPARISONS = Set.of("assertEquals", "assertEq", "assertNotEquals",
+            "assertNotEq");
+
+    private static final Set<String> PARSES = Set.of("parseInteger", "parseFloat", "parseDecimal", "parseDate");
+
+    private static final int MAX_DEPTH = 6;
+
+    record Finding(String kind, String detail, String where, String pos) {
+    }
+
+    static final class Summary {
+        final Set<Finding> findings = new LinkedHashSet<>();
+        final Set<Finding> verdict = new LinkedHashSet<>();
+        Set<Finding> returned = Set.of();
+        Set<Integer> queryParams = Set.of();
+        boolean hasAssert;
+    }
+
+    static void census(PureTests.TestCase t, com.legend.compiler.element.ModelContext ctx) {
+        try {
+            com.legend.protocol.spec.ValueSpecification resolved = com.legend.Compiler.resolveQuery(
+                    List.copyOf(t.fn().body()), t.imports(), ctx);
+            com.legend.TypedQuery tq = com.legend.Compiler.queryResolved(ctx, resolved);
+            Walker w = new Walker(tq);
+            Summary s = w.function(tq.body(), "test", 0);
+            Set<String> kinds = new TreeSet<>();
+            Set<String> verdictKinds = new TreeSet<>();
+            for (Finding f : s.findings) {
+                kinds.add(f.kind());
+                System.out.println("PROBE-M7\t" + t.fqn() + "\t" + f.kind() + "\t" + f.detail() + "\t" + f.where()
+                        + "\t" + f.pos() + "\t" + (s.verdict.contains(f) ? "V" : "-"));
+            }
+            for (Finding f : s.verdict) {
+                verdictKinds.add(f.kind());
+            }
+            System.out.println("PROBE-M7-TEST\t" + t.fqn() + "\t" + String.join(",", kinds) + "\t"
+                    + String.join(",", verdictKinds) + "\t" + String.join(",", new TreeSet<>(w.skipped)) + "\t"
+                    + w.froms + "\t" + String.join(",", new TreeSet<>(w.helperErrors)) + "\t" + w.queryLetsSkipped + "\t"
+                    + w.queryArgsSkipped);
+        } catch (Throwable e) {
+            String m = String.valueOf(e.getMessage());
+            int nl = m.indexOf('\n');
+            System.out.println("PROBE-M7-ERR\t" + t.fqn() + "\t" + e.getClass().getSimpleName() + "\t"
+                    + (nl < 0 ? m : m.substring(0, nl)).replace('\t', ' '));
+        }
+    }
+
+    static final class Walker {
+        final com.legend.TypedQuery tq;
+        final Map<String, Summary> helpers = new HashMap<>();
+        final Set<String> inProgress = new HashSet<>();
+        final List<String> skipped = new ArrayList<>();
+        final Set<String> helperErrors = new TreeSet<>();
+        final Set<String> queryLets = new HashSet<>();
+        final Set<String> capturedByQuery = new HashSet<>();
+        int froms;
+        int queryLetsSkipped;
+        int queryArgsSkipped;
+
+        Walker(com.legend.TypedQuery tq) {
+            this.tq = tq;
+        }
+
+        Summary function(List<TypedSpec> body, String where, int depth) {
+            return function(body, where, depth, List.of());
+        }
+
+        /** The variables whose value a query call (or a helper's query parameter) receives as its query. */
+        void queryVars(TypedSpec n, int depth, Set<String> out) {
+            if (n instanceof TypedFrom) {
+                return;
+            }
+            TypedFunction callee = null;
+            List<TypedSpec> args = List.of();
+            boolean user = false;
+            if (n instanceof TypedNativeCall c) {
+                callee = c.callee();
+                args = c.args();
+            } else if (n instanceof TypedUserCall c) {
+                callee = c.callee();
+                args = c.args();
+                user = true;
+            }
+            if (callee != null) {
+                String simple = simple(callee.qualifiedName());
+                Set<Integer> qp = Set.of();
+                if (QUERY_CALLS.contains(simple)) {
+                    qp = Set.of(0);
+                } else if (user && depth < MAX_DEPTH) {
+                    Summary h = helper(callee, depth + 1);
+                    if (h != null) {
+                        qp = h.queryParams;
+                    }
+                }
+                for (Integer i : qp) {
+                    if (i < args.size() && args.get(i) instanceof TypedVariable v) {
+                        out.add(v.name());
+                    }
+                    if (i < args.size()) {
+                        captured(args.get(i), capturedByQuery);
+                    }
+                }
+            }
+            for (TypedSpec k : n.children()) {
+                queryVars(k, depth, out);
+            }
+        }
+
+        /** Every variable a query reads: a let it captures. */
+        void captured(TypedSpec n, Set<String> out) {
+            if (n instanceof TypedVariable v) {
+                out.add(v.name());
+            }
+            for (TypedSpec k : n.children()) {
+                captured(k, out);
+            }
+        }
+
+        Summary function(List<TypedSpec> body, String where, int depth, List<String> params) {
+            Summary s = new Summary();
+            Set<String> qv = new HashSet<>();
+            for (TypedSpec st : body) {
+                queryVars(st, depth, qv);
+            }
+            Set<Integer> qp = new HashSet<>();
+            for (int i = 0; i < params.size(); i++) {
+                if (qv.contains(params.get(i))) {
+                    qp.add(i);
+                }
+            }
+            s.queryParams = qp;
+            queryLets.addAll(qv);
+            Map<String, Set<Finding>> taint = new HashMap<>();
+            Set<Finding> last = Set.of();
+            for (TypedSpec st : body) {
+                last = scan(st, where, depth, s, taint);
+            }
+            s.returned = last;
+            return s;
+        }
+
+        Set<Finding> scan(TypedSpec n, String where, int depth, Summary s, Map<String, Set<Finding>> taint) {
+            if (n instanceof TypedFrom) {
+                froms++;
+                return Set.of();
+            }
+            if (n instanceof TypedVariable v) {
+                Set<Finding> t = taint.get(v.name());
+                return t == null ? Set.of() : t;
+            }
+            if (n instanceof TypedLet l && (queryLets.contains(l.name())
+                    || (capturedByQuery.contains(l.name()) && l.value() instanceof TypedLambda))) {
+                // a let holding a query a query call receives (let q = {|...}; execute($q, ...)): the query's, never the harness
+                queryLetsSkipped++;
+                taint.put(l.name(), Set.of());
+                return Set.of();
+            }
+            if (n instanceof TypedLet l) {
+                Set<Finding> f = scan(l.value(), where, depth, s, taint);
+                taint.put(l.name(), f);
+                return f;
+            }
+            Set<Finding> flow = new LinkedHashSet<>();
+            if (n instanceof TypedCrossTypeComparison x) {
+                if (NUMBER_KINDS.contains(x.left()) && NUMBER_KINDS.contains(x.right()) && x.left() != x.right()) {
+                    Finding f = new Finding("cmp:number-kinds", x.operator() + " " + name(x.left()) + " vs "
+                            + name(x.right()) + " (marked)", where, pos(x.pos()));
+                    s.findings.add(f);
+                    flow.add(f);
+                } else {
+                    Finding f = new Finding("info:cross-type", x.operator() + " " + name(x.left()) + " vs "
+                            + name(x.right()), where, pos(x.pos()));
+                    s.findings.add(f);
+                    flow.add(f);
+                }
+                for (TypedSpec k : x.comparison().children()) {
+                    flow.addAll(scan(k, where, depth, s, taint));
+                }
+                return flow;
+            }
+            TypedFunction callee = null;
+            List<TypedSpec> args = List.of();
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo at = null;
+            boolean user = false;
+            if (n instanceof TypedNativeCall c) {
+                callee = c.callee();
+                args = c.args();
+                at = c.pos();
+            } else if (n instanceof TypedUserCall c) {
+                callee = c.callee();
+                args = c.args();
+                user = true;
+            }
+            if (callee == null) {
+                for (TypedSpec k : n.children()) {
+                    flow.addAll(scan(k, where, depth, s, taint));
+                }
+                return flow;
+            }
+            String simple = simple(callee.qualifiedName());
+            List<TypedSpec> walked = args;
+            boolean query = QUERY_CALLS.contains(simple) && !args.isEmpty();
+            if (query) {
+                skipped.add(simple);
+                walked = args.subList(1, args.size());
+            } else if (user && depth < MAX_DEPTH) {
+                Summary hq = helper(callee, depth + 1);
+                if (hq != null && !hq.queryParams.isEmpty()) {
+                    List<TypedSpec> kept = new ArrayList<>();
+                    for (int i = 0; i < args.size(); i++) {
+                        if (hq.queryParams.contains(i)) {
+                            queryArgsSkipped++;
+                            skipped.add("helper:" + simple);
+                        } else {
+                            kept.add(args.get(i));
+                        }
+                    }
+                    walked = kept;
+                }
+            }
+            List<Set<Finding>> argFlows = new ArrayList<>();
+            for (TypedSpec a : walked) {
+                Set<Finding> af = scan(a, query ? "qarg:" + simple + ":" + where : where, depth, s, taint);
+                argFlows.add(af);
+                if (!query) {
+                    flow.addAll(af);
+                }
+            }
+            Finding own = classify(simple, args, n, where, pos(at));
+            if (own != null) {
+                s.findings.add(own);
+                flow.add(own);
+            }
+            if (simple.startsWith("assert")) {
+                s.hasAssert = true;
+                for (Set<Finding> af : argFlows) {
+                    s.verdict.addAll(af);
+                }
+                if (own != null) {
+                    s.verdict.add(own);
+                }
+                return flow;
+            }
+            if (user && !QUERY_CALLS.contains(simple) && depth < MAX_DEPTH) {
+                Summary h = helper(callee, depth + 1);
+                if (h != null && where.startsWith("qarg:")) {
+                    // a helper inside a query call's mapping/runtime/extension argument: counted under that label
+                    for (Finding f : h.findings) {
+                        s.findings.add(new Finding(f.kind(), f.detail(), "qarg-helper:" + f.where(), f.pos()));
+                    }
+                } else if (h != null) {
+                    s.findings.addAll(h.findings);
+                    flow.addAll(h.returned);
+                    s.verdict.addAll(h.verdict);
+                    if (h.hasAssert) {
+                        s.hasAssert = true;
+                        for (Set<Finding> af : argFlows) {
+                            s.verdict.addAll(af);
+                        }
+                    }
+                }
+            }
+            return flow;
+        }
+
+        @com.legend.base.Nullable Summary helper(TypedFunction fn, int depth) {
+            String key = fn.qualifiedName() + "#" + fn.parameters().size();
+            Summary done = helpers.get(key);
+            if (done != null) {
+                return done;
+            }
+            if (fn.isNative() || fn.body().isEmpty() || inProgress.contains(key)) {
+                return null;
+            }
+            inProgress.add(key);
+            try {
+                List<TypedSpec> body = tq.specs().compile(fn).body();
+                List<String> names = new ArrayList<>();
+                for (com.legend.compiler.element.TypedParameter p : fn.parameters()) {
+                    names.add(p.name());
+                }
+                Summary s = function(body, fn.qualifiedName(), depth, names);
+                helpers.put(key, s);
+                return s;
+            } catch (Throwable e) {
+                helperErrors.add(fn.qualifiedName() + ":" + e.getClass().getSimpleName());
+                return null;
+            } finally {
+                inProgress.remove(key);
+            }
+        }
+    }
+
+    private static @com.legend.base.Nullable Finding classify(String simple,
+            List<TypedSpec> args, TypedSpec call, String where, String pos) {
+        switch (simple) {
+            case "toString" -> {
+                if (args.size() == 1) {
+                    Type t = args.get(0).info().type();
+                    if (TEXT_TYPES.contains(t)) {
+                        return new Finding("text:toString", name(t) + mult(args.get(0)), where, pos);
+                    }
+                    return new Finding("info:text-toString", label(t), where, pos);
+                }
+                return null;
+            }
+            case "toCSV", "tdsToString", "toTDSString" -> {
+                return args.isEmpty() ? null : new Finding("info:text-" + simple, label(args.get(0).info().type()), where,
+                        pos);
+            }
+            case "format" -> {
+                Set<String> hit = new TreeSet<>();
+                for (int i = 1; i < args.size(); i++) {
+                    for (Type t : elementTypes(args.get(i))) {
+                        if (TEXT_TYPES.contains(t)) {
+                            hit.add(name(t));
+                        }
+                    }
+                }
+                if (hit.isEmpty()) {
+                    Set<String> other = new TreeSet<>();
+                    for (int i = 1; i < args.size(); i++) {
+                        for (Type t : elementTypes(args.get(i))) {
+                            other.add(label(t));
+                        }
+                    }
+                    return new Finding("info:text-format", String.join("+", other), where, pos);
+                }
+                return new Finding("text:format", String.join("+", hit), where, pos);
+            }
+            case "makeString", "joinStrings" -> {
+                if (args.isEmpty()) {
+                    return null;
+                }
+                Set<String> hit = new TreeSet<>();
+                for (Type t : elementTypes(args.get(0))) {
+                    if (TEXT_TYPES.contains(t)) {
+                        hit.add(name(t));
+                    }
+                }
+                if (hit.isEmpty()) {
+                    Set<String> other = new TreeSet<>();
+                    for (Type t : elementTypes(args.get(0))) {
+                        other.add(label(t));
+                    }
+                    return new Finding("info:text-" + simple, String.join("+", other), where, pos);
+                }
+                return new Finding("text:" + simple, String.join("+", hit), where, pos);
+            }
+            case "plus" -> {
+                if (call.info().type() != Type.Primitive.STRING) {
+                    return null;
+                }
+                Set<String> hit = new TreeSet<>();
+                for (TypedSpec a : args) {
+                    for (Type t : elementTypes(a)) {
+                        if (TEXT_TYPES.contains(t)) {
+                            hit.add(name(t));
+                        }
+                    }
+                }
+                return hit.isEmpty() ? null : new Finding("text:concat", String.join("+", hit), where, pos);
+            }
+            case "substring" -> {
+                return new Finding("str:substring", args.size() + " args" + (args.isEmpty() ? "" : mult(args.get(0))),
+                        where, pos);
+            }
+            case "indexOf" -> {
+                if (!args.isEmpty() && args.get(0).info().type() == Type.Primitive.STRING
+                        && !args.get(0).info().multiplicity().isMany()) {
+                    return new Finding("str:indexOf", args.size() + " args" + mult(args.get(0)), where, pos);
+                }
+                return null;
+            }
+            case "toOne" -> {
+                if (args.size() == 1 && args.get(0).info().multiplicity() instanceof Multiplicity.Bounded b
+                        && b.lower() == 0) {
+                    return new Finding("toOne:possibly-empty", name(args.get(0).info().type()) + mult(args.get(0)),
+                            where, pos);
+                }
+                return null;
+            }
+            case "isNumeric" -> {
+                return new Finding("isNumeric", args.isEmpty() ? "" : mult(args.get(0)), where, pos);
+            }
+            default -> {
+                if (PARSES.contains(simple)) {
+                    return new Finding("parse:" + simple, args.size() + " args", where, pos);
+                }
+                boolean assertCmp = ASSERT_COMPARISONS.contains(simple);
+                if ((COMPARISONS.contains(simple) || assertCmp) && args.size() >= 2) {
+                    if ((simple.equals("max") || simple.equals("min")) && args.size() != 2) {
+                        return null;
+                    }
+                    Set<Type> left = elementTypes(args.get(0));
+                    Set<Type> right = elementTypes(args.get(1));
+                    for (Type l : left) {
+                        for (Type r : right) {
+                            if (NUMBER_KINDS.contains(l) && NUMBER_KINDS.contains(r) && l != r) {
+                                return new Finding(assertCmp ? "cmp:assert-number-kinds" : "cmp:number-kinds",
+                                        simple + " " + name(l) + " vs " + name(r), where, pos);
+                            }
+                        }
+                    }
+                    for (Type l : left) {
+                        for (Type r : right) {
+                            if ((l == Type.Primitive.NUMBER && NUMBER_KINDS.contains(r))
+                                    || (r == Type.Primitive.NUMBER && NUMBER_KINDS.contains(l))) {
+                                return new Finding("info:cmp-number-abstract", simple + " " + name(l) + " vs "
+                                        + name(r), where, pos);
+                            }
+                        }
+                    }
+                }
+                return null;
+            }
+        }
+    }
+
+    /** The types a value's elements have: a literal collection's elements one by one, else the value's type. */
+    private static Set<Type> elementTypes(TypedSpec v) {
+        Set<Type> out = new LinkedHashSet<>();
+        if (v instanceof TypedCollection c && !c.elements().isEmpty()) {
+            for (TypedSpec e : c.elements()) {
+                out.addAll(elementTypes(e));
+            }
+            return out;
+        }
+        out.add(v.info().type());
+        return out;
+    }
+
+    private static String mult(TypedSpec v) {
+        return v.info().multiplicity() instanceof Multiplicity.Bounded b
+                ? "[" + b.lower() + ".." + (b.upper() == null ? "*" : String.valueOf(b.upper())) + "]" : "[?]";
+    }
+
+    private static String name(Type t) {
+        return t instanceof Type.Primitive p ? p.name() : t.getClass().getSimpleName();
+    }
+
+    private static String label(Type t) {
+        if (t instanceof Type.Primitive p) {
+            return p.name();
+        }
+        String s = String.valueOf(t).replace('\t', ' ').replace('\n', ' ');
+        Set<String> cells = new TreeSet<>();
+        for (String n : List.of("FLOAT", "DATE_TIME", "STRICT_DATE", "DATE", "DECIMAL")) {
+            if (s.contains("type=" + n + ",") || s.contains("type=" + n + "]")) {
+                cells.add(n);
+            }
+        }
+        return (s.length() > 90 ? s.substring(0, 90) : s) + " cells" + cells;
+    }
+
+    private static String simple(String fqn) {
+        int at = fqn.lastIndexOf("::");
+        return at < 0 ? fqn : fqn.substring(at + 2);
+    }
+
+    private static String pos(com.legend.protocol.@com.legend.base.Nullable SourceInfo p) {
+        return p == null ? "-" : p.sourceId() + ":" + p.startLine() + ":" + p.startColumn();
+    }
+}

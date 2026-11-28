@@ -95,11 +95,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 | `1->bitShiftRight(63)` (DuckDB) | `0` | Pure's error | `if($n > 62, \|0, \|$x->bitShiftRight($n))`; `-1` for a negative `$x` |
 | `sqrt(-2.0)` (H2, through the legend-engine server) | `null` | Pure's error | `if($x < 0, \|[], \|sqrt($x))` |
 | `x / 0` (DuckDB, through the legend-engine server) | `null` | Pure's error | `if($d == 0, \|[], \|$x / $d)` |
+| `acos(2.0)`, `asin(2.0)` (any value outside -1 to 1; H2) | `null` (the database's NaN) | Pure's error, `Unable to compute acos of 2.0` | `if(abs($x) > 1, \|[], \|acos($x))` |
 
 - **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
   there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
 - **Why:** Pure defines these operations to raise. PCT, legend-pure's own suite, expects the error for the first five
-  rows.
+  rows and the last.
 - **For `x / 0`** PCT has no test, and legend-pure 5.99.0 raises for every zero divisor. Compiled legend-pure, the
   mode legend-engine runs Pure in and the one compatibility follows (S127), raises "Cannot divide 0 by zero"
   (`CompiledSupport.java:1481-1486`). The interpreter has no check of its own and fails on Java's arithmetic instead:
@@ -114,13 +115,25 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 4. Float literals are floating point, not exact decimals
 - **You write:** `1.1 + 0.6`.
-- **legend-engine** (H2, DuckDB) answers `1.7`: it writes the literal bare, and the database computes it as a decimal.
-- **lite answers** `1.7000000000000002`: a Float is a double.
+- **legend-engine on DuckDB** answers `1.7`: it writes the literal bare, and DuckDB computes it as a decimal. It
+  writes the literal bare on Postgres, Databricks and Trino too, which also read it as a decimal, so the same answer is
+  expected there (read from legend-engine's code; not measured on those three). On H2, legend-engine's literal
+  processor writes `CAST(x AS FLOAT)`, a double, so H2 answers as lite does.
+- **lite answers** `1.7000000000000002` on DuckDB, H2, Postgres, Databricks, Trino, SQLite, MariaDB and MySQL, at every
+  door: a Float is a double, compiled Pure's answer. On ClickHouse, BigQuery and Snowflake lite still writes a Float
+  literal as a decimal, at every door, until each is measured with the double (register S20), and answers `1.7`.
 - **Why:** Pure's Float is floating point.
-- **To get legend-engine's answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
-- **When:** stage B.
-- **Measured:** 2 PCT answers move per database (PCT accepts both). 2 corpus tests on H2 start passing: the decimal
-  printed `52` where the expected answer is `52.0`. Evidence: H8 (j), (j.4).
+- **One measured consequence on Postgres:** `[3.14, 6.28, 9.42]->stdDevSample()` is `3.1399999999999997` in lite and
+  `3.14` in legend-engine. Postgres's own `stddev_samp` over doubles is one unit in the last place low; over
+  legend-engine's NUMERIC literals it is exact (register S421, ruled 2026-11-26: recorded, not rewritten). That is
+  Postgres built for x86-64; built for arm64 it answers `3.14` in lite too (measured on macOS; arm64 Linux is not
+  measured).
+- **To get legend-engine's DuckDB answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
+- **When:** since 2026-11-25 (the user's ruling, "yes delete the float decimal thing"; the compatibility doors no longer
+  write legend-engine's bare DECIMAL literal).
+- **Measured** (R1's M1, `docs/records/edition-homework/m1-float-literal.md`): PCT on DuckDB, 2 answers move toward
+  compiled Pure, still within PCT's tolerance; the corpus on H2, 2 tests start passing; the corpus on DuckDB, pure/v1's
+  answers and the engine lanes, no move.
 - **Register:** S20, S9.
 
 ### 5. `toOne()` of an empty collection raises on lite's own doors
@@ -144,8 +157,11 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Register:** S384 (provisional).
 
 ### 6. `isNumeric`, `parseDecimal`, `parseJson` on unusual input
-- **legend-engine on H2:**
-  - `isNumeric` is "has no cased letter", so `' 1 '`, `''` and `'-'` count as numeric;
+- **legend-engine:**
+  - `isNumeric` on DuckDB is "has no cased letter", so `' 1 '`, `''` and `'+3'` count as numeric; on H2 it is a
+    plain decimal's text (an optional minus, digits, an optional point and digits), so `'+3'`, `'1e5'` and `''` do
+    not. At legend-engine's door lite answers each database's own (corrected 2026-11-26: until then lite's door
+    answered DuckDB's form on H2 too);
   - `parseDecimal` cuts to `DECIMAL(5,2)`, so `'123.450021'` becomes `123.45`;
   - `parseJson` patches concatenated objects.
 - **lite** answers each Pure's way: numeric text by its full form, an exact decimal, a JSON parse.
@@ -216,7 +232,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   results:
   - **Windows:** `sinh`, `cosh` and `tanh` (the same values on DuckDB and SQLite), `cbrt` and `pow`;
   - **macOS:** `acos`, `asin` and `cot` (DuckDB and SQLite), `cbrt` (DuckDB), `sinh` and `cosh` (DuckDB and SQLite),
-    each exactly one unit in the last place.
+    and in the relational corpus `atan2` and `tan` (DuckDB), each exactly one unit in the last place.
 - **H2** matched on both: it computes in Java.
 - **Why:** this is the database's own platform, not lite's choice. Lite does not recompute the database's answer.
 - **To avoid it:** compare such results with a tolerance.
@@ -224,6 +240,15 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:** the edge golden net on each operating system. On Windows, 30 lines (17 named facts,
   `pct/src/test/resources/edge/overlay_windows.tsv`); on macOS, 31 lines (16 named facts, `overlay_macos.tsv`). No
   order, locale, path or line ending moved on either. Evidence: PR #123's runs on both, its overlays.
+- **In the relational corpus** (measured 2026-11-26 on PR #141's macOS run 45788970603): on macOS, five DuckDB tests
+  that compare an answer with a value written in the test fail, because that value is Linux's. They are
+  `sqlFunction::acos::testProject`, `asin::testProject`, `atan2::testProject`, `tan::testFilter` and
+  `tan::testProject`. H2's corpus and Windows' corpus did not move. The corpus lanes name each such test in their own
+  overlay, `spec/src/test/resources/rcorpus/overlay_macos.tsv`: the test, the lanes, the function, the Linux value and
+  the macOS value.
+  - On macOS a row is applied only when the test fails exactly that way: its first assert, naming both values once.
+  - On every other OS the row's test must pass.
+  - So a stale row fails, and so does any other difference. The user approved the overlay on 2026-11-26.
 - **Register:** S382 (provisional).
 
 ### 12. `joinStrings` with a separator joins with it, as Pure does
@@ -270,21 +295,46 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 ### 14. A table's text used inside a query (stage B)
 - **You write** a relation's `toString()` or `toCSV()`.
 - **Where that text is the program's last step** (an assert's side; every PCT test), compatibility prints legend-pure's
-  text from lite's rows, as legend-pure itself does.
+  text from lite's rows, as legend-pure itself does, for a relation whose columns the compiler knows. A raw grid
+  (`executeInDb`) is not lifted: its `toCSV` is lite's own text at every door, so an empty grid's CSV is its header
+  line alone where legend-engine writes a second newline (posted to the user, 2026-11-25). The text of a pivot whose
+  columns nothing names is refused by name at every door.
 - **Where the text is used further** inside the query (`->toString()->length()`), the database computes lite's own
   text:
   - a whole Float prints `2.0`;
-  - a date with a time prints `2000-10-25T06:30:00.000000Z`, where legend-pure prints `+0000`;
+  - a date with a time prints `2000-10-25T06:30:00.000000000Z`, where legend-pure prints `+0000`;
   - an empty cell prints `null`.
-- **`toCSV` too:** lite's route prints a relation's `toCSV` in the database, a standard CSV layout with lite's own
-  value texts. Lite keeps the `toCSV` name. Compiling legend-engine's own `toCSV` program instead waits on four gaps
-  in lite (H15 §11).
+- **`toCSV` too:** lite's route prints a relation's `toCSV` in the database, the helper's layout with lite's own value
+  texts: a null is an empty field and an empty String `""`, and under `toCSV(t, true)` a null is the word `null` and
+  every String is quoted, where legend-engine writes `TDSNull` and an empty String as nothing (register S420). Every
+  row ends with its own newline, so a relation with no rows is the header line alone, where legend-engine's helper
+  writes a second newline (and a one-column relation's one null row reads the same as none there). Under
+  `toCSV(t, true)` an enumeration's value named `null` is written `null`, as a null is: a known collision (an
+  enumeration's cell is quoted only where its name holds a comma, a quote or a line break). A Float cell is the
+  database's own full-precision text of the double, its own cast or format function and never a text composed in SQL,
+  in lite's product and in a `toCSV` used further in a query at every door (`1e-05` on DuckDB, `1.0E-5` on H2,
+  `1.0e-05` on SQLite, each read back as the very double; NaN and the infinities each database's spelling; the user's
+  ruling of 2026-11-25, "okay make exact"; Snowflake, BigQuery and Databricks not yet measured), where the helper
+  writes legend-pure's print (`0.00001`), as a last step's `toCSV` at legend-engine's and legend-pure's doors does
+  (printed in Java, above); each other cell is lite's text of its value,
+  as `toString` writes it. Lite keeps the `toCSV` name.
+- **A TDS's `.csv`** is the same as `toCSV()` in lite's product (the user's ruling of 2026-11-25, ".csv in product, yes
+  same as toCSV"), where legend-engine joins the names with `", "`, writes an empty cell `TDSNull` and ends with no
+  newline; at legend-engine's and legend-pure's doors a last step's `.csv` is legend-engine's text (register S405).
+- **Until B2b's S6**, a text used further at legend-engine's door writes its Float and DateTime cells as that door
+  writes a value's text (legend-engine's in-query cast for a Float, legend-pure's `+0000` for a DateTime), except
+  `toCSV`'s Float cell, the database's own full-precision text there since 2026-11-25; a last step whose relation the door
+  lifts is legend-pure's or legend-engine's own text (above).
 - **Ruled:** by the user on 2026-11-19: ~18:05, "Agree with all four table printing recommendations"; ~18:12, "Yes
   record it, and count the nested cases"; ~18:36, "Null is good"; ~20:05, "toCSV yes toString or another easy
-  database sql that makes sense".
-- **When:** stage B (B2).
-- **Measured:** count pending; the nested cases are counted before B2 is built.
-- **Register:** a row comes with B2.
+  database sql that makes sense"; and on 2026-11-25, "For csv we can do empty cell for null and "" or '' empty string
+  and the toCSV(true) do null for null and quoted strings?" and "Okay to both csv ones" (no rows, and the enumeration
+  value named `null`).
+- **When:** stage B (B2b S5a and S5b, 2026-11-24 and 2026-11-25; the no-rows rule and the enumeration named `null`
+  with the user's ruling of 2026-11-25, after S5c).
+- **Measured:** no PCT or corpus case prints a table used further; channel B's lite lane prints 423 tables, of which
+  390 are legend-pure's text and 33 differ only by an abstract Date's text (docs/records/compat-b2-progress.md, S5a).
+- **Register:** S312 and S316 as amended for S5a and S5b (docs/records/d-register-rows-2026-11-16.md), S402, S420.
 
 ### 15. Two date-times at the same instant are equal, whatever their written precision (item 3, stage B)
 - **You write** `assertEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)`, or compare a literal written to the
@@ -303,7 +353,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   assert compares to the microsecond, in every year, and refuses by name a value with a digit past the sixth.
 - **A year and a year-month** compare by their numbers, and a Date's kind (year, year-month, day, date-time) is read
   from how it is built, in every year.
-- **On legend-engine's and legend-pure's doors** lite keeps Pure's answer (the host judge's compatibility forms).
+- **On legend-engine's and legend-pure's doors** the same rule since 2026-11-24 (one rulebook for the judge; until then
+  Pure's answer, the host judge's compatibility forms; no compatibility test's verdict moved).
 - Register S399.
 
 ### 16. Two whole Variants are not compared (item 3)
@@ -321,14 +372,181 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   and a value typed `Any` that comes from a variable or a stored property, which use the database's own equality. **measured** (`AssertBarTest`)
 - Register S401.
 
-### 17. A failed assert's words are lite's (item 3, until B2)
+### 17. A failed assert's words: legend-pure's sentences, lite's value forms (B3 step 3, 2026-11-24)
 - **You write** an assert that fails: `assertEquals(1, 2)`, `assertContains([1, 2], 3)`, `assert(false)`.
-- **legend-pure** says "Assert failed", or `expected: 1` and `actual:   2` on two lines, or `[1, 2] does not contain 3`;
+- **legend-pure** says `expected: 1` and `actual:   2` on two lines, `[1, 2] does not contain 3`, "Assert failed";
   legend-engine's runs print the same. **read**
-- **Lite** says "expected 1, got 2", "expected [1, 2] to contain 3": one catalog of words, written from the values
-  both judges compared, on every route. Whether a test passes or fails is unchanged on every lane. **measured**
-- **When:** item 3; B2 writes legend-pure's words at the compatibility edge.
+- **Lite** says legend-pure's sentence where it has one -- `expected: 1, actual: 2` on one line,
+  `[1, 2] does not contain 3`, "Assert failed", "Execution error message mismatch. ..." -- with lite's own forms of the
+  values in it (a Float, a date, a list as lite prints them); six kinds legend-pure has no sentence for keep lite's own
+  (the same elements, the same instance, an instance of, a TDS's equivalence, a tolerance, an error with no position).
+  One catalog, written from the values both judges compared, on every route. Whether a test passes or fails is
+  unchanged on every lane. **measured**
+- **When:** item 3 (lite's own words), B3 step 3 (legend-pure's sentences, the user's ruling of 2026-11-24: "keep errors
+  close to pure when cheap/fast so don't have to reword everything on compatibility").
 - Register S398.
+
+### 18. `round` sends a half to the even neighbour, as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `$t.price->round()` over the values `16.5` and `-16.5`.
+- **legend-engine** (on DuckDB and H2) answers `17` and `-17`: it sends the database's own `round`, which sends a half
+  away from zero. Its own test manifests record these two answers as known failures against Pure.
+- **At legend-engine's door, lite answers legend-engine's** `17` and `-17` on DuckDB and H2, with no setting. A `round`
+  in a host-side `let`, which legend-engine computes before the query, keeps Pure's meaning. On any other database
+  such a request is refused by name until legend-engine's answer is checked there.
+- **On lite's own route**, lite answers `16` and `-16` on every database.
+- **Why:** Pure defines `round` as half to even (legend-pure's own tests, `round::testPositiveFloatRoundHalfEvenDown`
+  and `testNegativeFloatRoundHalfEvenUp`).
+- **Register:** S422.
+
+### 19. `toDecimal` keeps the value's digits, as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `$t.price->toDecimal()` over the value `3.8`.
+- **legend-engine** casts to the database's DECIMAL with no precision written, and each database gives that its own
+  size: three fraction digits on DuckDB (the database holds `3.800`), none on H2 (`4`; legend-engine's own H2 test
+  record says "expected: 3.8D, actual: 4D").
+  - On DuckDB that type holds 15 digits before the point, so a value of 10^15 or more raises there.
+- **At legend-engine's door, lite answers legend-engine's on H2**, with no setting. In a host-side `let` it keeps
+  Pure's meaning.
+  - **On DuckDB lite keeps Pure's `3.8` for now:** legend-engine's value there is the same number printed two ways
+    (`3.8D` by legend-engine, `3.800D` by lite), and it rounds past the third fraction digit where lite does not.
+    Not yet matched.
+  - On any other database lite keeps Pure's `3.8` too, and does not refuse the request (legend-engine writes
+    another form on each: Postgres keeps `3.8`, Snowflake and ClickHouse name a precision, Trino and BigQuery have
+    none). Not yet matched there.
+- **On lite's own route**, lite answers `3.8` on every database.
+- **Why:** Pure's `toDecimal` changes the type and keeps the number. Dropping or padding digits by the database's
+  default is legend-engine's SQL, not Pure's meaning.
+- **Register:** S423.
+
+### 20. A text parsed to a number keeps Pure's width (the edition program, 2026-11-26)
+- **You write**, in a query sent to the database: `$t.text->parseInteger()` or `$t.text->parseFloat()`.
+- **legend-engine** casts the text to the type its SQL names for each database:
+  - a 32-bit `integer` on H2, Postgres, Trino and ClickHouse, so `'3000000000'` raises there;
+  - a single-precision `float` on DuckDB and ClickHouse, so `'3.14'` becomes `3.140000104904175` once it meets a
+    double, and `'16777217'` becomes `16777216`.
+- **lite** casts to Pure's Integer and Float on every database: 64 bits and a double. `'3000000000'` parses, and
+  `'3.14'` is the double `3.14`.
+- **The same in both:** inside a store query at legend-engine's door there is no grammar check, and a text that is no
+  number is refused by the database's own conversion error. In a host-side `let`, on lite's own route, and on a
+  database legend-engine does not have (SQLite, MariaDB, MySQL, MongoDB), lite checks the text first and raises its
+  own error.
+- **Why:** Pure's `parseInteger` and `parseFloat` have no 32-bit or single-precision limit. The narrower types are
+  legend-engine's choice of SQL type, not Pure's meaning.
+- **Register:** S424.
+
+### 21. `dateDiff` counts as Pure does; `splitPart` splits as Pure does (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write**, in a query sent to the database: `dateDiff($t.start, $t.end, DurationUnit.WEEKS)`, or
+  `$t.text->splitPart(',', 2)`.
+- **legend-engine** sends the database's own function, and the databases disagree:
+  - a week from Saturday to Sunday is `0` on DuckDB (seven elapsed days) and `1` on H2 (a week boundary crossed);
+  - from 10:59:59 to 11:00:01 is `1` hour on both (a boundary crossed);
+  - DuckDB's `split_part('a,b,,c', ',', 3)` is `''`: it keeps the empty part.
+- **At legend-engine's door, lite answers legend-engine's**, with no setting: `dateDiff` on DuckDB and H2, `splitPart`
+  on DuckDB. In a host-side `let` both keep Pure's meaning.
+- **On lite's own route**, on every database: a week is a Sunday boundary crossed (Saturday to Sunday is `1`); hours,
+  minutes and seconds are whole units elapsed (10:59:59 to 11:00:01 is `0` hours); `splitPart` drops empty parts
+  (`'a,b,,c'` part 2 is `'c'`) and an index past the parts is an error.
+- **Why:** Pure defines both; one query should answer the same on every database.
+- **Register:** S425, S426.
+
+### 22. Comparing two different types is a compile error on lite's own route (the equality rule, 2026-11-24 and 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1: at legend-engine's door a comparison is sent to the
+  database as written, legend-engine's answer, with no setting.
+- **You write**, on lite's own route: `$x.kind == 'CITY'` where `kind` is an enumeration, `$x.day == $x.stamp` (a day
+  against a date-time), `$x.count == $x.ratio` (an Integer against a Float).
+  - **An Integer against a Decimal is not a mistake** (the user's ruling of 2026-11-27): the two are exact numbers,
+    compared by value, so `$x.count == $x.amount` compiles and `1 == 1D` is true. Numbers are of two families,
+    exact (Integer, Decimal) and approximate (Float); only a comparison across the two is refused.
+- **legend-engine** sends the comparison to the database, which converts one side by its own rules.
+- **lite** refuses to compile it and names the two types and the fix: write both sides in one type (an enumeration's
+  own value, `toFloat()`, `toString()`). Two values are equal only when they have the same type and the same value.
+  - The rule holds everywhere Pure is written: the query, a function, a derived property, a constraint, a mapping.
+    - A function whose body is typed afresh for each call (generic over a relation's columns, or taking a table
+      with no declared columns) is checked at the call: two different types the call gives are that call's
+      compile error, naming the function. A parameter its author declared `Number`, `Any` or `Date` is compared
+      when the query runs instead (two types are then never equal).
+    - A property declared `Number`, `Any` or `Date` takes the type of the column it reads. A comparison the query
+      writes between two such that can never be equal (a whole-number column against a floating-point one; a day
+      against a date-time), an ordering included, is refused when the query is planned.
+    - lite's own SDLC uses the same check, so a tree holding such a comparison in a function does not land there.
+      A way for a project to be taken with legend-engine's meaning instead is planned, not built.
+  - **A number literal is not a mistake:** written against a number of another type it reads as that type when it
+    is exact there. `$x.qty > 0` over a Float is `> 0.0`; `$x.salary < 50000` over a Decimal is `< 50000D`. Only a
+    literal that cannot be that type (`1.5` against an Integer), two literals (`1 == 1.0`) and a Decimal literal
+    (`1.5D`) are refused. So is a computed value: `$x.ratio > 1 + 1` over a Float is still a mistake, because
+    `1 + 1` is no longer a literal.
+  - A value whose type is known only when the query runs (`Any`, `Number`) is compared when it runs: equal means the
+    same type and the same value.
+- **Why:** a comparison across types usually hides a mistake, and each database converts differently, so the same
+  query would answer differently on two databases. Refusing it when the code is compiled is the one answer that is
+  the same everywhere.
+- **Register:** S127 (as amended 2026-11-25, 2026-11-26 and 2026-11-27).
+
+### 23. Equal numbers of different types: where a sort puts them, which one `max` and `min` keep (the edition program, 2026-11-26)
+- **Which meaning you get depends on the door,** as in item 1.
+- **You write** a list that holds the same number in two types: `[3.0, 3, 1]->sort()`, `[3, 3.0]->max()`,
+  `[3, 3.0]->least()`.
+- **legend-engine and legend-pure** compare by value, so `3` and `3.0` tie, and the answer follows the order they
+  were written in:
+  - a sort keeps a tie as written: `[3.0, 3, 1]->sort()` is `[1, 3.0, 3]`, `[3, 3.0, 1]->sort()` is `[1, 3, 3.0]`;
+  - a number list's `max` and `min` keep the last written of a tie: `[3, 3.0]->max()` is the Float `3.0`,
+    `[3.0, 3]->max()` the Integer `3`;
+  - `max(3, 3.0)` and `min(3, 3.0)` keep the left one;
+  - `greatest` keeps the last written, `least` the first.
+- **At legend-engine's door and at legend-pure's, lite answers the same,** on every database.
+  - Inside a query sent to a database, legend-engine lets the database choose the result's type, so `max` of an
+    Integer column and a Float column comes back a Float even when the Integer was kept (`3.0`). At legend-engine's
+    door lite answers the same for `max` and `min` of an Integer and a Float (since 2026-11-27).
+  - One difference stays there: for any other pair of types (an Integer against a Decimal) and for a list's `max`
+    over columns, lite keeps the winner in its own type. The number is the same; its type may not be.
+- **On lite's own route** numbers are of two families, exact (Integer, Decimal) and approximate (Float), and a tie
+  of value is placed by family: an exact number, then a Float. `[3.0, 3, 1]->sort()` is `[1, 3, 3.0]` however it
+  was written; `max` and `greatest` of a tie keep the Float, `min` and `least` the exact number. An Integer and a
+  Decimal of one value are equal, so they keep the order they were written in (`[3D, 3.0, 3]->sort()` is
+  `[3D, 3, 3.0]`). `max(3, 3.0)` written with two values of the two families is a compile error (item 22). (The
+  user's ruling of 2026-11-27; until then the order was Integer, Float, Decimal.)
+- **Why:** one set of values should give one answer, whatever order they happened to be written or read in.
+- **Register:** S428.
+
+### 24. A Float literal written into a Decimal's arithmetic is read as a Decimal (the edition program, 2026-11-27)
+- **You write** arithmetic that mixes a Decimal with a written Float: `$p.amount * 0.1`, `$p.amount + 0.2`, where
+  `amount` is a Decimal.
+- **legend-pure** computes it as a Decimal, exactly: `0.10D * 0.1` is `0.010`.
+- **legend-engine** sends it to the database with the literal as its extension for that database writes it, so the
+  answer depends on the database: exact where the literal is written bare (DuckDB, Postgres, Databricks, Trino), a
+  double's where it is written as a float (H2, SQLite, MariaDB, MySQL), for example `0.010000000000000002`.
+  (Read from its literal processors; not run.)
+- **Lite answers Pure's way on every database and at every door:** a Float literal in a sum, a difference or a
+  product whose other operands are exact numbers, one of them a Decimal, is read as the Decimal its digits write.
+- **Not covered:** a Float column (not a literal) in such arithmetic is still computed by the database as a double;
+  a division is a Float whatever its operands, as in Pure; SQLite has no exact decimal and refuses a Decimal's
+  arithmetic by name.
+- Register row S429.
+
+### 25. `==` on two tables is strict; `hasSameElements` compares in any order (the edition program, 2026-11-27)
+- **You write** a comparison of two tables as a query's answer: `|$a == $b`.
+- **legend-pure** compares two tables by identity (run on interpreted and compiled legend-pure, 2026-11-27): two
+  written tables with the same columns and rows are NOT equal, and a table equals only itself (`$a == $a`). An
+  `assertEquals` of two identical written tables fails there. Rows in any order are compared only inside a test, by
+  `assertSameElements`.
+- **legend-engine** never compares two tables: the query is refused by name, inside a store query and outside one
+  (run the same day).
+- **Lite, on its own route:** two tables are equal when their columns have the same names in the same order and
+  their rows are the same in order, each cell by its column's type. A table whose order the query does not define
+  (rows read with no sort, or past a grouping, a join or a union) is refused when the query is compiled, naming the
+  two fixes: sort both sides, or use `hasSameElements`.
+- **`hasSameElements(a, b)` is lite's own function** (upstream has none): two lists' elements, or two tables' rows under
+  the same column names, the same in any order. Duplicates count: `[1, 1, 2]` and `[1, 2, 2]` are not the same.
+- **The same wherever the comparison stands:** as the query's answer, inside an `if`, under `&&`, `||` or `!`, in
+  a test's `assert(...)`. A list whose order the query does not define (a store's rows mapped to values) is refused
+  under `==` as a table is.
+- **Not covered:** a comparison of lists that reads the row it stands in (a filter comparing each row's list) is
+  still the database's own list comparison, and `hasSameElements` there is refused by name. At legend-pure's and
+  legend-engine's doors a `==` of two tables is the comparison it was, by the tables' values: two identical written
+  tables are equal there, where legend-pure says they are not.
+- Register row S430.
 
 ## Gaps lite has today (not differences by design)
 
@@ -346,6 +564,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - lite's tests pin `en_US` (`tools/junit/defs.bzl:52-54`). The product server (`//core:server`) pins no locale, so
     it answers by its machine's.
   - A defect, for the product track. Measured: `first-day-of-week-probe.md` (item 13).
+- **A model whose function calls a plan-text function compiles.** legend-engine's `toSQLString`, `planToString`,
+  `executionPlan` and their neighbours are not a user's to call: legend-engine refuses a query or a model that calls
+  one when it compiles it ("Function does not exist"). lite's legend-engine route refuses a QUERY that calls one, in
+  the same error envelope with lite's own sentence, but its compile route still accepts a MODEL whose function calls
+  one; the function is refused when a query calls it.
+  - Register S427. Measured: `docs/records/edition-homework/r3/measured-plan-text-reachability.md`.
 - **Not supported yet:**
   - legend-engine's mapping test suites and service tests;
   - cross-store queries;
@@ -384,3 +608,43 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
   H2 standard and unclassified are behind by the gaps above. Item 1 moves 12 more PCT tests to PCT's answer: 7 on DuckDB
   and 5 on H2.
+
+### 26. Where lite cannot tell that a side's order is fixed, it refuses an ordered comparison (the edition program, 2026-11-27)
+- **You write** `==` or `assertEquals` over two lists or two tables, one of them rows read from a database with no
+  sort, also after such rows have passed through a function (`removeDuplicates`, `reverse`, `tail`, an `if` of two
+  reads).
+- **legend-pure and legend-engine** compare in order, in whatever order the rows arrived; legend-engine's own tests
+  encode the order its H2 returns.
+- **Lite, on its own route,** refuses when the query is compiled, naming the two fixes: sort both sides, or use
+  `hasSameElements` (`assertSameElements` in a test). Where lite does not know a function, it does not assume
+  "ordered": the function's result is as ordered as what it was applied to. A written list or a sorted one is
+  compared as before.
+- **At the compatibility doors' tests:** such an `assertEquals`, and an `assert(a == b)`, is checked in any order. A
+  `==` in an ordinary query at legend-engine's door keeps legend-engine's ordered meaning.
+- **Two limits, recorded:** a sort on a key that is not unique leaves its ties in arrival order; a to-many property
+  read from one object picked out of a sorted read is treated as sorted. In both the fix is your own sort.
+- Register S431.
+
+### 27. The type of `max` and `min` of two number columns at legend-engine's door (the edition program, 2026-11-27; for the user's ruling)
+- **You write** `max` or `min` of two columns inside a query sent to the database, at legend-engine's door.
+- **legend-engine on H2** answers in the type H2 promotes the two columns to (run 2026-11-27): an Integer and a
+  Float column a Float; an Integer and a Decimal column a Decimal of scale 2 (the Integer 3 is printed `3.00`); a
+  Decimal and a Float column H2's decimal float.
+- **Lite at that door** matches the first. For an Integer against a Decimal column, and a Decimal against a Float
+  column, it keeps the winner's own type: the number is the same, its printed scale may not be.
+- Register S433.
+
+### 28. An equality with an empty side answers as Pure does, wherever it stands (the edition program, 2026-11-27)
+- **You write** `$x.nick == 'a'` where `nick` may hold no value, as a column, as a query's answer, inside another
+  expression, under `!`, in a `forAll`.
+- **legend-pure, and legend-engine's own Java** (outside any query sent to the database): false where one side is
+  empty, true where both are (run 2026-11-27).
+- **legend-engine inside a query sent to the database** writes the database's comparison: two plain nullable columns
+  are compared null-safe; with a computed side `==` gives no value for an empty side, and its negation is null-safe.
+- **Lite, on its own route and at legend-pure's door:** Pure's answer in every position. As a filter's, a join's or
+  an `if`'s condition the statement is as it was (there "no value" already means "no"); everywhere else the
+  comparison answers false for its empty side, and two empty sides are equal.
+- **Lite at legend-engine's door** answers as legend-engine does in each of its two places: no difference.
+- **What changed for lite's own answers:** a comparison kept as a value (a column, an operand, a window's column, a
+  counted value, a list lambda's result) no longer answers "no value"; `filter(r | !($r.nick == 'a' || $r.id == 7))`
+  keeps the row whose `nick` is empty; a `forAll` over rows no longer passes a row whose comparison had no value.

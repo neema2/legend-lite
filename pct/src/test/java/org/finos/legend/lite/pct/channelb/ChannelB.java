@@ -277,7 +277,7 @@ public final class ChannelB {
             if (measuresJudgeSql()) {
                 judgeSql(ctx, resolved);
             }
-            TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
+            TestExecution.runProgram(typed(ctx, resolved, conn),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, referee(),
                     OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
@@ -323,7 +323,7 @@ public final class ChannelB {
     private static void judgeSql(ModelContext ctx, ValueSpecification resolved) {
         com.legend.testexecutionplan.TestPlan plan;
         try {
-            plan = TestExecution.planBody(com.legend.Compiler.queryResolved(ctx, resolved),
+            plan = TestExecution.planBody(typed(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS);
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException
                 | com.legend.sql.DialectCapability refused) {
@@ -403,6 +403,26 @@ public final class ChannelB {
         return RULES.equals("LITE");
     }
 
+    /** {@code resolved} typed over {@code ctx}, as the run's audience reads a body: under the compatibility rules the
+     *  edge's test-body door admits it (upstream's reading, {@code edge.UpstreamTestBodies}: B3 step 2, 2026-11-24 --
+     *  until then the test planner asked the plan style's two-form); under lite's own rules the body itself. */
+    private static com.legend.TypedQuery typed(ModelContext ctx, ValueSpecification resolved) {
+        com.legend.TypedQuery typed = com.legend.Compiler.queryResolved(ctx, resolved);
+        return lite() ? typed : com.legend.edge.UpstreamTestBodies.admittedForPure(typed);
+    }
+
+    /** {@link #typed(ModelContext, ValueSpecification)} with, under the compatibility rules, each relation's printed
+     *  text read on {@code conn} before the body and substituted (B3 step 2b, {@code edge.UpstreamPrints}): the read
+     *  planned and run through the public test door, as the body is. */
+    private static com.legend.TypedQuery typed(ModelContext ctx, ValueSpecification resolved, Connection conn) {
+        com.legend.TypedQuery typed = typed(ctx, resolved);
+        return lite() ? typed : com.legend.edge.UpstreamPrints.read(typed, TestExecution.facts(typed).effects(),
+                (query, answer) -> TestExecution.runProgram(
+                query, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, referee(),
+                OPTIONS, answer));
+    }
+
     /** The run hook: the compatibility edge's appeals (COMPAT), or none -- lite's own runs hear no appeal (LITE). */
     private static com.legend.testexec.EdgeRun referee() {
         return lite() ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(null);
@@ -460,10 +480,22 @@ public final class ChannelB {
      * where they agree, else what differs; the body's own run follows as usual.
      */
     private static @com.legend.base.Nullable String twice(ModelContext ctx, ValueSpecification resolved) {
-        return twice(() -> com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
-                        com.legend.Compiler.queryResolved(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
-                        OPTIONS)),
-                () -> recorded(ctx, resolved));
+        return twice(() -> plannedAsRun(ctx, resolved), () -> recorded(ctx, resolved));
+    }
+
+    /** The body's test plan as JSON, planned from the body the run plans: typed as the run types it, a relation's
+     *  printed text read on a fresh connection first under the compatibility rules ({@link #typed(ModelContext,
+     *  ValueSpecification, Connection)}). Until 2026-11-26 this half planned the body before that read, so a body whose
+     *  run passes because its print is read at the edge was refused here by a database that prints no relation itself
+     *  (H2: four Relation tests, found by the heavy gate on the edition program's branch; the read is B3 step 2b's,
+     *  2026-11-24). */
+    private static String plannedAsRun(ModelContext ctx, ValueSpecification resolved) {
+        try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
+            return com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(typed(ctx, resolved, conn),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS));
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("the twice guard could not open its lane's database", e);
+        }
     }
 
     /** {@link #twice(ModelContext, ValueSpecification)}'s comparison over its two halves: {@code plan} plans the body
@@ -493,7 +525,7 @@ public final class ChannelB {
         com.legend.testexecutionplan.AssertListener listener = (name, pass, detail) ->
                 told.add(name + (pass ? " pass" : " FAIL " + detail));
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
-            TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
+            TestExecution.runProgram(typed(ctx, resolved, conn),
                     com.legend.testbackend.StorelessRuntime.RUNTIME,
                     com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, referee(),
                     OPTIONS);

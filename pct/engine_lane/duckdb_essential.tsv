@@ -49,7 +49,7 @@ meta::pure::functions::collection::tests::head::testHeadOnEmptySet	DEFECT	RUNTIM
 meta::pure::functions::collection::tests::head::testHeadOnOneElement	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::head::testHeadSimple	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::indexof::testIndexOf	PASS		PASS		SAME
-meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::init::testInit	PASS		PASS		SAME
 meta::pure::functions::collection::tests::init::testInitOnEmptySet	PASS		PASS		SAME
 meta::pure::functions::collection::tests::init::testInitOneElement	PASS		PASS		SAME
@@ -69,7 +69,7 @@ meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicates
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	REFUSES	REFUSES_OTHER: not managed yet	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionSimple	PASS		PASS		SAME
-meta::pure::functions::collection::tests::removeDuplicatesBy::testRemoveDuplicatesByPrimitive	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::removeDuplicatesBy::testRemoveDuplicatesByPrimitive	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::reverse::testReverse	PASS		PASS		SAME
 meta::pure::functions::collection::tests::reverse::testReverseEmpty	PASS		PASS		SAME
 meta::pure::functions::collection::tests::slice::testSlice	PASS		PASS		SAME
@@ -83,8 +83,8 @@ meta::pure::functions::collection::tests::sort::testMixedSortNoComparator	REFUSE
 meta::pure::functions::collection::tests::sort::testSimpleSort	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::sort::testSimpleSortNoComparator	PASS		PASS		SAME
 meta::pure::functions::collection::tests::sort::testSimpleSortReversed	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	PASS		LITE_ANSWERS
-meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	PASS		LITE_ANSWERS
-meta::pure::functions::collection::tests::sort::testSimpleSortWithKey	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testSimpleSortWithKey	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::sort::testSortEmptySet	PASS		PASS		SAME
 meta::pure::functions::collection::tests::tail::testTail	PASS		PASS		SAME
 meta::pure::functions::collection::tests::tail::testTailOnEmptySet	PASS		PASS		SAME
@@ -133,7 +133,7 @@ meta::pure::functions::date::tests::testDateDiffMilliseconds	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffMinutes	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffMonths	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffSeconds	PASS		PASS		SAME
-meta::pure::functions::date::tests::testDateDiffWeeks	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDateDiffWeeks	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffYears	REFUSES	REFUSES_OTHER: doesn't support	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testDateFromDay	PASS		PASS		SAME
@@ -232,12 +232,12 @@ meta::pure::functions::math::tests::round::testDecimalRound	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testFloatRoundWithScale	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeFloatRoundDown	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenDown	PASS		PASS		SAME
-meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenUp	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenUp	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::math::tests::round::testNegativeFloatRoundUp	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeFloatWithZeroDecimalRound	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testNegativeIntegerRound	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testPositiveFloatRoundDown	PASS		PASS		SAME
-meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenDown	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenDown	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenUp	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testPositiveFloatRoundUp	PASS		PASS		SAME
 meta::pure::functions::math::tests::round::testPositiveFloatWithZeroDecimalRound	PASS		PASS		SAME
@@ -280,7 +280,7 @@ meta::pure::functions::string::tests::format::testFormatRepr	REFUSES	format_Stri
 meta::pure::functions::string::tests::format::testFormatString	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::format::testSimpleFormatDate	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::indexOf::testFromIndex	REFUSES	indexOf_String_1__String_1__Integer_1__Integer_1_	PASS		LITE_ANSWERS
-meta::pure::functions::string::tests::indexOf::testSimple	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::indexOf::testSimple	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::joinStrings::testJoinStrings	PASS		PASS		SAME
 meta::pure::functions::string::tests::joinStrings::testJoinStringsNoStrings	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::joinStrings::testJoinStringsSingleString	PASS		PASS		SAME
@@ -319,8 +319,8 @@ meta::pure::functions::string::tests::startswith::testTrueStartsWith	PASS		PASS	
 meta::pure::functions::string::tests::substr::testSubstrEmptyResult	PASS		PASS		SAME
 meta::pure::functions::string::tests::substr::testSubstrStart	PASS		PASS		SAME
 meta::pure::functions::string::tests::substr::testSubstrStartEnd	PASS		PASS		SAME
-meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
-meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::toString::testBooleanToString	PASS		PASS		SAME
 meta::pure::functions::string::tests::toString::testClassToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testComplexClassToString	REFUSES	REFUSES_OTHER: not supported	FAIL	WRONG_ANSWER	BOTH_FAIL

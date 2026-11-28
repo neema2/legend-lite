@@ -51,9 +51,7 @@ class EdgeSeparationTest {
      *  open line until it moves to the edge or is ruled; a product class depending on one is an entry too. */
     static final Map<String, String> COMPAT_CLASSES = Map.ofEntries(
             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
-            // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
-            // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
-            Map.entry("com.legend.lowering.RelationTexts", "B17"),
+            // (B17, com.legend.lowering.RelationTexts: gone 2026-11-25 with the facet, stage B's B2b S5c; a shrink)
             // (sql.dialect.DateTimePrintText: deleted 2026-11-17, census B12 -- the edge composes legend-pure's DateTime
             // print, edge.PureDateTimePrint)
             Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
@@ -119,8 +117,7 @@ class EdgeSeparationTest {
      *  implemented in the edge alone and (d) pinned (HookRulingTest) is the separation, not a leak -- allowed, and
      *  not counted. The hooks that fail a criterion stay open in the maps above, the criterion named here:
      *  UpstreamPlans (B2) met (a) 2026-11-17 (its routine table moved to planner.PlanTextRoutines) and is ruled below;
-     *  RelationTexts (B17) meets (a) under the facade rule since 2026-11-17 (its refusal moved to TextRefusals; its
-     *  forwarders reach product helpers alone) and is ruled below;
+     *  (RelationTexts (B17): deleted 2026-11-25, stage B's B2b S5c);
      *  EngineTestText (C4) fails (a): its static gates (armFor, reachesUpstreamText, marking); EngineTextPlanning (C4)
      *  EngineTestText (C4) meets (a) since 2026-11-17 (its gates the edge's, its records top-level) and
      *  EngineTextPlanning is the listed facade, forwarding alone -- both ruled below. PlanStyleFacets meets (a) (the orchestrator's ruling of 2026-11-17: a
@@ -165,14 +162,8 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             // (lowering.VerdictSql -> lowering.PureOnlyTexts, C5 step A's (2026-11-17): gone 2026-11-21, item 3's S0, a
             // shrink -- the database judge plans for lite's flow alone and asks the facet nothing)
-            // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
-            // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
-            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
-            // (lowering.RelationTexts -> PureOnlyTexts: gone 2026-11-17, the edge audit's J26 -- the facet hands the planner's
-            // own Styled through, no substitute built from the edge's texts)
-            Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
+            // (B17, the relation-text facet's four rows -- Lowerer, the facet itself, PlanEnv and PlanStyleFacets ->
+            // lowering.RelationTexts: gone 2026-11-25 with the facet, stage B's B2b S5c; a shrink)
             // the style's text facets as the lowering's static helpers read them (B8, the Styled seam, 2026-11-17)
             Map.entry("com.legend.lowering.Styled -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),

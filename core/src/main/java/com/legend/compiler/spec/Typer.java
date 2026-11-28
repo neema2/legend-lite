@@ -134,9 +134,15 @@ final class Typer {
         }
     }
 
+    /** A typer with lite's own comparison setting ({@link LiteCrossTypeRule}). */
     Typer(ModelContext ctx, InferenceKernel kernel) {
+        this(ctx, kernel, LiteCrossTypeRule.INSTANCE);
+    }
+
+    Typer(ModelContext ctx, InferenceKernel kernel, CrossTypeRule crossTypes) {
         this.ctx = ctx;
         this.kernel = kernel;
+        this.crossTypes = crossTypes;
         this.annotations = new TypeAnnotations(ctx);
         this.desugars = new TdsDesugars(this);
         this.overloads = new Overloads(this, ctx, kernel);
@@ -148,7 +154,227 @@ final class Typer {
             java.util.function.Supplier<R> body) {
         java.util.List<String> rigid = new ArrayList<>(fn.typeParameters());
         rigid.addAll(fn.multiplicityParameters());
-        return annotations.inFrame(fn.typeParameters(), () -> kernel.withRigid(rigid, body));
+        // a function's body is a body the query reaches: its comparisons across types are the door's setting's for a
+        // body (the edition program's step 2b, 2026-11-26; until then never read, B3 step 5)
+        return comparing(bodyOf(fn), fn.qualifiedName(), () -> annotations.inFrame(fn.typeParameters(),
+                () -> kernel.withRigid(rigid, body)));
+    }
+
+    /** Whose code {@code fn}'s body is, for the comparison setting: a body the query reaches, unless it is the
+     *  relational mapping language's translation (a relational class mapping's columns, filters and joins, a view,
+     *  an association mapped through a join: {@code FunctionDefinition.Synthesized.relationalLanguage}), which is
+     *  code written in another language and compares by SQL's rule -- never asked, as an island's translation is not
+     *  (the edition program's step 4, 2026-11-26: a filter {@code T.FLAG = 0} over a BIT column). */
+    Compared bodyOf(com.legend.compiler.element.TypedFunction fn) {
+        return fn.definition() instanceof com.legend.model.FunctionDefinition fd && fd.synthesizedFrom() != null
+                && fd.synthesizedFrom().relationalLanguage() ? Compared.UNREAD : Compared.BODY;
+    }
+
+    /** Whose code is being typed, as the comparison setting reads it ({@link CrossTypeRule}). */
+    enum Compared {
+        /** Code the setting is never asked about: an island's translation (its own language's rule), and whatever a
+         *  planner types on its own account (a planning-time frame, a mapping's operation: {@code typeExpression},
+         *  {@code typeQueryBody}). A comparison across types here is the call. */
+        UNREAD,
+        /** The query or test body a door receives ({@code SpecCompiler.typeQueryBodyMarked}). */
+        QUERY,
+        /** A body the query reaches: a function's, typed on demand. */
+        BODY,
+        /** A body typed into its call, over the caller's own columns (a function generic over relations): its column
+         *  positions are generic ones ({@link CrossTypeRule#inGenericBody}). */
+        GENERIC_BODY
+    }
+
+    /** The door's comparison setting for everything this typer types. */
+    private final CrossTypeRule crossTypes;
+
+    /** Whose code is being typed now. */
+    private Compared compared = Compared.UNREAD;
+
+    /** The setting's answers for the comparisons across types written in the query, by identity: an argument that
+     *  holds one keeps the query's typing when a function's body is typed into its call
+     *  ({@link #holdsAQueryAnswer}). By identity, so an answer must still be the node the setting returned when the
+     *  argument is read: nothing between the mint and the call's expansion rebuilds a typed argument's nodes (the
+     *  independent audit of 2026-11-26, finding 7; CrossTypeComparisonsTest and CrossTypeRuleTest pin the case). */
+    private final java.util.Set<TypedSpec> queryAnswers =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** The nodes an island's translation wrote into a statement of the query ({@code TsIslands.lifted}): typed by the
+     *  island's own language's rule, its comparisons never marked, as the island arm types an island where it stands
+     *  (B3 step 5a's client regression, 2026-11-25: a #TS{...}# island lifted ahead of its statement was typed marked,
+     *  and the datacube's timeseries queries were refused). */
+    private final java.util.Set<ValueSpecification> islandOutput =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** {@code node}, an island's translation, typed by the island's rule wherever it is met. */
+    void islandOutput(ValueSpecification node) {
+        islandOutput.add(node);
+    }
+
+    /** The function whose body is being typed now, where one is: a comparison kept for its call names it. */
+    private @com.legend.base.Nullable String comparedIn;
+
+    /** Whose code a lambda is: the code that was being typed where it was written. */
+    private record Author(Compared whose, @com.legend.base.Nullable String function) {
+    }
+
+    /** The lambdas a caller wrote into a call whose function's body is typed into the call
+     *  ({@code Overloads.inlineNormalized}), by node, each with whose code it is. Such a body is typed with the
+     *  caller's arguments in it, so a lambda the query's author wrote is met again inside the function's body: it is
+     *  still the query's code, and its comparisons the query's -- they keep their position (a planning-time refusal
+     *  reads it, {@code lowering.HeldKinds}), an upcast in them is answered by the types held, and a refusal names
+     *  the query, never the function (the outside audit of 2026-11-27, MEDIUM 12: typed as the function's body, none
+     *  of the three held). The static fold rebuilds a lambda it reads; the mark follows ({@link #sameAuthor}). */
+    private final java.util.IdentityHashMap<ValueSpecification, Author> callerLambdas =
+            new java.util.IdentityHashMap<>();
+
+    /** Every lambda in {@code argument}, written in the code being typed now, is that code's wherever it is typed
+     *  after: the query's, or a function's body's. (A lambda met while a body typed into its call is being typed
+     *  carries its author already, or is that body's own; an island's translation is typed as it was.) */
+    void writtenHere(ValueSpecification argument) {
+        if (compared != Compared.QUERY && compared != Compared.BODY) {
+            return;
+        }
+        markLambdas(argument, new Author(compared, comparedIn));
+    }
+
+    private void markLambdas(ValueSpecification v, Author author) {
+        if (v instanceof LambdaFunction) {
+            callerLambdas.putIfAbsent(v, author);
+        }
+        for (ValueSpecification c : v.children()) {
+            markLambdas(c, author);
+        }
+    }
+
+    /** {@code now} is {@code was} rebuilt (the static fold's lambda): the same author's. */
+    void sameAuthor(ValueSpecification was, ValueSpecification now) {
+        Author author = callerLambdas.isEmpty() ? null : callerLambdas.get(was);
+        if (author != null) {
+            callerLambdas.put(now, author);
+        }
+    }
+
+    /** {@code body}, the typing of {@code lambda}, as its author's code where a caller wrote it into a body typed
+     *  into its call ({@link #callerLambdas}). */
+    <R> R asItsAuthors(LambdaFunction lambda, java.util.function.Supplier<R> body) {
+        Author author = compared != Compared.GENERIC_BODY || callerLambdas.isEmpty() ? null
+                : callerLambdas.get(lambda);
+        return author == null ? body.get() : comparing(author.whose(), author.function(), body);
+    }
+
+    /** {@code body} typed as {@code whose} code, the body of {@code function}, for the comparison setting. */
+    <R> R comparing(Compared whose, @com.legend.base.Nullable String function, java.util.function.Supplier<R> body) {
+        String was = comparedIn;
+        comparedIn = function;
+        try {
+            return comparing(whose, body);
+        } finally {
+            comparedIn = was;
+        }
+    }
+
+    /** {@code body} typed as {@code whose} code, for the comparison setting. */
+    <R> R comparing(Compared whose, java.util.function.Supplier<R> body) {
+        Compared was = compared;
+        compared = whose;
+        try {
+            return body.get();
+        } finally {
+            compared = was;
+        }
+    }
+
+    /** {@code call}, the application of {@code chosen} to {@code args} as typed: itself, unless it is a comparison
+     *  across types (the one equality, B3 step 5; {@link EqualityClasses}) in code the door's setting reads -- then the
+     *  setting's answer for it. */
+    TypedSpec compared(TypedSpec call, com.legend.compiler.element.TypedFunction chosen, List<TypedSpec> args,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
+        // lite's own comparison (hasSameElements) means what lite's setting says, whichever door admitted the code
+        CrossTypeRule rule = ruleFor(chosen);
+        if (compared == Compared.UNREAD && rule.readsBodies()) {
+            // code the setting is never asked about (an island's translation, a planner's own frame) is not the
+            // query's own either: its comparison without the position the planning-time refusal reads
+            // (EqualityClasses.notTheQuerys; the third review of 2026-11-27, L7)
+            return EqualityClasses.notTheQuerys(call);
+        }
+        if (compared == Compared.UNREAD || compared != Compared.QUERY && !rule.readsBodies()) {
+            return call;
+        }
+        TypedSpec answer = comparedWhereItStands(call, chosen, args, pos, rule);
+        // (a comparison in a function's body is the function's, not the query's: EqualityClasses.notTheQuerys)
+        return compared == Compared.QUERY ? answer : EqualityClasses.notTheQuerys(answer);
+    }
+
+    /** The setting that answers a comparison by {@code chosen}: the door's, or lite's own for lite's own function
+     *  ({@link EqualityClasses#litesOwn}). */
+    private CrossTypeRule ruleFor(com.legend.compiler.element.TypedFunction chosen) {
+        return EqualityClasses.litesOwn(chosen) ? LiteCrossTypeRule.INSTANCE : crossTypes;
+    }
+
+    private TypedSpec comparedWhereItStands(TypedSpec call, com.legend.compiler.element.TypedFunction chosen,
+            List<TypedSpec> args, com.legend.protocol.@com.legend.base.Nullable SourceInfo pos, CrossTypeRule rule) {
+        java.util.Optional<EqualityClasses.Crossing> crossing = EqualityClasses.crossing(chosen, args, ctx);
+        if (crossing.isEmpty()) {
+            // a comparison in a function's body whose sides' types are known only where the function is used
+            if (compared == Compared.BODY) {
+                return EqualityClasses.atRunTime(call, chosen, args)
+                        .map(kept -> rule.atRunTime(kept.in(comparedIn))).orElse(call);
+            }
+            if (compared == Compared.QUERY && EqualityClasses.heldCrossing(chosen, args, ctx).isPresent()) {
+                // an upcast written in the query hides the type its value holds ([1, 2]->cast(@Number)->contains(1.0)):
+                // the setting answers the comparison by the types held, here, where they stand
+                TypedSpec kept = EqualityClasses.atRunTime(call, chosen, args).map(rule::atRunTime).orElse(call);
+                return kept instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison k
+                        ? rule.atTheCall(k, ctx) : kept;
+            }
+            return call;
+        }
+        EqualityClasses.Crossing c = crossing.get();
+        com.legend.compiler.spec.typed.TypedCrossTypeComparison written =
+                new com.legend.compiler.spec.typed.TypedCrossTypeComparison(call, c.kind(), c.operator(), c.left(),
+                        c.right(), pos);
+        if (compared == Compared.BODY) {
+            return rule.inBody(written);
+        }
+        if (compared == Compared.GENERIC_BODY) {
+            TypedSpec answer = rule.inGenericBody(written);
+            return answer instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison kept
+                    ? kept.in(comparedIn) : answer;
+        }
+        TypedSpec answer = rule.inQuery(written);
+        queryAnswers.add(answer);
+        return answer;
+    }
+
+    /** {@code comparison} answered by the setting once its function stands in the query. */
+    TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
+        return (EqualityClasses.litesOwn(comparison.comparison()) ? LiteCrossTypeRule.INSTANCE : crossTypes)
+                .atTheCall(comparison, ctx);
+    }
+
+    /** Whether {@code comparison}, one kept for its call, is answered there by its sides' types, so that it keeps
+     *  its two sides until then ({@link CrossTypeRule#answersAKeptComparisonByItsTypes}); the setting chosen as
+     *  {@link #atTheCall} chooses it. */
+    boolean keptForItsTypes(TypedSpec comparison) {
+        return (EqualityClasses.litesOwn(comparison) ? LiteCrossTypeRule.INSTANCE : crossTypes)
+                .answersAKeptComparisonByItsTypes();
+    }
+
+    /** Whether {@code n} holds the setting's answer for a comparison across types written in the query. */
+    boolean holdsAQueryAnswer(TypedSpec n) {
+        if (queryAnswers.isEmpty()) {
+            return false;
+        }
+        if (queryAnswers.contains(n)) {
+            return true;
+        }
+        for (TypedSpec k : n.children()) {
+            if (holdsAQueryAnswer(k)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The model snapshot &mdash; the checkers' lookup surface. */
@@ -182,6 +408,15 @@ final class Typer {
         if (pre != null) {
             return pre;
         }
+        // an island's translation compares by the island's language's rule (B3 step 5): never the setting's
+        if (compared != Compared.UNREAD && !islandOutput.isEmpty() && islandOutput.contains(vs)) {
+            return comparing(Compared.UNREAD, () -> synth(vs, env));
+        }
+        // a lambda its caller wrote, met in a body typed into its call: its author's code (callerLambdas)
+        if (compared == Compared.GENERIC_BODY && vs instanceof LambdaFunction written && !callerLambdas.isEmpty()
+                && callerLambdas.containsKey(written)) {
+            return asItsAuthors(written, () -> synth(vs, env));
+        }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.
@@ -214,8 +449,10 @@ final class Typer {
             // #SQL{...}#: Postgres SQL, translated to the Relation expression it means and typed as one
             // (SqlIslands; docs/LEGEND_SQL_STUDY_2026_10_11.md §3)
             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
-            case com.legend.protocol.spec.SqlIsland si ->
-                    synth(SqlIslands.desugar(si, this, ctx, env), env);
+            // an island compares by its own language's rule (SQL's, Cypher's: 100 against a Float column is a valid
+            // comparison there), so its comparisons are the database's, never marked (B3 step 5, 2026-11-25)
+            case com.legend.protocol.spec.SqlIsland si -> comparing(Compared.UNREAD,
+                    () -> synth(SqlIslands.desugar(si, this, ctx, env), env));
             case com.legend.protocol.spec.GqlIsland gi ->
                     throw new com.legend.error.NotImplementedException(
                             "#GQL{...}# expression islands are not compilable"

@@ -1,0 +1,668 @@
+### 04260625 edit-next: acos and asin out of [-1, 1] raise as legend-pure does (the user's ruling of 2026-11-25, S119 reopened) -- the raise kind, its words, the guarded rule, plain at legend-engine's door (not yet built; the ledgers, goldens and register follow)
+
+
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index a435791a..fba71254 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -169,10 +169,11 @@ public final class PureText {
+ 
+     /** CENSUS CLASS A (docs/records/pure-v1-engine-census-2026-11-17.md): the kinds legend-engine 4.145.0's pure/v1
+      *  route writes no check for in its SQL -- the database decides (rem's and divide's {@code mod} and {@code /},
+-     *  {@code sqrt}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice}, {@code range}, {@code processCast},
+-     *  the parses' plain casts). */
++     *  {@code sqrt}, {@code acos} and {@code asin}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice},
++     *  {@code range}, {@code processCast}, the parses' plain casts). */
+     static final java.util.Set<com.legend.sql.RaiseKind> ENGINE_UNCHECKED = java.util.Collections.unmodifiableSet(
+             java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
++                    com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
+                     com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+                     com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
+                     com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
+diff --git a/core/src/main/java/com/legend/error/ErrorKind.java b/core/src/main/java/com/legend/error/ErrorKind.java
+index c4941167..50d8dc41 100644
+--- a/core/src/main/java/com/legend/error/ErrorKind.java
++++ b/core/src/main/java/com/legend/error/ErrorKind.java
+@@ -38,6 +38,8 @@ public enum ErrorKind implements ErrorCode {
+     INSERT_OUT_OF_BOUNDS(Form.any("add(set, index, value): index out of bounds")),
+     /** [the value]: legend-pure's, the value as Pure prints a Float (K2). */
+     SQRT_OF_NEGATIVE(Form.any("Unable to compute sqrt of %1$s", Slot.FLOAT)),
++    /** [the function (acos, asin), the value]: legend-pure's, the value as Pure prints a Float. */
++    INVERSE_TRIG_OUT_OF_DOMAIN(Form.any("Unable to compute %1$s of %2$s", Slot.TEXT, Slot.FLOAT)),
+     /** [the bound] (a size known empty) or [the bound, the size]: legend-pure's toOne/cast. */
+     SIZE_NOT_MULTIPLICITY(Form.of(1, "Cannot cast a collection of size 0 to multiplicity %1$s"),
+             Form.any("Cannot cast a collection of size %2$s to multiplicity %1$s")),
+diff --git a/core/src/main/java/com/legend/lowering/Scalars.java b/core/src/main/java/com/legend/lowering/Scalars.java
+index 3eac0146..8ee6ef2a 100644
+--- a/core/src/main/java/com/legend/lowering/Scalars.java
++++ b/core/src/main/java/com/legend/lowering/Scalars.java
+@@ -565,16 +565,8 @@ final class Scalars {
+                 Map.entry(Pure.AT_MATH_LOG10, SqlFn.LOG10), Map.entry(Pure.AT_MATH_POW, SqlFn.POW),
+                 Map.entry(Pure.AT_MATH_PI, SqlFn.PI),
+                 Map.entry(Pure.AT_MATH_SIN, SqlFn.SIN), Map.entry(Pure.AT_MATH_COS, SqlFn.COS),
+-                Map.entry(Pure.AT_MATH_TAN, SqlFn.TAN), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN),
+-                // acos/asin: the engine's spec cell is the BARE function
+-                // (extensionDefaults.pure 'acos(%s)'); out of domain H2
+-                // yields NaN and the row drops. A backend that raises
+-                // instead reaches the same answer through ITS dialect's
+-                // domain guard (DuckDb.call), never a semantic rule; Pure's
+-                // "Unable to compute acos" error is the interpreter's, and
+-                // every engine relational PCT adapter ledgers
+-                // testArcCosineError as an expected failure (batch 61).
+-                Map.entry(Pure.AT_MATH_ACOS, SqlFn.ACOS),
++                Map.entry(Pure.AT_MATH_TAN, SqlFn.TAN),
++                // (acos and asin: their domain guard's rule, with sqrt's below)
+                 Map.entry(Pure.AT_MATH_ATAN, SqlFn.ATAN),
+                 Map.entry(Pure.AT_MATH_ATAN2, SqlFn.ATAN2), Map.entry(Pure.AT_MATH_SINH, SqlFn.SINH),
+                 Map.entry(Pure.AT_MATH_COSH, SqlFn.COSH), Map.entry(Pure.AT_MATH_TANH, SqlFn.TANH),
+@@ -1982,6 +1974,27 @@ final class Scalars {
+                         SqlExpr.Call.of(SqlFn.SQRT, args.get(0)), styled);
+             });
+         }
++        // acos and asin outside [-1, 1] RAISE, as legend-pure does ("Unable to compute acos of 2.0"; the user's ruling
++        // of 2026-11-25, register S119 reopened for these two: until then the database's NaN, or its own refusal where
++        // it holds none). The condition is the database's, over the row's value. A door whose table does not write
++        // the check (legend-engine's, inside a store query: its SQL is the bare function, extensionDefaults.pure
++        // 'acos(%s)') keeps the function alone, whose dialect arm answers NaN as legend-engine's H2 does, or refuses
++        // where the database holds none (register S138); outside a store query its own Java raises as Pure does, and
++        // the check is written (the planner's stamp).
++        for (var trig : List.of(Map.entry(Pure.AT_MATH_ACOS, SqlFn.ACOS), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN))) {
++            SqlFn fn = trig.getValue();
++            String label = fn == SqlFn.ACOS ? "acos" : "asin";
++            for (com.legend.model.FunctionId f : trig.getKey()) {
++                RULES.put(f, (StyledRule) (n, args, styled) -> {
++                    SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
++                    return guarded(n,
++                            SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(1)),
++                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
++                                    List.of(new SqlExpr.StringLit(label), args.get(0))),
++                            SqlExpr.Call.of(fn, args.get(0)), styled);
++                });
++            }
++        }
+         family(SqlFn.BIT_NOT, Pure.AT_MATH_BIT_NOT);
+         // formatDate(date, Strict/DateTimeFormat): the two real ISO forms.
+         for (com.legend.model.FunctionId f : Pure.AT_DATE_FORMAT_DATE) {
+diff --git a/core/src/main/java/com/legend/sql/RaiseKind.java b/core/src/main/java/com/legend/sql/RaiseKind.java
+index 1b294fa6..d1d6277c 100644
+--- a/core/src/main/java/com/legend/sql/RaiseKind.java
++++ b/core/src/main/java/com/legend/sql/RaiseKind.java
+@@ -19,6 +19,9 @@ public enum RaiseKind {
+     INDEX_OUT_OF_BOUNDS,
+     INSERT_OUT_OF_BOUNDS,
+     SQRT_OF_NEGATIVE,
++    /** acos or asin of a value outside [-1, 1] (the user's ruling of 2026-11-25, register S119 reopened for these two:
++     *  raised, as legend-pure does). */
++    INVERSE_TRIG_OUT_OF_DOMAIN,
+     SIZE_NOT_MULTIPLICITY,
+     SLICE_BOUNDS_INVERTED,
+     DATE_COMPONENT_INVALID,
+diff --git a/core/src/test/java/com/legend/HookRulingTest.java b/core/src/test/java/com/legend/HookRulingTest.java
+index 360c06bf..eaa79e51 100644
+--- a/core/src/test/java/com/legend/HookRulingTest.java
++++ b/core/src/test/java/com/legend/HookRulingTest.java
+@@ -319,8 +319,12 @@ class HookRulingTest {
+         // the raises a plan writes plain (B7, 2026-11-17; the door's edition's table since the edition program's
+         // step 3, 2026-11-26, the two-form LoweringForms until then): the product's none, PCT's and the corpus's none
+         // (legend-pure's guarded words), the pure/v1 route's legend-engine's census class A, inside a store query
++        // (2026-11-26, the user's ruling of 2026-11-25 on acos and asin, register S119 reopened: the product raises
++        // out of [-1, 1] as legend-pure does, and legend-engine's SQL is the bare function, so the new kind joins
++        // class A at its birth -- legend-engine's SQL for acos and asin is what it was)
+         java.util.Set<com.legend.sql.RaiseKind> classA = java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO,
+-                com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
++                com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
++                com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
+                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED,
+                 com.legend.sql.RaiseKind.RANGE_STEP_ZERO, com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
+                 com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
+### a7139a3e edit-next: acos and asin within the domain as their own functions, so the product's guard is the one check in the SQL (not yet built)
+
+
+diff --git a/core/src/main/java/com/legend/lowering/Scalars.java b/core/src/main/java/com/legend/lowering/Scalars.java
+index 8ee6ef2a..68ffb0e1 100644
+--- a/core/src/main/java/com/legend/lowering/Scalars.java
++++ b/core/src/main/java/com/legend/lowering/Scalars.java
+@@ -1983,15 +1983,19 @@ final class Scalars {
+         // the check is written (the planner's stamp).
+         for (var trig : List.of(Map.entry(Pure.AT_MATH_ACOS, SqlFn.ACOS), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN))) {
+             SqlFn fn = trig.getValue();
++            SqlFn inDomain = fn == SqlFn.ACOS ? SqlFn.ACOS_IN_DOMAIN : SqlFn.ASIN_IN_DOMAIN;
+             String label = fn == SqlFn.ACOS ? "acos" : "asin";
+             for (com.legend.model.FunctionId f : trig.getKey()) {
+                 RULES.put(f, (StyledRule) (n, args, styled) -> {
+                     SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
+-                    return guarded(n,
+-                            SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(1)),
+-                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
+-                                    List.of(new SqlExpr.StringLit(label), args.get(0))),
+-                            SqlExpr.Call.of(fn, args.get(0)), styled);
++                    SqlExpr.RaiseText words = new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INVERSE_TRIG_OUT_OF_DOMAIN,
++                            List.of(new SqlExpr.StringLit(label), args.get(0)));
++                    // checked, the function alone (its argument is within the domain); plain, the function with its
++                    // dialect's own answer outside the domain
++                    return styled.edition().checks(words.kind(), n)
++                            ? guarded(SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x),
++                                    new SqlExpr.IntLit(1)), words, SqlExpr.Call.of(inDomain, args.get(0)))
++                            : SqlExpr.Call.of(fn, args.get(0));
+                 });
+             }
+         }
+diff --git a/core/src/main/java/com/legend/sql/SqlFn.java b/core/src/main/java/com/legend/sql/SqlFn.java
+index 60d8696b..dee700e5 100644
+--- a/core/src/main/java/com/legend/sql/SqlFn.java
++++ b/core/src/main/java/com/legend/sql/SqlFn.java
+@@ -59,6 +59,10 @@ public enum SqlFn {
+     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
+     SQRT, CBRT, EXP, LN, LOG10, POW, PI,
+     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
++    /** acos and asin of a value the statement's own guard holds within [-1, 1] (the lowering's rule raises outside it,
++     *  as legend-pure does: register S119): the database's function alone, with none of the dialect's own handling of
++     *  a value outside the domain, which {@link #ACOS} and {@link #ASIN} keep for a style that writes the raise plain. */
++    ACOS_IN_DOMAIN, ASIN_IN_DOMAIN,
+     CEILING, FLOOR, ROUND, SIGN, XOR,
+     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
+     REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH,
+@@ -234,7 +238,7 @@ public enum SqlFn {
+      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
+      *  SubselectPrune). */
+     public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
+-            PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
++            PARSE_INT, PARSE_DATE, ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
+             MAKE_TIMESTAMP));
+ 
+     /** The functions that may leave an argument unevaluated on SOME dialect: AND, OR and COALESCE (SQL promises no
+diff --git a/core/src/main/java/com/legend/sql/SqlTyping.java b/core/src/main/java/com/legend/sql/SqlTyping.java
+index 659137e7..e9627384 100644
+--- a/core/src/main/java/com/legend/sql/SqlTyping.java
++++ b/core/src/main/java/com/legend/sql/SqlTyping.java
+@@ -418,7 +418,7 @@ public final class SqlTyping {
+                     // describe what WE deliver, not the raw builtin.
+                     HASH -> T_BIGINT;
+             case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, RANDOM,
+-                    ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
++                    ACOS, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
+                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
+             case TODAY, MAKE_DATE -> T_DATE;
+             case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,
+diff --git a/core/src/main/java/com/legend/sql/dialect/BigQuery.java b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+index e9c4af41..fbaa6c09 100644
+--- a/core/src/main/java/com/legend/sql/dialect/BigQuery.java
++++ b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+@@ -1607,8 +1607,8 @@ public class BigQuery extends AnsiSqlRenderer {
+             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+             // this database's plain spellings: name(args)
+             case ABS -> writer.function("ABS", c.args());
+-            case ACOS -> writer.function("ACOS", c.args());
+-            case ASIN -> writer.function("ASIN", c.args());
++            case ACOS, ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
++            case ASIN, ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
+             case ATAN -> writer.function("ATAN", c.args());
+             case ATAN2 -> writer.function("ATAN2", c.args());
+             case CBRT -> writer.function("CBRT", c.args());
+diff --git a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+index 321fdc12..908095ad 100644
+--- a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
++++ b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+@@ -1965,8 +1965,8 @@ public class ClickHouse extends AnsiSqlRenderer {
+             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+             case VARIANT_GET -> variantGet(writer, c.args());
+             // this database's plain spellings: name(args)
+-            case ACOS -> writer.function("acos", c.args());
+-            case ASIN -> writer.function("asin", c.args());
++            case ACOS, ACOS_IN_DOMAIN -> writer.function("acos", c.args());
++            case ASIN, ASIN_IN_DOMAIN -> writer.function("asin", c.args());
+             case ATAN -> writer.function("atan", c.args());
+             case ATAN2 -> writer.function("atan2", c.args());
+             case CBRT -> writer.function("cbrt", c.args());
+diff --git a/core/src/main/java/com/legend/sql/dialect/Databricks.java b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+index 88328ea6..90d035c8 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Databricks.java
++++ b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+@@ -1130,9 +1130,9 @@ public class Databricks extends AnsiSqlRenderer {
+             case VARIANT_GET -> variantGet(writer, c.args());
+             // this database's plain spellings: name(args)
+             case ABS -> writer.function("abs", c.args());
+-            case ACOS -> writer.function("acos", c.args());
++            case ACOS, ACOS_IN_DOMAIN -> writer.function("acos", c.args());
+             case ASCII_CODE -> writer.function("ascii", c.args());
+-            case ASIN -> writer.function("asin", c.args());
++            case ASIN, ASIN_IN_DOMAIN -> writer.function("asin", c.args());
+             case ATAN -> writer.function("atan", c.args());
+             case ATAN2 -> writer.function("atan2", c.args());
+             case CBRT -> writer.function("cbrt", c.args());
+diff --git a/core/src/main/java/com/legend/sql/dialect/DuckDb.java b/core/src/main/java/com/legend/sql/dialect/DuckDb.java
+index d96bfe29..0ca78b48 100644
+--- a/core/src/main/java/com/legend/sql/dialect/DuckDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/DuckDb.java
+@@ -541,6 +541,9 @@ public class DuckDb extends AnsiSqlRenderer {
+             // the engine's answer — not propagating DuckDB's exception.
+             case ACOS -> domainGuarded(writer, "acos", a);
+             case ASIN -> domainGuarded(writer, "asin", a);
++            // within the domain by the statement's own guard: the function alone
++            case ACOS_IN_DOMAIN -> writer.function("acos", a);
++            case ASIN_IN_DOMAIN -> writer.function("asin", a);
+             // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
+             // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
+             // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
+diff --git a/core/src/main/java/com/legend/sql/dialect/H2.java b/core/src/main/java/com/legend/sql/dialect/H2.java
+index a8ea0717..d6661e76 100644
+--- a/core/src/main/java/com/legend/sql/dialect/H2.java
++++ b/core/src/main/java/com/legend/sql/dialect/H2.java
+@@ -742,6 +742,10 @@ public class H2 extends AnsiSqlRenderer {
+             // guarded, the engine's answer (the DuckDB dialect's own guard)
+             case ASIN -> domainGuarded(writer, "asin", c.args());
+             case ACOS -> domainGuarded(writer, "acos", c.args());
++            // within the domain by the statement's own guard: the function over its argument clamped, because H2 folds
++            // a constant inside a CASE's untaken branch too and raises on acos(2.0) there (domainGuarded's note)
++            case ASIN_IN_DOMAIN -> writer.append("asin(LEAST(GREATEST(").expr(c.args().get(0), 0).append(", -1), 1))");
++            case ACOS_IN_DOMAIN -> writer.append("acos(LEAST(GREATEST(").expr(c.args().get(0), 0).append(", -1), 1))");
+             case ATAN -> writer.function("atan", c.args());
+             case ATAN2 -> writer.function("atan2", c.args());
+             case SINH -> writer.function("sinh", c.args());
+diff --git a/core/src/main/java/com/legend/sql/dialect/MariaDb.java b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+index b4d316df..db27b0d4 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MariaDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+@@ -1966,6 +1966,9 @@ public class MariaDb extends AnsiSqlRenderer {
+             // outside [-1, 1] MariaDB answers NULL (measured), DuckDB raises
+             case ACOS -> domainGuarded(writer, c, "ACOS");
+             case ASIN -> domainGuarded(writer, c, "ASIN");
++            // within the domain by the statement's own guard: the function alone
++            case ACOS_IN_DOMAIN -> writer.function("ACOS", a);
++            case ASIN_IN_DOMAIN -> writer.function("ASIN", a);
+             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
+             // never "--x": that is a comment
+             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
+diff --git a/core/src/main/java/com/legend/sql/dialect/MongoDb.java b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+index c8028af4..2de2aeb6 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MongoDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+@@ -1081,6 +1081,9 @@ public class MongoDb extends AnsiSqlRenderer {
+             case TAN -> MongoJson.op1(writer, "$tan", a.get(0));
+             case ASIN -> domainGuarded(writer, "$asin", a);
+             case ACOS -> domainGuarded(writer, "$acos", a);
++            // within the domain by the statement's own guard: the operator alone
++            case ASIN_IN_DOMAIN -> MongoJson.op1(writer, "$asin", a.get(0));
++            case ACOS_IN_DOMAIN -> MongoJson.op1(writer, "$acos", a.get(0));
+             case ATAN -> MongoJson.op1(writer, "$atan", a.get(0));
+             case ATAN2 -> MongoJson.op(writer, "$atan2", a);
+             case SINH -> MongoJson.op1(writer, "$sinh", a.get(0));
+diff --git a/core/src/main/java/com/legend/sql/dialect/MySql.java b/core/src/main/java/com/legend/sql/dialect/MySql.java
+index bb369a3c..2f2fd909 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MySql.java
++++ b/core/src/main/java/com/legend/sql/dialect/MySql.java
+@@ -106,7 +106,8 @@ public class MySql extends MariaDb {
+                  DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
+                  LOWER, GREATEST, LEAST, CONCAT_JOIN, CONCAT_WS, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT,
+                  LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH,
+-                 SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
++                 SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ATAN,
++                 ATAN2, SINH, COSH, TANH,
+                  CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
+                  BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, IS_NUMERIC, MAP_FROM_LISTS,
+                  MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, SUBSTRING_AS_GIVEN, STRPOS,
+diff --git a/core/src/main/java/com/legend/sql/dialect/Postgres.java b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+index f7ad3617..e99ef5c3 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Postgres.java
++++ b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+@@ -910,6 +910,9 @@ public class Postgres extends AnsiSqlRenderer {
+             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+             // the engine's out-of-domain answer is NaN; Postgres raises
+             case ACOS, ASIN -> acos(writer, c);
++            // within the domain by the statement's own guard: the function alone
++            case ACOS_IN_DOMAIN -> writer.function("acos", c.args());
++            case ASIN_IN_DOMAIN -> writer.function("asin", c.args());
+ 
+             // ---- strings
+             // the engine coerces a non-text argument (DuckDb's arm)
+diff --git a/core/src/main/java/com/legend/sql/dialect/SQLite.java b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+index ddb16a8c..1c3b87e9 100644
+--- a/core/src/main/java/com/legend/sql/dialect/SQLite.java
++++ b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+@@ -1768,6 +1768,9 @@ public class SQLite extends AnsiSqlRenderer {
+             // outside [-1, 1] SQLite answers NULL (measured), DuckDB raises
+             case ACOS -> domainGuarded(writer, c, "acos");
+             case ASIN -> domainGuarded(writer, c, "asin");
++            // within the domain by the statement's own guard: the function alone
++            case ACOS_IN_DOMAIN -> writer.function("acos", a);
++            case ASIN_IN_DOMAIN -> writer.function("asin", a);
+             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
+             // never "--x": that is a comment
+             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
+diff --git a/core/src/main/java/com/legend/sql/dialect/Snowflake.java b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+index c932e7f6..bcab5a45 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Snowflake.java
++++ b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+@@ -1515,6 +1515,9 @@ public class Snowflake extends AnsiSqlRenderer {
+                     .append("), ").expr(a.get(0), 0).append(")");
+             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
+             case ACOS, ASIN -> acosArm(writer, c);
++            // within the domain by the statement's own guard: the function alone
++            case ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
++            case ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
+             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
+             // Pure's divide-with-scale is HALF_UP: ROUND over a NUMBER (half away from zero, measured); over a FLOAT
+             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)
+diff --git a/core/src/main/java/com/legend/sql/dialect/Trino.java b/core/src/main/java/com/legend/sql/dialect/Trino.java
+index 978a3f56..aa27b928 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Trino.java
++++ b/core/src/main/java/com/legend/sql/dialect/Trino.java
+@@ -979,8 +979,8 @@ public class Trino extends AnsiSqlRenderer {
+             case VARIANT_GET -> variantGet(writer, c.args());
+             // this database's plain spellings: name(args)
+             case ABS -> writer.function("abs", c.args());
+-            case ACOS -> writer.function("acos", c.args());
+-            case ASIN -> writer.function("asin", c.args());
++            case ACOS, ACOS_IN_DOMAIN -> writer.function("acos", c.args());
++            case ASIN, ASIN_IN_DOMAIN -> writer.function("asin", c.args());
+             case ATAN -> writer.function("atan", c.args());
+             case ATAN2 -> writer.function("atan2", c.args());
+             case CBRT -> writer.function("cbrt", c.args());
+### 9652b36a edit-next: acos and asin -- the two error tests leave every database's expected-failure list and channel B's ledger (to confirm on each lane)
+
+
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_EssentialFunctions_PCT.java
+index 95181ecd..fa07c6db 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_BigQuery_EssentialFunctions_PCT.java
+@@ -58,8 +58,8 @@ public class Test_LegendLite_BigQuery_EssentialFunctions_PCT extends PCTReportCo
+             // testBigFloatAbs prints a double's shortest digits
+             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
+             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"BigQueryException during runQuery\nFloating point error in function: ACOS(2)\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"BigQueryException during runQuery\nFloating point error in function: ASIN(2)\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
+             // BIGQUERY'S OWN LIMIT: no list of lists (measured: "nested arrays are not supported"): removeDuplicates
+             // reduces into one (its closed fold is hoisted, its accumulator is not representable)
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_EssentialFunctions_PCT.java
+index 932b7f49..2b50af47 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_ClickHouse_EssentialFunctions_PCT.java
+@@ -77,8 +77,8 @@ public class Test_LegendLite_ClickHouse_EssentialFunctions_PCT extends PCTReport
+             // 2026-10-27, the result boundary program (the PCT reads typed rows, measured on this lane by its own
+             // session): the database's NaN reaches the bridge as a double, refused by name (Pure's Float is a decimal),
+             // no longer parsed from its text
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
+             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_EssentialFunctions_PCT.java
+index 8221a839..02bc9a53 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_EssentialFunctions_PCT.java
+@@ -60,8 +60,8 @@ public class Test_LegendLite_Databricks_EssentialFunctions_PCT extends PCTReport
+             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+             // 2026-10-19, step 9, the plan route (as on DuckDB): the NaN cell is spelled NaN and Pure's parseFloat
+             // refuses the character (the legacy route's Java BigDecimal said "Infinite or NaN")
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
+             // DATABRICKS' OWN LIMIT: a date-time past Spark's range overflows (measured)
+             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L DAY to TIMESTAMP '2016-02-29 00:00:00'."),
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_EssentialFunctions_PCT.java
+index 0f09c505..fbda2cc3 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_EssentialFunctions_PCT.java
+@@ -135,7 +135,7 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
+             // eagerly, so the un-lowerable reflection carrier walls
+             // loudly at the Lowerer (correct: deactivate is compile-time
+             // and must never reach MIR)
+-            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
++            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"));
+             // RELATIONAL DOMAIN SEMANTICS (batch 61, 2026-09-04): the Pure
+             // interpreter raises "Unable to compute acos of 2.0"; the
+             // engine's relational spec cell is the bare acos(%s), whose
+@@ -149,8 +149,8 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
+             // BigDecimal said "Infinite or NaN").
+             // 2026-10-27, phase 4 (typed rows): the database's NaN reaches the bridge as a double, refused by name
+             // (Pure's Float is a decimal), no longer parsed from its text
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""));
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+ 
+     public static Test suite() {
+         // M4 §3.4: the census gate (its SqlTypeCensus pins deleted 2026-11-09: the census had no feeder)
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_EssentialFunctions_PCT.java
+index 34e07659..c4473a4d 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_EssentialFunctions_PCT.java
+@@ -62,8 +62,8 @@ public class Test_LegendLite_MariaDB_EssentialFunctions_PCT extends PCTReportCon
+             // column was a double -- and is removed
+             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
+             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"acos of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"asin of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
+             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MongoDB_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MongoDB_EssentialFunctions_PCT.java
+index c2590d92..326ec60c 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MongoDB_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MongoDB_EssentialFunctions_PCT.java
+@@ -54,8 +54,8 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
+             // (MongoDb.unfolded)
+             // 2026-10-27, the result boundary program's phase 4 (the PCT reads typed rows): the database's NaN reaches
+             // the bridge as a double, refused by name (Pure's Float is a decimal), no longer parsed from its text
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             // NOTE 2026-10-20 (plan-route parity, the instance carrier): testConcatenateTypeInference passes again: an instance
+             // meeting its siblings at an ancestor with no layout carries its own class in its JSON (__type,
+             // MixedEncoding.withClass), and the text carrier spells the subclass it names
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_EssentialFunctions_PCT.java
+index b6b38197..5a4ba62f 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MySQL_EssentialFunctions_PCT.java
+@@ -59,8 +59,8 @@ public class Test_LegendLite_MySQL_EssentialFunctions_PCT extends PCTReportConfi
+             // column was a double -- and is removed
+             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
+             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"acos of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"asin of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
+             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_EssentialFunctions_PCT.java
+index 4353f1be..e4bf0206 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Postgres_EssentialFunctions_PCT.java
+@@ -68,8 +68,8 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
+             // 2026-10-27, the result boundary program (the PCT reads typed rows, measured on this lane by its own
+             // session): the database's NaN reaches the bridge as a double, refused by name (Pure's Float is a decimal),
+             // no longer parsed from its text
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             // 2026-10-29 (track L, the result boundary program; PR #80's pct_postgres lanes on the L1 commit): the two
+             // removeDuplicates pins ("UNNEST over Unknown[] reached Postgres", a comparator dedup's CASE losing the
+             // LITERAL label) are RETIRED -- a mixed list is a list of tagged values (SqlExpr.TaggedList) whose dedup
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_EssentialFunctions_PCT.java
+index 14895720..0be68e22 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_SQLite_EssentialFunctions_PCT.java
+@@ -63,8 +63,8 @@ public class Test_LegendLite_SQLite_EssentialFunctions_PCT extends PCTReportConf
+             // 2026-10-27, phase 4 (typed rows): the double crosses as itself; Pure prints its shortest digits
+             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
+             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "expected: 123456789123456789.99\nactual:   123456789123456780.0"),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"acos of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"asin of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
+             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_EssentialFunctions_PCT.java
+index 4ff58b5a..000bfde7 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Snowflake_EssentialFunctions_PCT.java
+@@ -66,8 +66,8 @@ public class Test_LegendLite_Snowflake_EssentialFunctions_PCT extends PCTReportC
+             // refused by name (Pure's Float has no NaN), no longer parsed from its text
+             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
+             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
+             // NOTE 2026-10-21 (the plan route on Snowflake, first measured by the Snowflake lane session at 6c8de4e
+             // against the merge-base 59b547a5e, where every pin here held): the three folds pass (object identity),
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_EssentialFunctions_PCT.java b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_EssentialFunctions_PCT.java
+index 5f2f073e..5ff8941d 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_EssentialFunctions_PCT.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Trino_EssentialFunctions_PCT.java
+@@ -66,8 +66,8 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
+             // 2026-10-27, the result boundary program (the PCT reads typed rows, measured on this lane by its own
+             // session): the database's NaN reaches the bridge as a double, refused by name (Pure's Float is a decimal),
+             // no longer parsed from its text
+-            one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
+-            one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
++            // (testArcCosineError and testArcSineError left this list 2026-11-26: acos and asin outside [-1, 1] raise
++            // as legend-pure does, "Unable to compute acos of 2.0" -- the user's ruling of 2026-11-25, register S119)
+             // step 9, 2026-10-19, the plan route: the same refusal, its position in the plan's longer statement
+             // (line 9:39 where the legacy route's was 1:33), pinned without the position
+             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
+diff --git a/pct/src/test/resources/org/finos/legend/lite/pct/channelb/ledger.tsv b/pct/src/test/resources/org/finos/legend/lite/pct/channelb/ledger.tsv
+index 5403c18c..a16227c2 100644
+--- a/pct/src/test/resources/org/finos/legend/lite/pct/channelb/ledger.tsv
++++ b/pct/src/test/resources/org/finos/legend/lite/pct/channelb/ledger.tsv
+@@ -26,8 +26,6 @@ duckdb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber
+ duckdb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	out of range
+ duckdb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	out of range
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
+-duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
+ 
+ # postgres: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+ # a fold whose accumulator is a struct list: Postgres's list accumulator is the jsonb carrier of scalars (channel A fails it too)
+@@ -41,8 +39,6 @@ postgres	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber
+ postgres	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: ERROR: timestamp out of range: "1410404-07-12T00:00:00"
+ postgres	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: ERROR: time zone displacement out of range: "-21457-01-08T20:48:00"
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
+-postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
+ # a variable-identity or non-primitive eq or equal: a list transform of no result type on Postgres -- channel A passes, the engine's Postgres manifest fails it too (a WIRE-BUG pinned since 2026-10-20)
+ postgres	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqVarIdentity	DialectCapability: a list transform of unknown result type reached Postgres
+ postgres	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive	DialectCapability: a list transform of unknown result type reached Postgres
+@@ -68,8 +64,6 @@ sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumbe
+ # SQLite has no time zones but UTC
+ sqlite	Essential	meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	AssertFailed: expected: [0], actual: []
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute acos of 2.0"
+-sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute asin of 2.0"
+ # SQLite has no time zones but UTC
+ sqlite	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached SQLite: SQLite has no time zones but UTC
+ # an integer past 64 bits: SQLite has none
+@@ -100,8 +94,6 @@ trino	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	'
+ trino	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	'33803336-12-17' is not a valid DATE literal
+ trino	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	'1410404-07-12 00:00:00' is not a valid TIMESTAMP literal
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
+-trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
+ # (getAll::testBasic left 2026-11-11, B4: the system metamodel store is the process's in-process catalog on every
+ # database, so Trino no longer makes its tables a session's own -- the lane round at 0b9bae2 measured it passing)
+ 
+@@ -152,8 +144,6 @@ mariadb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber
+ mariadb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MariaDB value
+ mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MariaDB value
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute acos of 2.0"
+-mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute asin of 2.0"
+ # MariaDB knows no named time zone but UTC without its zone tables
+ mariadb	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached MariaDB: MariaDB knows no named time zone but UTC without its zone tables
+ # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+@@ -188,8 +178,6 @@ mysql	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	In
+ mysql	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MySQL value
+ mysql	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MySQL value
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute acos of 2.0"
+-mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" where the expected message was:"Unable to compute asin of 2.0"
+ # MySQL knows no named time zone but UTC without its zone tables
+ mysql	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached MySQL: MySQL knows no named time zone but UTC without its zone tables
+ # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+@@ -243,8 +231,6 @@ clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNum
+ clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DialectCapability: the date 25489-04-20 03:12:00 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+ clickhouse	Essential	meta::pure::functions::date::tests::testAdjustBySecondsBigNumber	DialectCapability: the date 2407-05-19 19:15:12 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-clickhouse	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
+-clickhouse	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
+ # ClickHouse keeps a JSON value's text as written, its spaces among it (the engine's frontier too)
+ clickhouse	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue	AssertFailed: expected: "#TDS\n   id,payload\n   1,'{\"boolean\":true,\"integer\":1,\"string\":\"hello\"}'\n#", actual: "#TDS\n   id,payload\n   1,'{\"boolean\":true,  \"integer\":1, \"string\":\"hello\"}'\n#"
+ clickhouse	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction	AssertFailed: expected: "#TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,'{\"boolean\":true,\"integer\":1,\"string\":\"hello\"}','true','1','\"hello\"'\n   2,'{\"boolean\":false,\"integer\":2,\"string\":\"world\"}','false','2','\"world\"'\n   3,'{\"boolean\":true,\"integer\":3,\"string\":\"world\"}','true','3','\"world\"'\n#", actual: "#TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,'{\"boolean\":true,  \"integer\":1, \"string\":\"hello\"}','true','1','\"hello\"'\n   2,'{\"boolean\":false, \"integer\":2, \"string\":\"world\"}','false','2','\"world\"'\n   3,'{\"boolean\":true,  \"integer\":3, \"string\":\"world\"}','true','3','\"world\"'\n#"
+@@ -272,8 +258,6 @@ snowflake	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumbe
+ snowflake	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: Numeric value '12345678912' is out of range
+ snowflake	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: Timestamp '-21457-01-08T20:48:00' is not recognized
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-snowflake	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
+-snowflake	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
+ 
+ # bigquery: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+ # a list of lists: BigQuery's arrays hold no array (measured: "nested arrays are not supported")
+@@ -291,8 +275,6 @@ bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNum
+ # a decimal literal past BigQuery's BIGNUMERIC (38 digits each side of the point)
+ # 2026-11-17 (Phase 5b, register S20 built; round 76): bigquery testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "BigQueryException during runQuery
+-bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "BigQueryException during runQuery
+ # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+ bigquery	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+ bigquery	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+@@ -324,8 +306,6 @@ databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNum
+ # a decimal literal past Databricks' DECIMAL (38 digits of precision)
+ # 2026-11-17 (Phase 5b, register S20 built; round 76): databricks testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
+ # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+-databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
+-databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
+ # a DISTINCT relation's sort key Spark cannot resolve after the DISTINCT (an unresolved column, sqlState 42703) -- channel A and the engine's Databricks manifest both pass it (true wire bugs pinned since 2026-10-12)
+ # 2026-11-24, B3 step 2b (the lift): 8 databricks Relation rows' texts re-recorded, the verdicts unmoved -- the failing statement is now the printed side's read before the body, whose table alias is `_tds0` where the body's own statement named it `_tds2`/`_tds3` (the same UNRESOLVED_COLUMN: Databricks cannot ORDER BY the FROM alias after DISTINCT; measured by its warm lane on 9b1e194f)
+ databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds0`.`val` cannot be resolved.
+@@ -480,8 +460,6 @@ duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testPerson
+ # testSimpleSortWithFunctionVariables; a guard moving down only: approved by the user 2026-11-19 ~20:45
+ # ("Approved to move guards down"))
+ # acos/asin out of domain raise nothing: the database answers NaN (lite's IEEE Float, S119), where legend-pure raises 'Unable to compute acos of 2.0' (2026-11-19; 2 rows)
+-duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute acos of 2.0"
+-duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. The actual message was "No error was thrown" where the expected message was:"Unable to compute asin of 2.0"
+ # a date past DuckDB's range (its DATE holds years to 5881580, its TIMESTAMP to 294247): every value is the database's,
+ # so it refuses the expected literal, under both judges and on every run (a DuckDB test plan's session runs
+ # single-threaded, each verdict row reading its expected side first; the compatibility owner's options (a) and 2,
+### 81dde6ec edit-next: acos and asin -- the register's row S119 and the differences page say the raise (the user's ruling of 2026-11-25; documentation only)
+
+
+diff --git a/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
+index e98740cd..0b4fd844 100644
+--- a/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
++++ b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
+@@ -95,6 +95,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+ | `1->bitShiftRight(63)` (DuckDB) | `0` | Pure's error | `if($n > 62, \|0, \|$x->bitShiftRight($n))`; `-1` for a negative `$x` |
+ | `sqrt(-2.0)` (H2, through the legend-engine server) | `null` | Pure's error | `if($x < 0, \|[], \|sqrt($x))` |
+ | `x / 0` (DuckDB, through the legend-engine server) | `null` | Pure's error | `if($d == 0, \|[], \|$x / $d)` |
++| `acos(2.0)`, `asin(2.0)` (any value outside -1 to 1) | `null` (the database's NaN) | Pure's error, `Unable to compute acos of 2.0` | `if(abs($x) > 1, \|[], \|acos($x))` |
+ 
+ - **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
+   there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
+diff --git a/docs/SEMANTICS_REGISTER.md b/docs/SEMANTICS_REGISTER.md
+index 81b5a118..cbf4bf7f 100644
+--- a/docs/SEMANTICS_REGISTER.md
++++ b/docs/SEMANTICS_REGISTER.md
+@@ -151,7 +151,7 @@ that names S104 for functions generic over relations means S112).
+ | S117 | representation (output text) | legend-pure prints a Float with zero as `0.0` whichever its sign (compiled `CompiledSupport.primitiveToString(double)`: `(value == 0.0d) ? "0.0" : DECIMAL_FORMAT.format(value)`; the interpreter holds a Float as a `BigDecimal`, which has no negative zero), and `0.0 == -0.0` | lite's own outputs (LEAN JSON and CSV: `result/JsonRowsWriter`, `result/CsvWriter`) write a Float value's negative zero as `-0.0`, the shortest text that reads back as the same double, as lite's LEGACY writer (Java's `Double.toString`, legend-engine's JSON) and an Arrow float64 carry it; Pure's text of a Float (`toString`, `format`, a String built inside a query) stays `0.0` for either sign (`sql/dialect/FloatCanonText.ofText`, "ZEROS UNIFY"), and equality is unchanged | the user, 2026-10-28 ("okay", to the recommendation put to them case by case): the Float rule ruled 2026-10-26 (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` §8 item 3) writes LEAN JSON and CSV as the shortest decimal that reads back as the same double; lite's own JSON and CSV wrote `-0.0` until the phase 2 writers (`12b89c7d`) dropped the sign unruled (`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`, lines 34 and 35) | legend-pure 5.99.0's `CompiledSupport.primitiveToString` and `parseFloat.pure` (`testParseZero` asserts equality, so PCT is unmoved); lite `result/CellText.pureFloat`, `ResultWritersTest.aNegativeZeroKeepsItsSign_inLitesCsvAndJson` | the result boundary program |
+ 
+ | S118 | representation (output text) | legend-pure prints a DateTime value at the precision it was written: `DateFormat.append` (m4 `coreinstance/primitive/date/`) writes each component the value has and nothing finer (a literal's `.500` stays `.500`; `adjust.pure:155` asserts `%2015-04-15T13:11:11->adjust(1, DurationUnit.MINUTES)` equal to `%2015-04-15T13:12:11`, a second-precision value, printed `2015-04-15T13:12:11+0000`; the example this row cited until the S1.4 audit of 2026-10-29 was recalled, not read); legend-engine's relational answer for a value its SQL computed is a TDS cell with nine digits (`ValueTransformer`, `yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ`) | lite's own outputs (LEAN JSON and CSV) write a VALUE root's DateTime the database computed -- a scalar's, a collection's element -- at the precision its digits show: the fraction's trailing zeros dropped, a whole second with none (`ExecutionPlan.Precision.MINIMAL`, `PureDateLiteral.trimmed`); a relation's cell keeps the nine digits (INSTANT, legend-engine's spelling, legend-pure's `fromSQLTimestamp`) | the written precision is lost in the database (the execution tenet: the database computes every value), so no text is exact for every value: the trimmed text is legend-pure's wherever the written fraction had no trailing zeros (every PCT value test: the value lane's canon of 2026-10-18, `JudgePlans.valueLane`, `ValueBridge.values`) and legend-engine's nine digits never; the closest, kept, ledgered under the upstream-fidelity tenet 2026-10-29 and posted to the user with S1.4's correction (`docs/result-boundary-homework/DECISIONS_LOG.md`) | lite `result/CellText.pureDate`, `executionplan/ColumnFacts.precision`, `ResultWritersTest.aDateTimePrintsAtItsPrecisionWithItsZone_aStrictDateItsDay`; the PCT value suites exact on every lane through `ValueBridge`'s trim; legend-pure 5.99.0 `DateFunctions.fromSQLTimestamp`, `TestDateFunctions.testFromSQLTimestamp` | the result boundary program; the user may rule otherwise |
+-| S119 | outcome (the user's ruling, 2026-11-03) | legend-pure's INTERPRETER has no NaN: its Float is a BigDecimal (`FloatCoreInstance extends PrimitiveCoreInstance<BigDecimal>`), so `acos(2.0)` raises `Unable to compute acos of 2.0`; legend-pure's COMPILED runtime, the one legend-engine runs, maps Float to Java `double` (`TypeProcessor.java:200-202`); legend-engine's relational execution computes in the database's DOUBLE and writes a NaN cell as `null` in its JSON | lite's Float is an IEEE DOUBLE: NaN and +-Infinity are values (the database computes them; a NaN comparison drops a row inside a filter, as on the engine's H2). Lite's own JSON spells them losslessly as the strings `"NaN"`, `"Infinity"`, `"-Infinity"`; the engine-compatible writer writes `null`, as legend-engine does (the user: the clean thing in lite, the backward-compatible thing in compatibility mode). PCT channel A's adapter refuses a NaN, as the reference interpreter cannot hold one | the user, 2026-11-03 ("IEEE it is then"; a refusal at the boundary was built and reverted the same day: it broke Cypher's IEEE remainders and core's pinned IEEE cases) | `JdbcDecode` (no refusal), `CellText`, `ValueBridge`; PCT `testArcCosineError`/`testArcSineError` known failures on both channels (the engine's DuckDB adapter ledgers them); corpus `testFilterUsingArcCos/ArcSinFunction` pass; Cypher `float_remainders_*` pass | a Pure-semantics mode, if one is ever asked for |
++| S119 | outcome (the user's ruling, 2026-11-03) | legend-pure's INTERPRETER has no NaN: its Float is a BigDecimal (`FloatCoreInstance extends PrimitiveCoreInstance<BigDecimal>`), so `acos(2.0)` raises `Unable to compute acos of 2.0`; legend-pure's COMPILED runtime, the one legend-engine runs, maps Float to Java `double` (`TypeProcessor.java:200-202`); legend-engine's relational execution computes in the database's DOUBLE and writes a NaN cell as `null` in its JSON | lite's Float is an IEEE DOUBLE: NaN and +-Infinity are values (the database computes them; a NaN comparison drops a row inside a filter, as on the engine's H2). Lite's own JSON spells them losslessly as the strings `"NaN"`, `"Infinity"`, `"-Infinity"`; the engine-compatible writer writes `null`, as legend-engine does (the user: the clean thing in lite, the backward-compatible thing in compatibility mode). PCT channel A's adapter refuses a NaN, as the reference interpreter cannot hold one. **Reopened for `acos` and `asin` (the user's ruling of 2026-11-25, "`acos` / `asin` out of range raise, as compiled Pure does"; built 2026-11-26):** outside [-1, 1] lite raises `Unable to compute acos of 2.0`, in the database (a guard over the row's value; within the domain the function is the database's own), on every database; at legend-engine's doors the query handed to legend-engine keeps the bare function, as legend-engine's SQL writes it (the database's NaN, or its refusal where it holds none, S138), and a call outside any store query raises as Pure does | the user, 2026-11-03 ("IEEE it is then"; a refusal at the boundary was built and reverted the same day: it broke Cypher's IEEE remainders and core's pinned IEEE cases) | `JdbcDecode` (no refusal), `CellText`, `ValueBridge`; PCT `testArcCosineError`/`testArcSineError` pass on every database and both channels since 2026-11-26 (until then known failures; the engine's DuckDB adapter ledgers them); corpus `testFilterUsingArcCos/ArcSinFunction` pass (the query is legend-engine's); Cypher `float_remainders_*` pass | a Pure-semantics mode, if one is ever asked for |
+ | S120 | outcome | legend-pure's interpreter (the PCT's reference) holds a Float literal as a `BigDecimal` with every digit written: `123456789123456789.99` keeps its twenty digits, and `assertEq(123456789123456789.99, abs(-123456789123456789.99))` passes there (`abs.pure`, `testBigFloatAbs`); compiled legend-pure and legend-engine hold a double | a Float is the database's double (binary64) on every database lite runs on: `abs(-123456789123456789.99)` answers the double, whose shortest digits are `123456789123456780.0` (corrected 2026-11-25, a fact, by B2's engine-runner record, docs/records/edition-homework/engine-java-part.md (c): this parenthesis said that text was legend-pure's own print of that double, `DecimalFormat("0.0")`; on JDK 21 `DecimalFormat("0.0")` writes `123456789123456784.0`, its digit source not the shortest digits, and so do legend-engine's Java `toString` and the edge's `PureValueText.pureFloat`; `123456789123456780.0` is the shortest digits laid out, the text lite's lanes print); the PCT's `testBigFloatAbs` is pinned per lane with the lane's double text (`123456789123456780.0` on DuckDB, SQLite and most lanes; ClickHouse's `123456789123456800.0`, its Float64 text; `...784.0`, the old route's HUGEINT digits, until phase 4: the message changed, the divergence did not); since S20 was built (2026-11-17, Phase 5b) the parser keeps no written digits a double cannot hold on any grammar (the B8 `exact` arm no longer set): a Float literal is the double everywhere | a Float literal beyond a double's digits is a Decimal's (`123456789123456789.99D`, exact); the tenet's "closest where exact is too expensive" (an exact Float would make every Float a decimal); ledgered 2026-10-29 (S1.5), the user to confirm | `pct/.../Test_LegendLite_*EssentialFunctions_PCT.java` (`testBigFloatAbs` pins); `abs.pure` | the result boundary program |
+ | S121 | pending | legend-pure's `DateFormat.append` writes a DateTime's `+0000` from a MINUTE on (`TestDateFormat`: `2014-03-10T16`, `...T16:12+0000`); its interpreter prints an anonymous instance as `@_` and a counter (`@_0000003`: `ToString.java:56,63`, `ModelRepository.java:85, 902-915`) where compiled legend-pure prints the constant `Anonymous_StripedId` (`CompiledSupport.pureToString(Object)`); a packageable element prints its NAME (`AbstractCompiledLazyConcreteElement.toString(es)`: `getName()`, `TestClass`); legend-engine's graph-fetch JSON spells a nested date with nine digits and no zone (`core_relational`'s expectations) | four divergences lite carries today, each the lowering's or a judge's text, not the writer's: (1) the zone rule outside the writer -- a text-carried minute-precision date gets its zone only from seconds (`LiteralSpelling.dateTimeTextOfText`), and the host judge's canon (`exec/CanonicalForm`), the lowering's print of a DateTime-typed literal (`Scalars.dateLiteralPrint`: `%1973-11-13T23->toString()` prints `1973-11-13T23+0000`) and the graph emission (`resolver/GraphEmission`) write it from an hour on; (2) an instance's text is `@_` and lite's own id (`Scalars.pureToString`: the interpreter's shape, lite's ids); (3) a metamodel element's `toString()` is its path (`meta::...::TestClass`); (4) LEAN's nested dates are trimmed with `+0000` (the OBJECTS shape is served through LEGACY only today) | the S1.5 classification (G2, G5, G9, D9; the decisions log D16 to D18, D9) and its audit (findings 1, 3, 7), 2026-10-29: (1) and (3) are moves TOWARD upstream queued for track T (the judges' canon, measured per lane); (2) and (4) the user picks (the interpreter's shape with lite's ids, or compiled's constant; the engine's nested form when LEAN serves objects); a row so no divergence stands unledgered (the tenet) | the pinned sources named; `WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md` | the result boundary program (track T) |
+ | S122 | withdrawn | (As first written, 2026-10-29: compiled legend-pure orders two values of one enumeration by their hash codes and two enumerations by their classes' canonical names. WRONG, the L1 audit the same day: every enumeration value is ONE generated class, `PureEnum`, which `implements Comparable` by `getName()` (`EnumProcessor`, the pinned checkout), so `compareInt` takes its `Comparable` branch for one enumeration and for two: the NAME order, always; against a primitive the value is greater.) | a mixed list's sort orders an enumeration's value after every primitive and two enumeration values by their names, of one enumeration or of two (`MixedEncoding.rankedComparableOf`, group 4, the name as the text channel): EXACT, no divergence (a path-first order lite had for a day is gone) | the row stands withdrawn so its id's citations resolve; nothing for the user to rule | `EnumProcessor` (legend-pure-runtime-java-engine-compiled), `CompiledSupport.compareInt`; `exec/TaggedListTest.anEnumerationsValueIsItsOwnKind` (`[s::Alpha.Z, s::Colour.RED]->sort()` is RED, Z) | the result boundary program (track L) |

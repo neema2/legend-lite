@@ -169,7 +169,10 @@ class JoinTortureTest {
         String sql = sqlOf(P + "->filter(x|"
                 + F + "->filter(f|$f.F_NAME == $x.FIRM)->forAll(f|$f.CITY == 'NYC'))");
         assertTrue(sql.contains("NOT EXISTS"), sql);
-        assertTrue(sql.contains("NOT t1.CITY = 'NYC'"), "negated predicate inside: " + sql);
+        // (a firm whose CITY holds no value is not in NYC, so not every firm is: the negated comparison is the
+        // null-safe one. Until the closing batch of the edition program's step 6, 2026-11-27, it was NOT t1.CITY =
+        // 'NYC', "no value" for such a firm, which the NOT EXISTS did not count -- the forAll answered true)
+        assertTrue(sql.contains("t1.CITY IS DISTINCT FROM 'NYC'"), "negated predicate inside: " + sql);
         // Ann/Bob: ACME->NYC true. Cat: Widget->SF false. Dan: NO matching
         // firms -> VACUOUSLY TRUE (forAll on empty).
         assertEquals(List.of("Ann|25|ACME", "Bob|35|ACME", "Dan|55|null"),

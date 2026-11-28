@@ -17,7 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * A FLOAT LITERAL IS THE TARGET'S KIND (register S20, built 2026-11-17, Phase 5b; the edge program's §6 row 21): each
  * dialect says how its database computes with a Float literal ({@code SqlDialect.floatLiteralKind}), the lowering builds
  * the literal's fact by it and the dialect writes the literal by that fact. The product's is the double ("IEEE
- * everywhere"); the compatibility edge's is legend-engine's bare literal, a DECIMAL where it writes one.
+ * everywhere"), and since 2026-11-25 the compatibility edge's is the product's too (the user's ruling, "yes delete the
+ * float decimal thing"; register S20): until then the edge wrote legend-engine's bare literal, a DECIMAL where it
+ * writes one.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class FloatLiteralKindTest {

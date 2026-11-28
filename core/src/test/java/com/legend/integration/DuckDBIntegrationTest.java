@@ -6390,20 +6390,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
     @Test
     void testMaxNumbers_preservesIntegerType() throws SQLException {
-        // PCT: |1.23->meta::pure::functions::math::max(2)
-        // DuckDB promotes to DECIMAL, but result 2 should be Integer
-        var result = Lean.run(getCompletePureModelWithRuntime(), "|1.23->meta::pure::functions::math::max(2)", "test::TestRuntime", connection);
-        assertTrue(result.rows().get(0).get(0) instanceof Integer || result.rows().get(0).get(0) instanceof Long,
-                "max(1.23, 2) should return Integer/Long 2, not promoted Decimal, got: " + result.rows().get(0).get(0).getClass());
-        assertEquals(2, ((Number) result.rows().get(0).get(0)).intValue());
+        // PCT: |1.23->meta::pure::functions::math::max(2) -- a Float and an Integer ordered against each other: refused
+        // by the one equality's rule (B3 step 5, the user's ruling of 2026-11-24: ordering is held to it); PCT's own
+        // run answers it at legend-pure's door. A list of both kinds is ordered when it runs (greatest, below).
+        com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> Lean.run(getCompletePureModelWithRuntime(),
+                        "|1.23->meta::pure::functions::math::max(2)", "test::TestRuntime", connection));
+        assertTrue(refused.getMessage().startsWith("max compares Float with Integer"), refused.getMessage());
     }
 
     @Test
     void testMinNumbers_preservesOriginalType() throws SQLException {
-        // PCT: |2->meta::pure::functions::math::min(1.23)
-        // Result 1.23 was originally a Float literal, should preserve its type
-        var result = Lean.run(getCompletePureModelWithRuntime(), "|2->meta::pure::functions::math::min(1.23)", "test::TestRuntime", connection);
-        assertEquals(1.23, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.001);
+        // PCT: |2->meta::pure::functions::math::min(1.23) -- refused by the one equality's rule (B3 step 5), as max above
+        com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> Lean.run(getCompletePureModelWithRuntime(),
+                        "|2->meta::pure::functions::math::min(1.23)", "test::TestRuntime", connection));
+        assertTrue(refused.getMessage().startsWith("min compares Integer with Float"), refused.getMessage());
     }
 
     @Test

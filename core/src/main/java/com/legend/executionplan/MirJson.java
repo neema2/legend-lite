@@ -303,6 +303,9 @@ public final class MirJson {
                 tag(o, ExprTag.membership, m.type());
                 o.put("needle", expr(m.needle()));
                 o.put("collection", expr(m.collection()));
+                if (m.rows() != null) {
+                    o.put("rows", expr(m.rows()));
+                }
             }
             case SqlExpr.Column c -> {
                 tag(o, ExprTag.column, c.type());
@@ -383,9 +386,6 @@ public final class MirJson {
                 tag(o, ExprTag.raiseText, r.type());
                 o.put("kind", r.kind().name());
                 o.put("operands", exprs(r.operands()));
-                if (r.asData() != null) {
-                    o.put("asData", r.asData());
-                }
             }
             case SqlExpr.ArrayLit a -> {
                 tag(o, ExprTag.arrayLit, a.type());
@@ -944,7 +944,7 @@ public final class MirJson {
                     named(SqlAgg.Fn.class, o.getString("reducer"), "aggregate"), readExpr(o.getObj("collection")),
                     readExprs(o.getArr("extras")), type);
             case membership -> new SqlExpr.Membership(readExpr(o.getObj("needle")), readExpr(o.getObj("collection")),
-                    type);
+                    o.has("rows") ? readExpr(o.getObj("rows")) : null, type);
             case column -> {
                 String origin = o.getStringOr("origin", null);
                 yield new SqlExpr.Column(o.getStringOr("table", null), o.getString("name"), type,
@@ -986,7 +986,7 @@ public final class MirJson {
                     readExpr(o.getObj("orderBy")), type);
             case arrayLit -> new SqlExpr.ArrayLit(readExprs(o.getArr("elements")), type);
             case raiseText -> new SqlExpr.RaiseText(named(com.legend.sql.RaiseKind.class, o.getString("kind"),
-                    "raise kind"), readExprs(o.getArr("operands")), o.getStringOr("asData", null));
+                    "raise kind"), readExprs(o.getArr("operands")));
             case structLit -> {
                 List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
                 for (Json.Node n : o.getArr("fields").items()) {

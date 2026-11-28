@@ -13,17 +13,15 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
- * F4.1/F4.2 (RENDER): {@code toCSV} is a platform lowering — the CSV
- * text is CONSTRUCTED BY THE DATABASE (header + cells + RFC4180
- * escaping + row joining all in SQL); Java carries the bytes. Pinned
- * against the engine's {@code meta::relational::tests::csv::toCSV}
- * semantics (helperFunctions.pure:198-232): header line, one line per
- * row each '\n'-terminated, empty cells for NULL ({@code TDSNull}
- * under the flag), dates as {@code yyyy-MM-dd}, RFC4180 double-quote
- * escaping for comma/quote-bearing text.
+ * F4.1/F4.2 (RENDER): {@code toCSV} and a relation's {@code toString} over a store's rows, lite's own texts CONSTRUCTED
+ * BY THE DATABASE (header + cells + RFC4180 escaping + row joining all in SQL; stage B's B2b S5a and S5b,
+ * lowering.ProductRelationText); Java carries the bytes. The CSV's layout is the helper's
+ * {@code meta::relational::tests::csv::toCSV} (helperFunctions.pure:198-232): header line, one line per row each
+ * '\n'-terminated, empty cells for NULL (under the flag the word {@code null}, every String quoted: register S420),
+ * RFC4180 double-quote escaping for
+ * comma/quote-bearing text; each cell the product's text of its value (a StrictDate {@code yyyy-MM-dd}).
  */
 @DisplayName("RENDER toCSV Integration")
 class RenderCsvIntegrationTest extends AbstractDatabaseTest {
@@ -32,8 +30,9 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        // every text here is planned in the edge's style, so the session is the edge's database (the audit's J22)
-        connection = backend().open(com.legend.edge.PureText.UPSTREAM);
+        // every text here is the product's (stage B's B2b S5b, 2026-11-25: until then the edge's, and the session the
+        // edge's database, the audit's J22)
+        connection = backend().open();
         try (Statement st = connection.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (ID INTEGER, NAME VARCHAR,"
                     + " NICK VARCHAR, DOB DATE)");
@@ -68,38 +67,56 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                 connections: [ test::DB: [ environment: store::Conn ] ]; }
             """;
 
-    /** A relation's text is legend-pure's and legend-engine's, the compatibility edge's alone: the product refuses it
-     *  by name, pointing to its result writers (phase D's D1.3, 2026-11-15; the user's ruling of 2026-11-10, "objects
-     *  and relations are refused"), so each text here is planned in the edge's style. */
+    /** A relation's text in the product: lite's own, computed by the database (stage B's B2b S5a and S5b; until then
+     *  the edge's, each text here planned in the edge's style). */
     private String csv(String query) throws SQLException {
-        Lean.Result r = Lean.runInStyle(MODEL, query, "test::RT", connection, com.legend.edge.PureText.UPSTREAM);
-        return r.one().toString();
+        return Lean.run(MODEL, query, "test::RT", connection).one().toString();
     }
 
     @Test
-    void theProductRefusesARelationsTextByName() {
-        // each call's own sentence, at lowering (B17 of the separation census, 2026-11-17: the text is the edge's
-        // edge.RelationTextLowering, asked through the plan style's RelationTexts facet; the product's style refuses)
-        java.util.Map<String, String> refusals = new java.util.LinkedHashMap<>();
-        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::relational::tests::csv::toCSV()",
-                "toCSV");
-        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::pure::functions::relation::toString()",
-                "toString");
-        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])"
-                + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv", "a TDS's csv");
-        refusals.forEach((query, what) -> {
-            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
-                    () -> Lean.run(MODEL, query, "test::RT", connection));
-            Throwable cause = refused;
-            while (!(cause instanceof com.legend.error.LegendCompileException) && cause.getCause() != null) {
-                cause = cause.getCause();
+    void aTdsCsvIsLitesCsvAsToCsvWritesIt() throws SQLException {
+        // the user's ruling of 2026-11-25, ".csv in product, yes same as toCSV" (register S405): a TDS's csv, over a
+        // stored relation cast to a TDS or a #TDS literal, is lite's own CSV computed by the database, exactly as
+        // toCSV(t) writes it (refused by name from stage B's B2b S5c until the ruling; a last step's csv at
+        // legend-pure's and legend-engine's doors is legend-engine's text, the doors' Java printer's)
+        String stored = "|test::Person.all()->project([p | $p.id, p | $p.name], ['id', 'name'])->sort(asc('id'))";
+        assertEquals(csv(stored + "->meta::relational::tests::csv::toCSV()"),
+                csv(stored + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv"));
+        assertEquals("i,s\n1,a\n2,\n", csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#.csv"));
+        assertEquals(csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#->meta::relational::tests::csv::toCSV()"),
+                csv("|#TDS\n  i:Integer, s:String\n  1, a\n  2, \n#.csv"));
+        // the review of d6e94cdfe (2026-11-25): a relation's column named csv is that column's cells, never the
+        // relation's text (the TDS class's csv is String[1], a column read [*]: PlatformTypes.isTdsCsvRead)
+        assertEquals("x|y", csv("|#TDS\n  csv:String, a:Integer\n  x, 1\n  y, 2\n#->filter(r|$r.a > 0)"
+                + "->sort(~a->ascending()).csv->joinStrings('|')"));
+        // a value whose columns the compiler does not know (a cast to TDS<Any> the resolver does not peel) is refused
+        // by name, by toCSV, by a TDS's csv and by toString alike (until then toCSV, and until B2b's design audit of
+        // 2026-11-25 toString, reached an internal error there)
+        for (String q : java.util.List.of(
+                "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>).csv",
+                "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>)"
+                        + "->meta::relational::tests::csv::toCSV()",
+                "|#TDS\n  i:Integer\n  1\n#->cast(@meta::pure::metamodel::relation::TDS<Any>)->toString()")) {
+            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> csv(q));
+            String chain = "";
+            for (Throwable t = refused; t != null; t = t.getCause()) {
+                chain += t.getMessage() + " | ";
             }
-            com.legend.error.LegendCompileException compile = assertInstanceOf(
-                    com.legend.error.LegendCompileException.class, cause, refused.toString());
-            assertEquals(com.legend.error.LegendCompileException.Phase.LOWER, compile.phase(), query);
-            assertEquals(what + " of a relation is legend-pure's text, the compatibility edge's: the product writes a"
-                    + " relation's rows by its result writers (JSON, CSV, Arrow)", compile.getMessage(), query);
-        });
+            org.junit.jupiter.api.Assertions.assertTrue(chain.contains("over a value whose columns the compiler does"
+                    + " not know"), q + ": " + chain);
+        }
+    }
+
+    /** A stored relation's toString: lite's own text, computed by the database (stage B's B2b S5a, 2026-11-24; the
+     *  review of S5a asked for the stored relation whose refusal this class pinned), in the product since S5b: a comma
+     *  and a quote
+     *  inside a cell stay as they are (a table's text quotes no cell but a braced one), an empty cell is null, a
+     *  StrictDate its day. */
+    @Test
+    void aStoredRelationsToStringIsLitesOwnTextComputedByTheDatabase() throws SQLException {
+        assertEquals("#TDS\n   id,name,nick,dob\n   1,Ann,The, Ann,2001-02-03\n   2,Bob \"B\",null,1999-12-31\n#",
+                csv("|test::Person.all()->project([p | $p.id, p | $p.name, p | $p.nick, p | $p.dob],"
+                        + " ['id', 'name', 'nick', 'dob'])->sort(asc('id'))->meta::pure::functions::relation::toString()"));
     }
 
     @Test
@@ -118,25 +135,34 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                         + "->meta::relational::tests::csv::toCSV()"));
     }
 
-    /** A Float cell of the CSV text as legend-pure prints it, its shortest round-trip digits plain (PR #118 fix round,
-     *  2026-11-18: DuckDB's in-query cast wrote 1e-05, H2's 1.0E-5) -- a DOUBLE the database computes. */
+    /** A Float cell of the CSV text, the database's own exact text of the double the database computed (the user's
+     *  ruling of 2026-11-25, "okay make exact"; S311's amendment): each lane's database writes it its own way (DuckDB's
+     *  {@code 1e-05}, H2's {@code 1.0E-5}, SQLite's {@code 1.0e-05}), and every one reads back as the very double --
+     *  until then S311's six decimals ({@code 0.00001}). */
     @Test
-    void csvTextPrintsAFloatCellAsLegendPure() throws SQLException {
-        assertEquals("""
-                x
-                0.00001
-                0.00002
-                """,
-                csv("|test::Person.all()->project([p | $p.id->toFloat() / 100000.0], ['x'])->sort(asc('x'))"
-                        + "->meta::relational::tests::csv::toCSV()"));
+    void csvTextPrintsAFloatCellAsTheDatabasesExactText() throws SQLException {
+        String got = csv("|test::Person.all()->project([p | $p.id->toFloat() / 100000.0], ['x'])->sort(asc('x'))"
+                + "->meta::relational::tests::csv::toCSV()");
+        String[] lines = got.split("\n");
+        assertEquals(3, lines.length, got);
+        assertEquals("x", lines[0]);
+        assertEquals(1.0 / 100000.0, Double.parseDouble(lines[1]), got);
+        assertEquals(2.0 / 100000.0, Double.parseDouble(lines[2]), got);
+        String pinned = java.util.Map.of("duckdb", "x\n1e-05\n2e-05\n", "h2", "x\n1.0E-5\n2.0E-5\n",
+                "sqlite", "x\n1.0e-05\n2.0e-05\n").get(backend().name());
+        if (pinned != null) {
+            assertEquals(pinned, got, backend().name());
+        }
     }
 
+    /** The flag in the product (the user's ruling of 2026-11-25, register S420): a null the word null, every String
+     *  quoted; legend-engine's TDSNull is its doors' (edge.PrintedRelations). */
     @Test
-    void renderTdsNullFlagSpellsNulls() throws SQLException {
+    void renderTdsNullFlagWritesLitesExplicitNull() throws SQLException {
         assertEquals("""
                 id,nick
                 1,"The, Ann"
-                2,TDSNull
+                2,null
                 """,
                 csv("|test::Person.all()->project([p | $p.id, p | $p.nick],"
                         + " ['id', 'nick'])->sort(asc('id'))"
@@ -166,9 +192,11 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    void emptyRelationRendersHeaderAndBlank() throws SQLException {
-        // engine joinStrings('', '\n', '\n') over zero rows = '\n'
-        assertEquals("id\n\n",
+    void emptyRelationRendersTheHeaderLineAlone() throws SQLException {
+        // lite's CSV: every row ends with its own newline, so no rows is the header line alone (the user's ruling of
+        // 2026-11-25, Q-C, "Okay to both csv ones"; register S420) -- where legend-engine's helper writes a second
+        // newline (joinStrings('', '\n', '\n') over zero rows is '\n')
+        assertEquals("id\n",
                 csv("|test::Person.all()->filter(p | $p.id > 99)"
                         + "->project([p | $p.id], ['id'])"
                         + "->meta::relational::tests::csv::toCSV()"));

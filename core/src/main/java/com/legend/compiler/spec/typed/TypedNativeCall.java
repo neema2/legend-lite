@@ -23,17 +23,46 @@ import java.util.List;
  *               source info, and our raising expressions are native calls).
  *               Excluded from equality, exactly the {@code AppliedFunction}
  *               idiom — a position is provenance, never call identity.
+ * @param outsideStore THE STAMP (the edition program's step 2, 2026-11-25; the user: "why cant we stamp the substring
+ *               if database or not when we know it and then use that at the right time?"): this call is outside any
+ *               query sent to a store. A neutral fact about where the program wrote the call, set only where a
+ *               compatibility door asks for it, while functions are expanded into the query
+ *               ({@code UserCallInliner}: the last moment a {@code let} and an {@code execute()} boundary can still be
+ *               told) and read only where the lowering picks a rule ({@code lowering.Scalars.lower}), which hands it
+ *               to the door's table. The product never sets it. It is a field and not a wrapper node so that it
+ *               rides along when a pass rebuilds the call: {@link #withChildren} and {@link #withInfo} keep it,
+ *               and a pass that builds the call again by hand passes the stamp of the call it was given
+ *               ({@code NativeCallStampGuardTest} pins every construction that carries none: each a new call).
+ *               Part of equality: two calls that differ in it lower differently.
  */
 public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info,
-        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos, boolean outsideStore)
         implements TypedSpec {
     public TypedNativeCall {
         args = List.copyOf(args);
     }
 
+    /** A call inside a store query, or one no door asked to stamp: every call the typer and the passes make. */
+    public TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
+        this(callee, args, info, pos, false);
+    }
+
     /** Position-free form — synthesis, rewrites, tests. */
     public TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info) {
-        this(callee, args, info, null);
+        this(callee, args, info, null, false);
+    }
+
+    /** This call stamped as outside any store query, or not. */
+    public TypedNativeCall stampedOutsideStore(boolean outside) {
+        return outside == outsideStore ? this : new TypedNativeCall(callee, args, info, pos, outside);
+    }
+
+    /** {@code n} with every native call in it stamped as outside any store query: code the planner knows whole to be
+     *  outside (a model-to-model mapping's transforms where the audience's own Java runs them). */
+    public static TypedSpec allStampedOutsideStore(TypedSpec n) {
+        TypedSpec kids = n.mapChildren(TypedNativeCall::allStampedOutsideStore);
+        return kids instanceof TypedNativeCall c ? c.stampedOutsideStore(true) : kids;
     }
 
     @Override
@@ -41,12 +70,25 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
         return o instanceof TypedNativeCall other
                 && callee.equals(other.callee())
                 && args.equals(other.args())
-                && info.equals(other.info());
+                && info.equals(other.info())
+                && outsideStore == other.outsideStore();
     }
 
+    /** An unstamped call hashes as it did before the stamp existed, so nothing keyed on a call moves for the
+     *  product. */
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(callee, args, info);
+        int h = java.util.Objects.hash(callee, args, info);
+        return outsideStore ? 31 * h + 1 : h;
+    }
+
+    /** An unstamped call prints as it did before the stamp existed (a record's own form of its first four
+     *  components): a plan handle's id is made from a typed tree's text ({@code plan:<hash>:<length>}, pinned in
+     *  pure/v1's plan-text golden), and the product never stamps. */
+    @Override
+    public String toString() {
+        return "TypedNativeCall[callee=" + callee + ", args=" + args + ", info=" + info + ", pos=" + pos
+                + (outsideStore ? ", outsideStore=true" : "") + "]";
     }
 
     /** The native's simple name (e.g. {@code length}) &mdash; display convenience, not a dispatch key. */
@@ -61,10 +103,10 @@ public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprTy
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
-        return new TypedNativeCall(callee, kids, info, pos);
+        return new TypedNativeCall(callee, kids, info, pos, outsideStore);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedNativeCall(callee, args, info, pos);
+        return new TypedNativeCall(callee, args, info, pos, outsideStore);
     }
 }

@@ -297,7 +297,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         void testRightOuterJoinEmptyLeft() throws SQLException {
             var result = executeRelation("""
                     #TDS
-                        id, name
+                        id:Integer, name:String
                     #->join(
                         #TDS
                             person_id, score
@@ -446,7 +446,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         void testFullOuterJoinEmptyLeft() throws SQLException {
             var result = executeRelation("""
                     #TDS
-                        id, name
+                        id:Integer, name:String
                     #->join(
                         #TDS
                             person_id, score
@@ -473,7 +473,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         2, Bob
                     #->join(
                         #TDS
-                            person_id, score
+                            person_id:Integer, score:Integer
                         #,
                         meta::pure::functions::relation::JoinKind.FULL,
                         {l, r | $l.id == $r.person_id}
@@ -882,7 +882,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
         void testJoinEmptyLeft() throws SQLException {
             var result = executeRelation("""
                     #TDS
-                        id, name
+                        id:Integer, name:String
                     #->join(
                         #TDS
                             person_id, score
@@ -903,7 +903,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         1, Alice
                     #->join(
                         #TDS
-                            person_id, score
+                            person_id:Integer, score:Integer
                         #,
                         meta::pure::functions::relation::JoinKind.INNER,
                         {l, r | $l.id == $r.person_id}
@@ -921,7 +921,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         2, Bob
                     #->join(
                         #TDS
-                            person_id, score
+                            person_id:Integer, score:Integer
                         #,
                         meta::pure::functions::relation::JoinKind.LEFT,
                         {l, r | $l.id == $r.person_id}

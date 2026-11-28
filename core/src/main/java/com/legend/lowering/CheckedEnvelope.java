@@ -76,16 +76,26 @@ final class CheckedEnvelope {
         for (var cc : java.util.Objects.requireNonNull(
                 g.checkedConstraints(), "wrap() requires checked constraints")) {
             SqlExpr pred = render.apply(cc.predicate());
-            SqlExpr msg = render.apply(cc.message());
+            TypedFuncCol own = cc.message();
+            // a constraint with no ~message: the one catalog's sentence over its id and its class's simple name,
+            // legend-pure's (DefaultConstraintHandler.java:90; legend-engine's alike) -- DATA in the answer, worded at
+            // planning, the class's name a fact of the model (stage B's B2b S3, 2026-11-24, Q6: until then the
+            // resolver wrote legend-engine's sentence as a literal). A plain literal, as the resolver's was: no
+            // audience rewords it, so no record rides in the plan, whose JSON stays as lean as it was (G3; the
+            // lean-SQL baseline measured the record's +2,398 characters on DuckDB's checked graph fetches)
+            String simple = cc.definerFqn().substring(cc.definerFqn().lastIndexOf(':') + 1);
+            SqlExpr msg = own != null ? render.apply(own)
+                    : new SqlExpr.StringLit(com.legend.error.ErrorKind.CONSTRAINT_VIOLATED.sentence(
+                            List.of(cc.id(), simple)));
             cases.add(new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, pred),
-                            // CONSTRAINT_UNEVALUABLE, its constraint's id the operand: DATA in a successful answer, so
-                            // its words are worded here, at planning -- the one catalog's sentence over the constraint's
-                            // id, legend-engine's (stage B's BE, 2026-11-21: until then lite's own, the edge spelling
-                            // the engine's, D1.1)
-                            defect(cc, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.CONSTRAINT_UNEVALUABLE,
-                                    List.of(new SqlExpr.StringLit(cc.id())),
+                            // CONSTRAINT_UNEVALUABLE, DATA in a successful answer: the one catalog's sentence over the
+                            // constraint's id, legend-engine's, a plain literal worded at planning (a fold of a model
+                            // fact), as a violated constraint's is since S3b -- B2b's S7a, 2026-11-25, the user's ruling
+                            // "go with A": until then a raise record (RaiseText.asData) whose kind and operands no
+                            // reader read, the same literal in the SQL
+                            defect(cc, new SqlExpr.StringLit(
                                     com.legend.error.ErrorKind.CONSTRAINT_UNEVALUABLE.sentence(List.of(cc.id()))))),
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.NOT, pred),

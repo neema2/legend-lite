@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+# TEMPORARY M7 probe: under -Dprobe.m7.only (set on the corpus lanes alone), each corpus test is typed, its harness
+# censused (M7Probe) and skipped -- nothing runs
+import shutil, sys
+root, probe = sys.argv[1], sys.argv[2]
+shutil.copy(probe, root + "/core/src/main/java/com/legend/test/M7Probe.java")
+p = root + "/core/src/main/java/com/legend/test/PureTestRunner.java"
+s = open(p).read()
+old = """    public Result run(PureTests.TestCase t) {
+        observer.testStarted(t);"""
+if s.count(old) != 1:
+    raise SystemExit("PureTestRunner.run not found")
+s = s.replace(old, """    public Result run(PureTests.TestCase t) {
+        if (Boolean.getBoolean("probe.m7.only")) {
+            M7Probe.census(t, ctx);
+            return new Result(t.fqn(), Status.SKIPPED, List.of(), "m7 probe");
+        }
+        observer.testStarted(t);""")
+open(p, "w").write(s)
+b = root + "/spec/BUILD.bazel"
+t = open(b).read()
+for old, new in [
+    ("""    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
+    rosters = "duckdb",""", """    jvm_flags = ["-Dlegend.diagnostics=decoded-plan", "-Dprobe.m7.only=true"],
+    rosters = "duckdb","""),
+    ("""    jvm_flags = ["-Drcorpus.backend=h2"],
+    rosters = "h2",""", """    jvm_flags = ["-Drcorpus.backend=h2", "-Dprobe.m7.only=true"],
+    rosters = "h2","""),
+]:
+    if t.count(old) != 1:
+        raise SystemExit("spec BUILD corpus lane flags not found: " + old)
+    t = t.replace(old, new)
+open(b, "w").write(t)
+print("applied M7 probe")

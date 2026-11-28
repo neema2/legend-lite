@@ -16,7 +16,7 @@
 //
 // PURE: no DOM, no planner.
 
-import { and, collection, divide, eq, fn, lambda, le, lit, or, property, times, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { and, collection, eq, fn, lambda, le, lit, or, property, times, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { familyOf } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { literalNode } from './query.ts';
@@ -160,10 +160,12 @@ export function rowSampleCommands(s: CubeSnapshot, t: RowSample): GridCommand[] 
       order: [{ column: chance, direction: 'asc' }, { column: row, direction: 'asc' }] } } });
     const count = free(COUNT_COLUMN);
     commands.push({ kind: 'calculate', level: 'row', column: { name: count, window: { fn: 'sum', column: interest, partition: [], order: [], frame: 'partition' } } });
-    // kept: every row of interest, and the others while their number is at most its share
+    // kept: every row of interest, and the others while their number is at most its share -- rank <= count * (100 - n)
+    // / n, written in whole numbers (rank * n <= count * (100 - n)): exact, and one type on both sides (lite compares
+    // an Integer with a Float nowhere; until 2026-11-26 the share was the division, a Float against the rank)
     const keep = free(KEEP_COLUMN);
     commands.push(row_(keep, or(eq(x(interest), lit.integer(1)),
-      le(x(rank), divide(times(x(count), lit.integer(100 - t.n)), lit.integer(t.n))))));
+      le(times(x(rank), lit.integer(t.n)), times(x(count), lit.integer(100 - t.n))))));
     for (const c of [chance, interest, rank, count, keep]) hidden[c] = { hidden: true };
     condition = { kind: 'condition', column: keep, operator: 'equal', value: true };
   } else if (t.kind === 'random') {
@@ -257,8 +259,8 @@ export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[];
 }
 
 /**
- * An oversample read back off its keep column (`keep`): `toOne($x.interest) == 1 || toOne($x.rank) <= [toOne($x.count),
- * 100 - n]->times() / n`, its interest `if($x.by->isNotEmpty() && $x.by == value, 1, 0)`, its rank a row number apart by
+ * An oversample read back off its keep column (`keep`): `toOne($x.interest) == 1 || [toOne($x.rank), n]->times() <=
+ * [toOne($x.count), 100 - n]->times()`, its interest `if($x.by->isNotEmpty() && $x.by == value, 1, 0)`, its rank a row number apart by
  * interest in the order of its chance and its row, its count a sum of the interest, its chance the hash of the row and
  * the seed -- each as rowSampleCommands writes it; undefined for anything else.
  */
@@ -276,10 +278,13 @@ function oversampleOf(derived: readonly DerivedColumn[], keep: string):
   if (k?.length !== 1) return undefined;
   const [isIt, share] = call(k[0], 'or', 2) ?? [];
   const [interestRef, one] = call(isIt, 'equal', 2) ?? [];
-  const [rankRef, part] = call(share, 'lessThanEqual', 2) ?? [];
-  const [timesOf, n] = call(part, 'divide', 2) ?? [];
-  const [product] = call(timesOf, 'times', 1) ?? [];
-  const [countRef, rest] = product?._type === 'collection' && product.values.length === 2 ? product.values : [];
+  const [ranked, shared] = call(share, 'lessThanEqual', 2) ?? [];
+  const pair = (v: ValueSpecification | undefined): readonly (ValueSpecification | undefined)[] => {
+    const [product] = call(v, 'times', 1) ?? [];
+    return product?._type === 'collection' && product.values.length === 2 ? product.values : [];
+  };
+  const [rankRef, n] = pair(ranked);
+  const [countRef, rest] = pair(shared);
   const interest = named(column(interestRef));
   const rank = named(column(rankRef));
   const count = named(column(countRef));

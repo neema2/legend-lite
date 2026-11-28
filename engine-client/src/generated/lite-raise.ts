@@ -50,6 +50,9 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
   SQRT_OF_NEGATIVE: [
     { arity: -1, emptySlot: -1, template: 'Unable to compute sqrt of %1$s', slots: ['FLOAT'], shape: 'TEMPLATE' },
   ],
+  INVERSE_TRIG_OUT_OF_DOMAIN: [
+    { arity: -1, emptySlot: -1, template: 'Unable to compute %1$s of %2$s', slots: ['TEXT', 'FLOAT'], shape: 'TEMPLATE' },
+  ],
   SIZE_NOT_MULTIPLICITY: [
     { arity: 1, emptySlot: -1, template: 'Cannot cast a collection of size 0 to multiplicity %1$s', slots: [], shape: 'TEMPLATE' },
     { arity: -1, emptySlot: -1, template: 'Cannot cast a collection of size %2$s to multiplicity %1$s', slots: [], shape: 'TEMPLATE' },
@@ -73,9 +76,6 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
   ],
   RANGE_STEP_ZERO: [
     { arity: -1, emptySlot: -1, template: 'range step must not be 0', slots: [], shape: 'TEMPLATE' },
-  ],
-  CONSTRAINT_UNEVALUABLE: [
-    { arity: -1, emptySlot: -1, template: 'Unable to evaluate constraint [%1$s]: data not available - check your mappings', slots: [], shape: 'TEMPLATE' },
   ],
   LIST_LENGTHS_DIFFER: [
     { arity: -1, emptySlot: -1, template: '%1$s: the two value lists differ in length', slots: [], shape: 'TEMPLATE' },
@@ -146,12 +146,12 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
     { arity: -1, emptySlot: -1, template: 'Range [%1$s, %2$s) out of bounds for length %3$s', slots: [], shape: 'TEMPLATE' },
   ],
   ASSERT_TRUE: [
-    { arity: 0, emptySlot: -1, template: 'expected true, got false', slots: [], shape: 'TEMPLATE' },
+    { arity: 0, emptySlot: -1, template: 'Assert failed', slots: [], shape: 'TEMPLATE' },
   ],
   ASSERT_FALSE: [
-    { arity: 0, emptySlot: -1, template: 'expected false, got true', slots: [], shape: 'TEMPLATE' },
+    { arity: 0, emptySlot: -1, template: 'Assert failed', slots: [], shape: 'TEMPLATE' },
   ],
   ASSERT_NOT_EMPTY: [
-    { arity: 0, emptySlot: -1, template: 'expected at least one value, got none', slots: [], shape: 'TEMPLATE' },
+    { arity: 0, emptySlot: -1, template: 'Expected non-empty collection', slots: [], shape: 'TEMPLATE' },
   ],
 };

@@ -1,0 +1,212 @@
+== H2 product |1 == 1.0
+   OK [{"value":true}]
+== H2 product |1 == 1D
+   OK [{"value":true}]
+== H2 product |1.0 == 1D
+   OK [{"value":true}]
+== H2 product |1.5 == 1.5D
+   OK [{"value":true}]
+== H2 product |1D == 1.00D
+   OK [{"value":true}]
+== H2 product |1 != 1.0
+   OK [{"value":false}]
+== H2 product |1.5 != 1.5D
+   OK [{"value":false}]
+== H2 product |[1, 2]->contains(1.0)
+   OK [{"value":true}]
+== H2 product |[1D, 2D]->contains(1)
+   OK [{"value":true}]
+== H2 product |[1.0, 2.0]->contains(1)
+   OK [{"value":true}]
+== H2 product |1.0->in([1, 2])
+   OK [{"value":false}]
+== H2 product |1->in([1.0, 2.0])
+   OK [{"value":false}]
+== H2 product |[1, 2]->indexOf(2.0)
+   DialectCapability: LIST_POSITION reached a dialect without a list encoding
+== H2 product |[1.5D, 2.5D]->indexOf(2.5)
+   DialectCapability: LIST_POSITION reached a dialect without a list encoding
+== H2 product |[1, 1.0, 1D]->removeDuplicates()->size()
+   DialectCapability: LIST_REDUCE reached a dialect without a list encoding
+== H2 product |[1.0, 1D]->removeDuplicates()->size()
+   DialectCapability: LIST_REDUCE reached a dialect without a list encoding
+== H2 product |[1, 1.0]->distinct()->size()
+   DialectCapability: LIST_FILTER reached a dialect without a list encoding
+== H2 product |[1, 2] == [1.0, 2.0]
+   OK [{"value":false}]
+== H2 product |[1, 2]->sort() == [2.0, 1.0]->sort()
+   DialectCapability: LIST_SORT reached a dialect without a list encoding
+== H2 product |2 * 1.5 == 3
+   TypeInferenceException: no overload of 'meta::pure::functions::math::times' structurally matches the argument types (ExprType[type=ClassType[fqn=meta::pure::metamodel::type::Any], multiplicity=Bounded[lower=2, upper=2]]); [TypedParameter[name=ints, type=INTEGER, multiplicity=Bounded[lower=0, upper=null]]]; [TypedParameter[name=decimal, type=DECIMAL, multiplicity=Bounded[lower=0, upper=null]]]; [TypedParameter[name=ints, type=FLOAT, multiplicity=Bounded[lower=0, upper=null]]]; [TypedParameter[name=numbers, type=NUMBER, multiplicity=Bounded[lower=0, upper=null]]]
+== H2 product |10 / 4 == 2.5
+   TypeInferenceException: in call to 'meta::pure::functions::math::divide', argument 2: expected Number, got Boolean
+== H2 product |[1, 2]->sum() == 3.0
+   OK [{"value":true}]
+== H2 product |1.5->toDecimal() == 1.5
+   OK [{"value":true}]
+== H2 product |1.5->toDecimal() == 1.5D
+   OK [{"value":true}]
+== H2 product |[1, 2.5] == [1.0, 2.5]
+   DataError: Syntax error in SQL statement "SELECT coalesce(2, 0) = coalesce(2, 0) AND NOT (CAST(JSON_ARRAY(1, NULL NULL ON NULL) AS BIGINT[*][]) IS DISTINCT FROM CAST(JSON_ARRAY(NULL, NULL NULL ON NULL) AS BIGINT[])) AND NOT (CAST(JSON_ARRAY(NULL, CAST(2.5 AS DOUBLE PRECISION) NULL ON NULL) AS DOUBLE PRECISION[]) IS DISTINCT FROM CAST(JSON_ARRAY(CAST(1.0 AS DOUBLE PRECISION), CAST(2.5 AS DOUBLE PRECISION) NULL ON NULL) AS DOUBLE PRECISION[])) AS ""value"""; expected "ARRAY, FORMAT, )"; SQL statement:
+SELECT coalesce(2, 0) = coalesce(2, 0) AND NOT (CAST(JSON_ARRAY(1, NULL NULL ON NULL) AS BIGINT[]) IS DISTINCT FROM CAST(JSON_ARRAY(NULL, NULL NULL ON NULL) AS BIGINT[])) AND NOT (CAST(JSON_ARRAY(NULL, CAST(2.5 AS DOUBLE PRECISION) NULL ON NULL) AS DOUBLE PRECISION[]) IS DISTINCT FROM CAST(JSON_ARRAY(CAST(1.0 AS DOUBLE PRECISION), CAST(2.5 AS DOUBLE PRECISION) NULL ON NULL) AS DOUBLE PRECISION[])) AS "value" [42001-252] kind=DATABASE_ERROR pos=null
+== H2 product |[1, 2.5]->contains(2.5D)
+   NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[precision=2, scale=1]) and Float (DOUBLE): Pure equates two numbers of different kinds by their texts (CompiledSupport.eq), which is not lowered yet (the L2 audit, 2026-10-29)
+== H2 product |[1, 2.5]->at(0) == 1.0
+   OK [{"value":true}]
+== H2 product |p::Q.all()->filter(x | $x.e == 1.5)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::Q.all()->filter(x | $x.e == 1.5D)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::Q.all()->filter(x | $x.f == 3)->map(x | $x.id)
+   OK [{"value":2}]
+== H2 product |p::Q.all()->filter(x | $x.f == 3.0)->map(x | $x.id)
+   OK [{"value":2}]
+== H2 product |p::Q.all()->filter(x | $x.id == 1.0)->map(x | $x.id)
+   OK [{"value":1}]
+== H2 product |p::Q.all()->filter(x | $x.f->in([3, 4]))->map(x | $x.id)
+   OK [{"value":2}]
+== H2 product |p::Q.all()->filter(x | $x.e->in([1.5, 2.0]))->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::P.all()->filter(x | $x.d == 1)->map(x | $x.id)
+   OK [{"value":1}]
+== H2 product |p::P.all()->filter(x | $x.d == 1D)->map(x | $x.id)
+   OK [{"value":1}]
+== H2 product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.e == 1.5)
+   OK [{"value":true},{"value":false},{"value":true}]
+== H2 product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.f == 3)
+   OK [{"value":false},{"value":true},{"value":false}]
+== H2 product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.f != 3)
+   OK [{"value":true},{"value":false},{"value":true}]
+== H2 product |p::Q.all()->filter(x | [3, 4]->contains($x.f))->map(x | $x.id)
+   OK [{"value":2}]
+== H2 product |t::E.A == 'A'
+   OK [{"value":false}]
+== H2 product |t::E.A != 'A'
+   OK [{"value":true}]
+== H2 product |t::E.A->in(['A', 'B'])
+   OK [{"value":false}]
+== H2 product |['A']->contains(t::E.A)
+   OK [{"value":false}]
+== H2 product |['A', 'B']->indexOf(t::E.A)
+   DialectCapability: LIST_POSITION reached a dialect without a list encoding
+== H2 product |t::E.A == p::E.A
+   OK [{"value":false}]
+== H2 product |t::E.A->cast(@Any) == 'A'
+   OK [{"value":false}]
+== H2 product |'A'->cast(@Any) == t::E.A
+   OK [{"value":false}]
+== H2 product |[t::E.A, 'A']->at(1) == t::E.A
+   OK [{"value":false}]
+== H2 product |[t::E.A, 'A']->removeDuplicates()->size()
+   DialectCapability: LIST_REDUCE reached a dialect without a list encoding
+== H2 product |t::E.A->toString() == 'A'
+   OK [{"value":true}]
+== H2 product |p::QE.all()->filter(x | $x.e == 'a')->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::QE.all()->filter(x | $x.e == 'A')->map(x | $x.id)
+   OK []
+== H2 product |p::QE.all()->filter(x | $x.e == p::EE.A)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::QE.all()->filter(x | $x.e->in(['a', 'b']))->map(x | $x.id)
+   OK []
+== H2 product |%2020-01-02 == %2020-01-02T00:00
+   OK [{"value":true}]
+== H2 product |%2020-01-02 == %2020-01-02T00:00:00.000
+   OK [{"value":true}]
+== H2 product |%2020-01-02 != %2020-01-02T00:00
+   OK [{"value":false}]
+== H2 product |%2020-01-01T10:00:00 == %2020-01-01T10:00:00.000
+   OK [{"value":false}]
+== H2 product |%2020-01-01T10 == %2020-01-01T10:00
+   OK [{"value":false}]
+== H2 product |%2020-01 == %2020-01-01
+   OK [{"value":false}]
+== H2 product |%2020 == %2020-01
+   OK [{"value":false}]
+== H2 product |%2020-01-01T10:00:00.123456789 == %2020-01-01T10:00:00.123456
+   OK [{"value":false}]
+== H2 product |[%2020-01-01, %2020-01-02]->contains(%2020-01-01T00:00:00)
+   OK [{"value":true}]
+== H2 product |[%2020-01-01T00:00:00, %2020-01-02T00:00:00]->contains(%2020-01-01)
+   OK [{"value":true}]
+== H2 product |%2020-01-01T00:00:00->in([%2020-01-01])
+   OK [{"value":false}]
+== H2 product |[%2020-01-01, %2020-01-02]->indexOf(%2020-01-02T00:00)
+   DialectCapability: LIST_POSITION reached a dialect without a list encoding
+== H2 product |[%2020-01-01T00:00, %2020-01-01]->removeDuplicates()->size()
+   DialectCapability: LIST_REDUCE reached a dialect without a list encoding
+== H2 product |%2020-01-01->adjust(1, DurationUnit.DAYS) == %2020-01-02T00:00
+   OK [{"value":true}]
+== H2 product |date(2020, 1, 1) == %2020-01-01T00:00:00
+   DataError: Function "MAKE_DATE" not found; SQL statement:
+SELECT make_date(2020, 1, 1) = TIMESTAMP '2020-01-01T00:00:00' AS "value" [90022-252] kind=DATABASE_ERROR pos=null
+== H2 product |%2020-01-01T10:00:00->datePart() == %2020-01-01T00:00:00
+   OK [{"value":true}]
+== H2 product |%2020-01-01T10:00:00->datePart() == %2020-01-01
+   OK [{"value":true}]
+== H2 product |p::Q.all()->filter(x | $x.d == %2020-01-01T00:00:00)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::Q.all()->filter(x | $x.d == %2020-01-01)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::R.all()->filter(x | $x.t == %2020-01-01)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::R.all()->filter(x | $x.t == %2020-01-01T00:00:00)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::Q.all()->filter(x | $x.d->in([%2020-01-01T00:00:00]))->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::Q.all()->filter(x | $x.t == %2020-01-01T10:00)->map(x | $x.id)
+   OK [{"value":1},{"value":3}]
+== H2 product |p::Q.all()->sortBy(x | $x.id)->map(x | $x.d == %2020-01-01T00:00:00)
+   OK [{"value":true},{"value":false},{"value":true}]
+== H2 product |p::N.all()->filter(x | $x.t == %2020-01-01T10:00:00.123456789)->map(x | $x.id)
+   OK [{"value":1}]
+== H2 product |p::N.all()->filter(x | $x.t == %2020-01-01T10:00:00.123456)->map(x | $x.id)
+   OK [{"value":2}]
+== H2 product |fromJson('1') == 1
+   OK [{"value":false}]
+== H2 product |fromJson('1')->to(@Integer) == 1.0
+   OK [{"value":true}]
+== H2 product |fromJson('1')->to(@Integer) == 1
+   OK [{"value":true}]
+== H2 product |fromJson('1.0')->to(@Float) == 1
+   OK [{"value":true}]
+== H2 product |pair(1, 1.0) == pair(1, 1)
+   OK [{"value":false}]
+== H2 product |pair(1, 1D) == pair(1, 1)
+   OK [{"value":true}]
+== H2 product |pair(1, %2020-01-01) == pair(1, %2020-01-01T00:00:00)
+   OK [{"value":false}]
+== H2 product |pair(1, t::E.A) == pair(1, 'A')
+   OK [{"value":true}]
+== H2 product |^p::KNum(n=1) == ^p::KNum(n=1.0)
+   OK [{"value":true}]
+== H2 product |^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01) == ^p::KD(d=1.00D, b=true, e=t::E.A, sd=%2020-01-01)
+   OK [{"value":false}]
+== H2 product |^p::K(id=1, at=%2020-01-01T00:00:00, note='x') == ^p::K(id=1, at=%2020-01-01T00:00:00.000, note='y')
+   DataError: Invalid value "JSON '""2020-01-01T00:00:00""'" for parameter "dateTime"; SQL statement:
+SELECT CAST(CASE WHEN JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00', 'note': 'x', '__id': 'o1', '__type': 'p::K') IS NULL THEN NULL ELSE JSON_OBJECT('_type': 'p::K', 'id': coalesce(CASE WHEN (JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00', 'note': 'x', '__id': 'o1', '__type': 'p::K'))."id" IS NULL THEN NULL ELSE CAST(CASE WHEN CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00', 'note': 'x', '__id': 'o1', '__type': 'p::K'))."id" AS VARCHAR) LIKE '"%' THEN STRINGDECODE(SUBSTRING(CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00', 'note': 'x', '__id': 'o1', '__type': 'p::K'))."id" AS VARCHAR), 2, LENGTH(CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00', 'note': 'x', '__id': 'o1', '__type': 'p::K'))."id" AS VARCHAR)) - 2)) ELSE NULLIF(CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00', 'note': 'x', '__id': 'o1', '__type': 'p::K'))."id" AS VARCHAR), 'null') END AS VARCHAR) END, '[]'), 'at': coalesce(CASE WHEN "__lets"."__l0" IS NULL THEN NULL ELSE concat('%', CASE WHEN "__lets"."__l0" IS NULL THEN NULL WHEN LOCATE('T', replace(regexp_replace(CAST("__lets"."__l0" AS VARCHAR), '(\+0000|Z)$', ''), ' ', 'T')) > 0 THEN concat(formatdatetime("__lets"."__l0", 'yyyy''-''MM''-''dd''T''HH'':''mm'':''ss'), CASE WHEN rtrim(formatdatetime("__lets"."__l0", 'nnnnnnnnn'), '0') = '' THEN '' ELSE concat('.', rtrim(formatdatetime("__lets"."__l0", 'nnnnnnnnn'), '0')) END, 'Z') ELSE replace(regexp_replace(CAST("__lets"."__l0" AS VARCHAR), '(\+0000|Z)$', ''), ' ', 'T') END) END, '[]')) END AS VARCHAR) = CAST(CASE WHEN JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00.000', 'note': 'y', '__id': 'o2', '__type': 'p::K') IS NULL THEN NULL ELSE JSON_OBJECT('_type': 'p::K', 'id': coalesce(CASE WHEN (JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00.000', 'note': 'y', '__id': 'o2', '__type': 'p::K'))."id" IS NULL THEN NULL ELSE CAST(CASE WHEN CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00.000', 'note': 'y', '__id': 'o2', '__type': 'p::K'))."id" AS VARCHAR) LIKE '"%' THEN STRINGDECODE(SUBSTRING(CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00.000', 'note': 'y', '__id': 'o2', '__type': 'p::K'))."id" AS VARCHAR), 2, LENGTH(CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00.000', 'note': 'y', '__id': 'o2', '__type': 'p::K'))."id" AS VARCHAR)) - 2)) ELSE NULLIF(CAST((JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00.000', 'note': 'y', '__id': 'o2', '__type': 'p::K'))."id" AS VARCHAR), 'null') END AS VARCHAR) END, '[]'), 'at': coalesce(CASE WHEN "__lets"."__l1" IS NULL THEN NULL ELSE concat('%', CASE WHEN "__lets"."__l1" IS NULL THEN NULL WHEN LOCATE('T', replace(regexp_replace(CAST("__lets"."__l1" AS VARCHAR), '(\+0000|Z)$', ''), ' ', 'T')) > 0 THEN concat(formatdatetime("__lets"."__l1", 'yyyy''-''MM''-''dd''T''HH'':''mm'':''ss'), CASE WHEN rtrim(formatdatetime("__lets"."__l1", 'nnnnnnnnn'), '0') = '' THEN '' ELSE concat('.', rtrim(formatdatetime("__lets"."__l1", 'nnnnnnnnn'), '0')) END, 'Z') ELSE replace(regexp_replace(CAST("__lets"."__l1" AS VARCHAR), '(\+0000|Z)$', ''), ' ', 'T') END) END, '[]')) END AS VARCHAR) AS "value"
+FROM (
+  SELECT (JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00', 'note': 'x', '__id': 'o1', '__type': 'p::K'))."at" AS "__l0", (JSON_OBJECT('id': 1, 'at': TIMESTAMP '2020-01-01T00:00:00.000', 'note': 'y', '__id': 'o2', '__type': 'p::K'))."at" AS "__l1"
+) AS "__lets" [90008-252] kind=DATABASE_ERROR pos=null
+== H2 product |^p::KA(a=t::E.A) == ^p::KA(a='A')
+   OK [{"value":true}]
+== H2 product |^p::KA(a=1) == ^p::KA(a=1.0)
+   OK [{"value":false}]
+== H2 product |[^p::KNum(n=1)]->contains(^p::KNum(n=1.0))
+   DialectCapability: collection membership reached a dialect without a list encoding [collection: Call LIST_TRANSFORM]
+== H2 product |list([1, 2]) == list([1.0, 2.0])
+   OK [{"value":false}]
+== H2 product |[pair(1, 1)]->contains(pair(1, 1.0))
+   OK [{"value":false}]
+== H2 product |'1' == 1
+   OK [{"value":true}]
+== H2 product |true == 1
+   DataError: Values of types "BOOLEAN" and "INTEGER" are not comparable; SQL statement:
+SELECT TRUE = 1 AS "value" [90110-252] kind=DATABASE_ERROR pos=null
+== H2 product |[1, 'a'] == [1.0, 'a']
+   DataError: Syntax error in SQL statement "SELECT coalesce(2, 0) = coalesce(2, 0) AND NOT (CAST(JSON_ARRAY(1, NULL NULL ON NULL) AS BIGINT[*][]) IS DISTINCT FROM CAST(JSON_ARRAY(NULL, NULL NULL ON NULL) AS BIGINT[])) AND NOT (CAST(JSON_ARRAY(NULL, 'a' NULL ON NULL) AS VARCHAR[]) IS DISTINCT FROM CAST(JSON_ARRAY(NULL, 'a' NULL ON NULL) AS VARCHAR[])) AND NOT (CAST(JSON_ARRAY(NULL, NULL NULL ON NULL) AS DOUBLE PRECISION[]) IS DISTINCT FROM CAST(JSON_ARRAY(CAST(1.0 AS DOUBLE PRECISION), NULL NULL ON NULL) AS DOUBLE PRECISION[])) AS ""value"""; expected "ARRAY, FORMAT, )"; SQL statement:
+SELECT coalesce(2, 0) = coalesce(2, 0) AND NOT (CAST(JSON_ARRAY(1, NULL NULL ON NULL) AS BIGINT[]) IS DISTINCT FROM CAST(JSON_ARRAY(NULL, NULL NULL ON NULL) AS BIGINT[])) AND NOT (CAST(JSON_ARRAY(NULL, 'a' NULL ON NULL) AS VARCHAR[]) IS DISTINCT FROM CAST(JSON_ARRAY(NULL, 'a' NULL ON NULL) AS VARCHAR[])) AND NOT (CAST(JSON_ARRAY(NULL, NULL NULL ON NULL) AS DOUBLE PRECISION[]) IS DISTINCT FROM CAST(JSON_ARRAY(CAST(1.0 AS DOUBLE PRECISION), NULL NULL ON NULL) AS DOUBLE PRECISION[])) AS "value" [42001-252] kind=DATABASE_ERROR pos=null
+== H2 product |[] == []
+   OK [{"value":true}]
+== H2 product |[1, 'a']->contains(1.0)
+   OK [{"value":false}]

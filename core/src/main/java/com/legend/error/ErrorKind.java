@@ -38,6 +38,8 @@ public enum ErrorKind implements ErrorCode {
     INSERT_OUT_OF_BOUNDS(Form.any("add(set, index, value): index out of bounds")),
     /** [the value]: legend-pure's, the value as Pure prints a Float (K2). */
     SQRT_OF_NEGATIVE(Form.any("Unable to compute sqrt of %1$s", Slot.FLOAT)),
+    /** [the function (acos, asin), the value]: legend-pure's, the value as Pure prints a Float. */
+    INVERSE_TRIG_OUT_OF_DOMAIN(Form.any("Unable to compute %1$s of %2$s", Slot.TEXT, Slot.FLOAT)),
     /** [the bound] (a size known empty) or [the bound, the size]: legend-pure's toOne/cast. */
     SIZE_NOT_MULTIPLICITY(Form.of(1, "Cannot cast a collection of size 0 to multiplicity %1$s"),
             Form.any("Cannot cast a collection of size %2$s to multiplicity %1$s")),
@@ -68,6 +70,13 @@ public enum ErrorKind implements ErrorCode {
     RANGE_STEP_ZERO(Form.any("range step must not be 0")),
     /** [the constraint's id]: legend-engine's. */
     CONSTRAINT_UNEVALUABLE(Form.any("Unable to evaluate constraint [%1$s]: data not available - check your mappings")),
+    /** [the constraint's id, its class's simple name]: legend-pure's (DefaultConstraintHandler.java:90,
+     *  {@code "Constraint :[" + ruleId + "] violated in the Class " + constraintClass.getName()}), legend-engine's alike
+     *  (stage B's B2b S3, 2026-11-24; the user's ruling of 2026-11-24, "keep errors close to pure when cheap/fast": until
+     *  then the resolver wrote legend-engine's sentence as a literal, GraphEmission's constMsgCol). A checked graph's
+     *  defect text, written by the lowering as data in the answer, never raised: no {@code sql.RaiseKind}
+     *  ({@link #isRaise}). */
+    CONSTRAINT_VIOLATED(Form.any("Constraint :[%1$s] violated in the Class %2$s")),
     /** [the native's name]: lite's own (no upstream text). */
     LIST_LENGTHS_DIFFER(Form.any("%1$s: the two value lists differ in length")),
     /** legend-pure has none (its maps take any key); legend-engine's on its reference database, DuckDB's own words,
@@ -251,11 +260,13 @@ public enum ErrorKind implements ErrorCode {
     }
 
     /** Whether a statement raises the kind ({@code sql.RaiseKind} names it): every kind but the database's own
-     *  failures, a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement) and a load's or
+     *  failures, a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement), a load's or
      *  a payload's statement the database refused ({@link #LOAD_REFUSED}, {@link #PAYLOAD_REFUSED}: its words around
-     *  the database's). */
+     *  the database's) and a checked graph's violated or unevaluable constraint ({@link #CONSTRAINT_VIOLATED},
+     *  {@link #CONSTRAINT_UNEVALUABLE}: its defect text, data in an answer; the latter since B2b's S7a, 2026-11-25). */
     public boolean isRaise() {
-        return !isDatabases() && this != FILE_TOO_LARGE && this != LOAD_REFUSED && this != PAYLOAD_REFUSED;
+        return !isDatabases() && this != FILE_TOO_LARGE && this != LOAD_REFUSED && this != PAYLOAD_REFUSED
+                && this != CONSTRAINT_VIOLATED && this != CONSTRAINT_UNEVALUABLE;
     }
 
     /** A value the database computed and no plan holds, as every audience prints it (D1, register S389). */

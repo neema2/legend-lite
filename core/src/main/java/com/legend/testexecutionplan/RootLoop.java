@@ -168,7 +168,8 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
     public enum Family {
         /** {@code assertEquals} / {@code assertNotEquals} in order: {@code [verdict, expected, actual]}. */
         EQUALS,
-        /** {@code assertSameElements} and an incidental equals: {@code [verdict, expected, actual]}, each in its order. */
+        /** {@code assertSameElements}: {@code [verdict, expected, actual]}, each in its order (the incidental equals gone
+         *  2026-11-24, B3 step 4). */
         SAME_ELEMENTS,
         /** {@code assertIsNot} over values its equality decides: {@code [verdict, expected, actual]}. */
         IS_NOT,

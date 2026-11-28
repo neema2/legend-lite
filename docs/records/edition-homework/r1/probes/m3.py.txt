@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""M3: moved verdicts between the baseline corpus pass and the plain-raise probe pass.
+Usage: m3.py <lane> <baseline dir> <probe dir> <committed fail roster>"""
+import collections, sys
+lane, base, probe, committed = sys.argv[1:5]
+def fails(d):
+    out = {}
+    for l in open(d + "/host.log", errors="replace"):
+        if l.startswith("[corpus2] FAIL "):
+            t, _, m = l[len("[corpus2] FAIL "):].rstrip("\n").partition(" :: ")
+            out[t] = m
+    return out
+def raises(d):
+    out = collections.defaultdict(set)
+    for l in open(d + "/host.log", errors="replace"):
+        if l.startswith("PROBE-RAISE\t"):
+            f = l.rstrip("\n").split("\t")
+            out[f[3]].add(f[1] + ":" + f[2])
+    return out
+def ledger(d):
+    out = {}
+    for l in open(d + "/judge-host.tsv", errors="replace"):
+        f = l.rstrip("\n").split("\t")
+        if len(f) >= 4:
+            out[(f[0], f[1], f[2])] = (f[3], f[4] if len(f) > 4 else "")
+    return out
+def summary(d):
+    for l in open(d + "/host.log", errors="replace"):
+        if l.startswith("[corpus2] pass="):
+            return l.strip()
+cf = set(l.strip() for l in open(committed) if l.strip())
+bf, pf = fails(base), fails(probe)
+br, pr = raises(base), raises(probe)
+print("baseline:", summary(base)); print("probe   :", summary(probe))
+print("committed roster", len(cf), "baseline fails", len(bf), "probe fails", len(pf))
+print("baseline roster == committed:", set(bf) == cf, "| probe roster == committed:", set(pf) == cf)
+moved = sorted(set(bf) ^ set(pf))
+reworded = sorted(t for t in set(bf) & set(pf) if bf[t] != pf[t])
+print("== tests whose verdict moved:", len(moved))
+for t in moved:
+    print(f"  {t}\n    committed roster: {'FAIL' if t in cf else 'PASS'}\n    baseline: {'FAIL: ' + bf[t][:300] if t in bf else 'PASS'}\n    probe:    {'FAIL: ' + pf[t][:300] if t in pf else 'PASS'}\n    raise kinds planned (probe): {sorted(pr.get(t, []))}")
+print("== failing in both, failure text changed:", len(reworded))
+for t in reworded:
+    print(f"  {t}\n    baseline: {bf[t][:300]}\n    probe:    {pf[t][:300]}\n    raise kinds: {sorted(pr.get(t, []))}")
+bl, pl = ledger(base), ledger(probe)
+am = [k for k in sorted(set(bl) | set(pl)) if bl.get(k, ("-",))[0] != pl.get(k, ("-",))[0]]
+print("== per-assert verdicts moved (judge-host.tsv):", len(am))
+for k in am[:40]:
+    print("  ", k, bl.get(k, ("-", ""))[0], "->", pl.get(k, ("-", ""))[0])
+print("== tests whose plans hold an unchecked kind (probe), and how the probe wrote it:")
+for t in sorted(pr):
+    print("  ", t, sorted(pr[t]), "| baseline:", sorted(br.get(t, [])), "| verdict:", "FAIL" if t in bf else "PASS", "->", "FAIL" if t in pf else "PASS")

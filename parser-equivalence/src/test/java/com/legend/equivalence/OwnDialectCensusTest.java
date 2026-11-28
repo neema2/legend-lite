@@ -84,7 +84,14 @@ class OwnDialectCensusTest {
                     "ReferenceIntegrityTest.java",
                     // overloads by a relation's column type, 2026-11-03 (REVIEWED, register S146, the user's 2a): a
                     // user function's id spelling its relation's columns, its fixture two such overloads
-                    "SignatureMangleTest.java");
+                    "SignatureMangleTest.java",
+                    // the equality rule over functions generic over relations, 2026-11-26 (REVIEWED, register S112, the
+                    // user's "Still A": only lite's dialect admits a user function's type parameters): each model
+                    // holds a function whose body is typed into its call, which is where a comparison across types
+                    // written in the query must keep the query's answer (B3 step 5a's review, M1: the first, on the
+                    // branch since 2026-11-25 and never declared, so both guards were red; the edition program's
+                    // step 2b and its audit: the other two)
+                    "CrossTypeComparisonsTest.java", "CrossTypeRuleTest.java", "PureComparisonsTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -105,6 +112,10 @@ class OwnDialectCensusTest {
                                        // hosts may carry extension rows too
                                        // — invariant 2 allows either set)
                     java.util.Map.entry("AdversarialParityTest.java", 1),
+                    // 0 -> 1 each (2026-11-26, REVIEWED, with the hosts' declaration above): one model apiece
+                    java.util.Map.entry("CrossTypeComparisonsTest.java", 1),
+                    java.util.Map.entry("CrossTypeRuleTest.java", 1),
+                    java.util.Map.entry("PureComparisonsTest.java", 1),
                     // 0 -> 1 (2026-09-08, REVIEWED, census batch 150): the
                     // unit-instance probe (cNeg: `-5 Mass~kilogram`) — the
                     // platform dialect now reads legend-pure's unit literal
@@ -156,7 +167,9 @@ class OwnDialectCensusTest {
                     // (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a): aColumnsTypePicksTheOverload
                     // (test::pick<K> beside key:All, generics 10 -> 12 with SignatureMangleTest's) and
                     // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T>, signatures 24 -> 25)
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 19),
+                    // 19 -> 20 (2026-11-27, the edition program's step 6): comparesTheCallersColumns
+                    // (test::sameCols<T,A,B>, signatures 26 -> 27)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 20),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect

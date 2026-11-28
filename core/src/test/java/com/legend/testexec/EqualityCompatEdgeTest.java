@@ -18,8 +18,10 @@ import org.junit.jupiter.api.Test;
 
 /**
  * THE COMPATIBILITY RULES' HOST EQUALITY, an edge test (census C1's K14 and step 2c, the orchestrator's rulings of
- * 2026-11-17: a test of upstream's behaviour is an edge test, judged through the edge's door -- the run hook's
- * {@code HostForms} and the plan's rules -- never by calling the host judge's equality itself).
+ * 2026-11-17: a test of upstream's behaviour is an edge test, judged through the edge's door, never by calling the host
+ * judge's equality itself). Since B3 step 1a of the compatibility program (2026-11-24: one rulebook, lite's), the edge's
+ * door judges numbers, Decimals and Floats by lite's rules, as lite's own runs do (the Float's 2-ULP tolerance, S15,
+ * went with step 1b the same day: legend-engine compares exactly).
  */
 class EqualityCompatEdgeTest {
 
@@ -36,22 +38,31 @@ class EqualityCompatEdgeTest {
     }
 
     @Test
-    void compatibilityModeEqualsAnIntegerAndADecimalByTheirTexts() throws Exception {
-        // register S127: compiled legend-pure's CompiledSupport.eq -- 1D == 1 by text, a Float equal to neither
+    void theEdgesDoorComparesNumberKindsByLitesRule() throws Exception {
+        // register S127: two numbers of different kinds are never equal -- on the edge's door too since B3 step 1a
+        // (2026-11-24; until then compiled legend-pure's CompiledSupport.eq there, 1D == 1 by text)
         try (Connection c = TestBackends.platform().open()) {
-            holds(c, "|assertEquals(1D, 1)");
+            fails(c, "|assertEquals(1D, 1)");
             fails(c, "|assertEquals(1.0, 1)");
         }
     }
 
     @Test
-    void compatibilityModeHoldsTwoUlpsAndTheEngineSeamsScaleSensitiveEquals() throws Exception {
+    void theEdgesDoorComparesFloatsExactlyAndDecimalsByValue() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            // registers S20/S132: the 2-ULP tolerance is compatibility mode's alone
-            holds(c, "|assertEquals(0.3, 0.1 + 0.2)");
-            // register S139 (X2, VERDICT_RULE_AUDIT: engine Decimal equality is getValue().equals): scale-sensitive
-            fails(c, "|assertEquals(3.0D, 3.00D)");
-            fails(c, "|assertEquals(1.50D, 1.5D)");
+            // register S15: a Float compared exactly on the edge's door too since B3 step 1b (2026-11-24; until then
+            // compiled legend-pure's 2-ULP tolerance there). A Float literal is the double on every door since the
+            // user's ruling of 2026-11-25 ("yes delete the float decimal thing"; register S20, measured by R1's M1):
+            // 0.1 + 0.2 is 0.30000000000000004, compiled Pure's answer (legend-engine on DuckDB adds two DECIMAL
+            // literals to 0.3, the one recorded difference); two Float values one ULP apart are not equal
+            holds(c, "|assertEquals(0.30000000000000004, 0.1 + 0.2)");
+            fails(c, "|assertEquals(0.3, 0.1 + 0.2)");
+            fails(c, "|assertEquals(0.30000000000000004, 0.3)");   // one ULP apart: the old tolerance held it
+            // register S139: a Decimal by value, its scale not part of it -- on the edge's door too since B3 step 1a
+            // (2026-11-24; until then compiled legend-pure's scale-sensitive equals there)
+            holds(c, "|assertEquals(3.0D, 3.00D)");
+            holds(c, "|assertEquals(1.50D, 1.5D)");
+            fails(c, "|assertEquals(1.5D, 1.51D)");
         }
     }
 }

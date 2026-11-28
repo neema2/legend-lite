@@ -52,8 +52,7 @@ class ZonedDateTimeParameterTest {
                     com.legend.database.Databases.dialect(type).floatLiteralKind());
             ExecutionPlan.TdsResult t = (ExecutionPlan.TdsResult) plan.root();
             plan = ExecutionPlan.reading(plan.parameters(), new ExecutionPlan.TdsResult(t.shape(), t.columns(),
-                    PlanMaker.sql(q, com.legend.database.Databases.dialect(type), t.sql().target(),
-                            com.legend.database.PlanStyle.PRODUCT)));
+                    PlanMaker.sql(q, com.legend.database.Databases.dialect(type), t.sql().target())));
         }
         List<Object> cells = new ArrayList<>();
         try (Connection c = TestBackends.of(type).open()) {

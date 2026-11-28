@@ -1,0 +1,18 @@
+import sys,os,re,subprocess
+P='/root/.cache/bazel/_bazel_root/a6663fbd60fad5804a563aa83422814f/external/+http_archive+legend_pure_src'
+E='/root/.cache/bazel/_bazel_root/a6663fbd60fad5804a563aa83422814f/external/+http_archive+legend_engine_src'
+n=int(sys.argv[2]) if len(sys.argv)>2 else 15
+for fqn in sys.argv[1].split(','):
+    name=fqn.split('::')[-1]
+    pat=r'>>\s*'+re.escape(fqn)+r'\s*[<(]'
+    out=subprocess.run(['grep','-rlE','--include=*.pure', fqn.replace('::','::')+'[<(]', P+'/legend-pure-core', E+'/legend-engine-core/legend-engine-core-pure'],capture_output=True,text=True).stdout.split()
+    found=False
+    for f in out:
+        lines=open(f,encoding='utf-8').read().split('\n')
+        for i,l in enumerate(lines):
+            if re.search(pat,l):
+                print('== %s:%d'%(f.replace(P,'PURE').replace(E,'ENGINE'),i+1))
+                print('\n'.join(lines[i:i+n]))
+                found=True
+                break
+    if not found: print('NOT FOUND',fqn)

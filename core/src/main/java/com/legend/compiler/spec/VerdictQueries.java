@@ -491,6 +491,89 @@ public final class VerdictQueries {
         return null;
     }
 
+    /** The name an assert's EXPECTED side stands under in the condition it means ({@link #sameValue}). */
+    public static final String EXPECTED = "e";
+    /** The name an assert's ACTUAL side stands under. */
+    public static final String ACTUAL = "a";
+
+    /** {@code collection->size()}: {@code assertSize}'s count as the PRODUCT counts it, the platform's own
+     *  {@code size} applied to the side as it is typed (the equality program's first slice, 2026-11-26: an assert is
+     *  the Pure condition it means, planned by the product's own road; until then the database judge counted the
+     *  side's rows itself). The call is built BY DECLARATION over the side the typer already typed as the assert's
+     *  argument, as the typer's own desugars build one ({@code TdsDesugars}): the exact declared function, never an
+     *  overload picked by its arity. The typer's two rewrites of a WRITTEN {@code size} are not made here, so a
+     *  table's cells count its rows and one row's cells are refused: recorded gaps (AssertBarTest), step 6.2's. */
+    public static TypedSpec sizeOf(TypedSpec collection, SpecCompiler specs) {
+        return declared(specs, com.legend.builtin.Pure.SIZE__ANY_MANY, List.of(collection), Type.Primitive.INTEGER);
+    }
+
+    /** {@code $a == $e} ({@code want}) or {@code !($a == $e)}: the condition an assert of two values means, over its
+     *  sides as the named values {@link #EXPECTED} and {@link #ACTUAL} of the types given, the comparison answered by
+     *  the door's comparison setting as one written in a query is ({@link SpecCompiler#comparedAsInAQuery}): two
+     *  sides of different types are lite's comparison across types, which its planner refuses by name. */
+    public static TypedSpec sameValue(ExprType expected, ExprType actual, boolean want, SpecCompiler specs) {
+        TypedSpec same = specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY,
+                List.of(new com.legend.compiler.spec.typed.TypedVariable(ACTUAL, actual),
+                        new com.legend.compiler.spec.typed.TypedVariable(EXPECTED, expected)),
+                Type.Primitive.BOOLEAN));
+        return want ? same : declared(specs, com.legend.builtin.Pure.NOT__BOOLEAN_1, List.of(same),
+                Type.Primitive.BOOLEAN);
+    }
+
+    /** {@code actual == expected} over the two sides AS THEY ARE TYPED (step 6B, slice 6): the comparison an
+     *  {@code assertEquals} means, its sides the assert's own arguments -- their typed trees kept, so what the
+     *  equality reads off the text (a kind under an upcast, a written literal) is read as for a {@code ==} written
+     *  in a query -- answered by the door's comparison setting as such a one is
+     *  ({@link SpecCompiler#comparedAsInAQuery}). */
+    public static TypedSpec sameSides(TypedSpec expected, TypedSpec actual, SpecCompiler specs) {
+        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY,
+                List.of(actual, expected), Type.Primitive.BOOLEAN));
+    }
+
+    /** {@code hasSameElements(actual, expected)} over the two sides as they are typed: the comparison an
+     *  {@code assertSameElements} means ({@link #sameSides}'s, in any order). */
+    public static TypedSpec sameElements(TypedSpec expected, TypedSpec actual, SpecCompiler specs) {
+        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.HAS_SAME_ELEMENTS__ANY_MANY__ANY_MANY,
+                List.of(actual, expected), Type.Primitive.BOOLEAN));
+    }
+
+    /** {@code side}, declared to hold exactly ONE value, shown as holding AT MOST one (the same expression, the
+     *  same type): an assert's side is bound to a column that holds no value where the side yields none, and the
+     *  product's rule for a side that may be empty then answers two-valued (step 6B, slice 6; here because a typed
+     *  node is made by the compiler's layers alone, invariant 7). Any other side as it is. */
+    public static TypedSpec atMostOne(TypedSpec side) {
+        return side.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() >= 1 && b.upper() != null && b.upper() <= 1
+                ? new com.legend.compiler.spec.typed.TypedCast(side, side.info().type(),
+                        new com.legend.compiler.element.type.ExprType(side.info().type(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE), false)
+                : side;
+    }
+
+    /** {@code collection->contains(value)} over the two sides as they are typed: the membership an
+     *  {@code assertContains} means, answered by the door's comparison setting as one written in a query is. */
+    public static TypedSpec containsOf(TypedSpec collection, TypedSpec value, SpecCompiler specs) {
+        return specs.comparedAsInAQuery(declared(specs, com.legend.builtin.Pure.CONTAINS__ANY_MANY__ANY_1,
+                List.of(collection, value), Type.Primitive.BOOLEAN));
+    }
+
+    /** A call of exactly {@code declaration}, a function the platform declares, by its identity: never absent, never
+     *  another overload of its name (NO FALLBACKS, invariant 4; the audit of 2026-11-26, S1). */
+    private static TypedNativeCall declared(SpecCompiler specs, com.legend.model.Function declaration,
+            List<TypedSpec> args, Type out) {
+        com.legend.model.FunctionId id = com.legend.model.FunctionId.of(declaration);
+        var function = specs.ctx().findFunction(declaration.qualifiedName()).stream()
+                .filter(f -> f.id().equals(id)).findFirst().orElseThrow(() -> new IllegalStateException(
+                        "the platform declares no " + id + ": an assert's condition needs it"));
+        return built(function, args, out);
+    }
+
+    /** A NEW call of a declared function over typed arguments (new calls only: a rebuilt call passes its stamp). */
+    private static TypedNativeCall built(com.legend.compiler.element.TypedFunction function, List<TypedSpec> args,
+            Type out) {
+        return new TypedNativeCall(function, args, scalar(out));
+    }
+
     private static @com.legend.base.Nullable TypedSpec minus(com.legend.compiler.element.ModelContext ctx,
             TypedSpec l, TypedSpec r) {
         var fn = ctx.findFunction(com.legend.compiler.element.type.PlatformTypes.MINUS).stream()
@@ -507,13 +590,13 @@ public final class VerdictQueries {
     private static @com.legend.base.Nullable TypedSpec native1(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 1).findFirst()
-                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x), scalar(out))).orElse(null);
+                .map(f -> (TypedSpec) built(f, List.of(x), out)).orElse(null);
     }
 
     private static @com.legend.base.Nullable TypedSpec native2(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, TypedSpec y, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 2).findFirst()
-                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x, y), scalar(out))).orElse(null);
+                .map(f -> (TypedSpec) built(f, List.of(x, y), out)).orElse(null);
     }
 
     /** The literal {@code 0} — assertTdsEquivalent's absent time delta. */

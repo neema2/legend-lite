@@ -8,7 +8,7 @@ duckdb	upstream	edge1.toString.10000000000000000.0	VALUE String:#TDS\n   x\n   1
 duckdb	upstream	edge1.toCSV.10000000000000000.0	VALUE String:x\n10000000000000000.0\n;
 duckdb	upstream	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   100000000000000000000.0\n#;
 duckdb	upstream	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
-duckdb	upstream	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02T10:30:00.123+0000\n;
+duckdb	upstream	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 duckdb	upstream	edge3.formatRepr.newline	VALUE String:'a\nb';
 duckdb	pure_v1	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
 duckdb	pure_v1	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
@@ -20,7 +20,7 @@ duckdb	pure_v1	edge1.toString.10000000000000000.0	VALUE String:#TDS\n   x\n   10
 duckdb	pure_v1	edge1.toCSV.10000000000000000.0	VALUE String:x\n10000000000000000.0\n;
 duckdb	pure_v1	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   100000000000000000000.0\n#;
 duckdb	pure_v1	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
-duckdb	pure_v1	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02T10:30:00.123+0000\n;
+duckdb	pure_v1	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 duckdb	pure_v1	edge3.formatRepr.newline	VALUE String:'a\nb';
 h2	upstream	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
 h2	upstream	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
@@ -32,7 +32,7 @@ h2	upstream	edge1.toString.10000000000000000.0	VALUE String:#TDS\n   x\n   10000
 h2	upstream	edge1.toCSV.10000000000000000.0	VALUE String:x\n10000000000000000.0\n;
 h2	upstream	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   100000000000000000000.0\n#;
 h2	upstream	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
-h2	upstream	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02T10:30:00.123+0000\n;
+h2	upstream	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 h2	upstream	edge3.formatRepr.newline	VALUE String:'a\nb';
 h2	pure_v1	edge1.toString.0.00001	VALUE String:#TDS\n   x\n   0.00001\n#;
 h2	pure_v1	edge1.toCSV.0.00001	VALUE String:x\n0.00001\n;
@@ -44,5 +44,5 @@ h2	pure_v1	edge1.toString.10000000000000000.0	VALUE String:#TDS\n   x\n   100000
 h2	pure_v1	edge1.toCSV.10000000000000000.0	VALUE String:x\n10000000000000000.0\n;
 h2	pure_v1	edge1.toString.100000000000000000000.0	VALUE String:#TDS\n   x\n   100000000000000000000.0\n#;
 h2	pure_v1	edge1.toCSV.100000000000000000000.0	VALUE String:x\n100000000000000000000.0\n;
-h2	pure_v1	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02T10:30:00.123+0000\n;
+h2	pure_v1	edge2.toCSV.dateTime	VALUE String:id,at\n1,2024-01-02 10:30:00\n;
 h2	pure_v1	edge3.formatRepr.newline	VALUE String:'a\nb';

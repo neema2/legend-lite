@@ -1,0 +1,46 @@
+import json, collections, sys, os
+r = json.load(open(sys.argv[1]))
+s2 = sys.argv[2]
+def esc(s):
+    return (s or "").replace("|", "\\|").replace("\n", "\\n")
+out = []; P = out.append
+B = ["both pass", "reference passes, lite fails", "reference fails, lite passes", "both fail"]
+for db in ["duckdb", "sqlite", "h2"]:
+    keys = [k for k in r if r[k]["db"] == db]
+    P(f"#### {db}")
+    P("")
+    P("| scope | lite ran | core-compiled rows | core-interpreted rows | both pass | reference passes, lite fails | reference fails, lite passes | both fail | vs core-interpreted: lite fails where it passes |")
+    P("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+    tot = collections.Counter(); ti = 0
+    for k in keys:
+        v = r[k]; c = collections.Counter(x["bucket"] for x in v["rows"]); tot.update(c)
+        li = sum(1 for x in v["rows"] if x["lite"] == "FAIL" and x["interpreted"] == "PASS"); ti += li
+        P(f"| {v['suite']} | {v['lite_ran']} | {v['compiled_rows']} | {v['interpreted_rows']} | " + " | ".join(str(c.get(b, 0)) for b in B) + f" | {li} |")
+    if len(keys) > 1:
+        P(f"| **total** | **{sum(r[k]['lite_ran'] for k in keys)}** | | | " + " | ".join(f"**{tot.get(b,0)}**" for b in B) + f" | **{ti}** |")
+    P("")
+for db in ["duckdb", "sqlite", "h2"]:
+    keys = [k for k in r if r[k]["db"] == db]
+    P(f"#### {db}: the reference passes, lite fails")
+    P("")
+    n = 0
+    for k in keys:
+        for x in r[k]["rows"]:
+            if x["bucket"] in ("reference passes, lite fails",):
+                n += 1
+                led = x.get("ledger")
+                P(f"{n}. {r[k]['suite']} `{x['test']}`")
+                P(f"   - lite: `{esc(x['lite_message'])[:400]}`")
+                if led:
+                    why = " ".join(c.lstrip("/ ").strip() for c in led["comment"])
+                    P(f"   - ledger: `{led['file']}:{led['line']}`" + (f" -- its comment: \"{why[:500]}\"" if why else " -- no comment above the row's group"))
+                else:
+                    P("   - ledger: NONE")
+    P("")
+P("#### the reference fails (core-compiled), lite passes; and both fail")
+P("")
+for k in r:
+    for x in r[k]["rows"]:
+        if x["bucket"] in ("reference fails, lite passes", "both fail"):
+            P(f"- {k} ({x['bucket']}) `{x['test']}`: reference `{esc(x['compiled_error'])[:160]}`" + (f"; lite `{esc(x['lite_message'])[:200]}`" if x['lite'] == 'FAIL' else ""))
+print("\n".join(out))

@@ -77,7 +77,11 @@ class TaggedSelectionTest {
         assertEquals(1, plan.columns().size(), plan.sql());
         ExecutionPlan.Column value = plan.columns().get(0);
         assertEquals("Number", value.type());
-        assertEquals("TAGGED<Integer BIGINT, Float DOUBLE, Decimal DECIMAL(2,1)>", value.slot());
+        // the slots in the order the elements are searched for the winner: a greatest's the later family first, so a
+        // tie of equal numbers keeps the Float, then an exact number, the Integer and the Decimal in the order the
+        // list holds them (the user's ruling of 2026-11-27: two families; from slice 6.2 until then Decimal, Float,
+        // Integer; the written order before that)
+        assertEquals("TAGGED<Float DOUBLE, Integer BIGINT, Decimal DECIMAL(2,1)>", value.slot());
         String sql = plan.sql();
         for (String column : List.of("value__0", "value__1", "value__2")) {
             assertTrue(sql.contains(column), sql);
@@ -92,7 +96,7 @@ class TaggedSelectionTest {
     void theWinnerIsReadInItsOwnKind() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(new BigDecimal("3.0"), value(c, "|[1, 2.5, 3.0D]->max()"));
-            // the tag names the winner's slot (the third: Decimal DECIMAL(2,1)), read with the carrier
+            // the tag names the winner's slot (the last of a greatest's: Decimal DECIMAL(2,1)), read with the carrier
             assertEquals(new com.legend.result.TaggedCell(2, new BigDecimal("3.0")), tagged(c, "|[1, 2.5, 3.0D]->max()"));
             assertEquals(2.5d, value(c, "|[1, 2.5]->max()"));
             assertEquals(3L, value(c, "|[1, 2.5, 3]->max()"));
@@ -101,8 +105,20 @@ class TaggedSelectionTest {
             assertEquals(1L, value(c, "|least([1, 2.5])"));
             // mode keeps the last of the winning run, as Pure's does
             assertEquals(2.5d, value(c, "|[1, 2, 2.5, 2.5]->mode()"));
-            // ties keep the first element: Pure's max of [3.0, 3] is the Float
+            // a tie of two numbers of the two families, lite's own rule: an exact number, then a Float, wherever
+            // they are written -- the greatest is the Float, the least the Integer (slice 6.2 of
+            // the edition program's step 6; until it lite kept the FIRST written, under a note that called it Pure's
+            // rule: legend-pure and legend-engine keep the LAST of a list's tie, run 2026-11-26, and answer so at
+            // their own doors, NamedRule.EXTREME_KEEPS_THE_FOLDS_TIE)
             assertEquals(3.0d, value(c, "|[3.0, 3]->max()"));
+            assertEquals(3.0d, value(c, "|[3, 3.0]->max()"));
+            assertEquals(3L, value(c, "|[3.0, 3]->min()"));
+            assertEquals(3L, value(c, "|[3, 3.0]->min()"));
+            assertEquals(3.0d, value(c, "|[3, 3.0, 1]->greatest()"));
+            assertEquals(3L, value(c, "|[3.0, 3, 5]->least()"));
+            // no SQL is added for it: the elements are searched in the order the types fix
+            assertEquals(query("|[3.0, 3]->max()").plan("s::RT").sql().length(),
+                    query("|[3, 3.0]->max()").plan("s::RT").sql().length());
         }
     }
 

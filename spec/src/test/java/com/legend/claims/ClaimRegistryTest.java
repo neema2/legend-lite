@@ -9,7 +9,6 @@ import com.legend.protocol.TypeExpression;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +22,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -116,66 +114,11 @@ public class ClaimRegistryTest {
         }
     }
 
-    /** The edge's claimers of {@code substringAsGiven}: the class that builds the engine rewrite's substitutes. */
-    static final java.util.Set<String> SUBSTRING_AS_GIVEN_EDGE_CLAIMERS = java.util.Set.of("EngineSubstitutes");
-
-    /**
-     * NO PRODUCT CLAIMER OF {@code substringAsGiven} BUT {@code Scalars} (the pin the user ruled, 2026-11-19 ~21:10, "Yes
-     * to all three for substring", relayed by the compat owner; the reviewer's D-S1 as corrected, ca8ea4a5). The native is
-     * the legend-engine door's alone, and no user may name it (Pure.COMPILER_OWN). So in the committed ledger its
-     * {@code also} column -- the files naming one of its overload constants, its id group or its quoted name -- holds the
-     * lowering's rule and the door's substitute builder ({@code edge.EngineSubstitutes}, its producer), and no other.
-     * A product frontend that wrote it would be named here.
-     * Named limit: the column does not read a use through the {@code Pure.Lite} name constant alone.
-     */
-    @Test
-    @DisplayName("substringAsGiven's one product claimer is Scalars, its producer the door's EngineSubstitutes")
-    void substringAsGivensOneProductClaimerIsScalars() throws IOException {
-        List<String[]> rows = new ArrayList<>();
-        for (String line : Files.readAllLines(RESOURCE, StandardCharsets.UTF_8)) {
-            String[] cells = line.split("\t", -1);
-            if (cells.length >= 6 && cells[0].equals(Pure.Lite.SUBSTRING_AS_GIVEN)) {
-                rows.add(cells);
-            }
-        }
-        assertEquals(2, rows.size(), "substringAsGiven's two overloads");
-        for (String[] row : rows) {
-            assertEquals("", strayClaimers(row[5]), row[2]);
-            assertEquals(java.util.Set.of("Scalars", "EngineSubstitutes"), java.util.Set.of(row[5].split(";")),
-                    row[2] + ": its lowering's rule and its producer");
-        }
-        // the pin bites: a planted product claimer is named
-        assertEquals("CypherToPure", strayClaimers("CypherToPure;EngineSubstitutes;Scalars"));
-    }
-
-    /**
-     * NO PRODUCT CLAIMER OF {@code substrAsGiven} BUT {@code Scalars} (A3, 2026-11-20; the user's word ~07:45, "Okay 1",
-     * relayed by the compat owner): substringAsGiven's pin, for its sibling. The native is the legend-engine door's
-     * alone (its engine rewrite's substitute for {@code substr} and the corrected {@code substring}), and no user may name
-     * it (Pure.COMPILER_OWN), so its {@code also} column holds the lowering's rule and the door's substitute builder.
-     */
-    @Test
-    @DisplayName("substrAsGiven's one product claimer is Scalars, its producer the door's EngineSubstitutes")
-    void substrAsGivensOneProductClaimerIsScalars() throws IOException {
-        List<String[]> rows = new ArrayList<>();
-        for (String line : Files.readAllLines(RESOURCE, StandardCharsets.UTF_8)) {
-            String[] cells = line.split("\t", -1);
-            if (cells.length >= 6 && cells[0].equals(Pure.Lite.SUBSTR_AS_GIVEN)) {
-                rows.add(cells);
-            }
-        }
-        assertEquals(2, rows.size(), "substrAsGiven's two overloads");
-        for (String[] row : rows) {
-            assertEquals("", strayClaimers(row[5]), row[2]);
-            assertEquals(java.util.Set.of("Scalars", "EngineSubstitutes"), java.util.Set.of(row[5].split(";")),
-                    row[2] + ": its lowering's rule and its producer");
-        }
-    }
-
-    /** The claimers in {@code also} that are neither Scalars nor the edge's, joined; empty when there are none. */
-    private static String strayClaimers(String also) {
-        return String.join(";", java.util.Arrays.stream(also.split(";"))
-                .filter(c -> !c.isEmpty() && !c.equals("Scalars") && !SUBSTRING_AS_GIVEN_EDGE_CLAIMERS.contains(c))
-                .toList());
-    }
+    // substringAsGiven's and substrAsGiven's claim pins ("one product claimer, Scalars; its namer the door's
+    // EngineTable": the user's rulings of 2026-11-19 ~21:10 and 2026-11-20 ~07:45) left with the two natives,
+    // 2026-11-26 (the edition program's step 5): they are rules a door's table names (lowering.NamedRule), no
+    // functions of the language, so this ledger has no row for them. The fact the pins held -- no product class
+    // chooses one -- is ArchitectureTest.anEditionsTableAloneNamesARule's, over the compiled classes. The two pins
+    // were the user's; their replacement by that rule is put to the user (the plan record's section 6b), under the
+    // standing word of 2026-11-25 on small ruled changes.
 }

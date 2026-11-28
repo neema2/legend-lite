@@ -59,6 +59,10 @@ class HookLambdasTest {
                     "com.legend.lowering.ListTexts", "com.legend.lowering.PureOnlyTexts",
                     // + LoweringForms (K5, train 5)
                     "com.legend.lowering.LoweringForms", "(twoForm reaches 3)")),
+            // the door's edition (the edition program's step 2, 2026-11-25; its own method since 2026-11-26, when the
+            // kind became the planner's Edition: the statement road asks it what to stamp before a lowering is made)
+            Map.entry("com.legend.planner.PlanEnv#edition()", Set.of("com.legend.planner.Edition",
+                    "(twoForm reaches 1)")),
             // an execute's activity SQL (J40.PlanStyle, 2026-11-18: until then PlanStyle.activitySql picked one of two)
             Map.entry("com.legend.planner.PlanAllocations#activitySql(java.util.List, java.lang.String,"
                     + " com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
@@ -86,11 +90,9 @@ class HookLambdasTest {
                     + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
                     Set.of("com.legend.planner.ExecutedValues", "(twoForm reaches 1)")),
             // (TestDoor#planned: the plan's words, VerdictWords' name, went 2026-11-21, item 3's S3)
-            // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
-            Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery,"
-                    + " com.legend.testplan.PlanningOptions)",
-                    Set.of("com.legend.compiler.spec.RelationCounting", "com.legend.platform.PlanOption",
-                            "(twoForm reaches 1)")),
+            // the test planner: a test-data timestamp's text (L9); (TestPlanner#lifted, a relation counted by an assert,
+            // S137: no style asked since 2026-11-24, B3 step 2 -- upstream's count is the edge's test-body door's, a body
+            // rewritten before planning, edge.UpstreamTestBodies; a guard moving down)
             Map.entry("com.legend.testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String,"
                     + " com.legend.testplan.PlanningOptions)", Set.of("com.legend.testdatagen.TestDataPlanner$Printing",
                     "(twoForm reaches 1)")));
@@ -103,7 +105,8 @@ class HookLambdasTest {
             // of the kind into its own class (Lite*, ProductLoweringForms) -- the same forms, renamed
             // the two-form kinds' product forms: a relation counted by an assert, refused (S137); a list's text, a JSON
             // array (F's B8); a judge's JSON grammar, strict JSON (S144); two number kinds compared (S127)
-            Map.entry("com.legend.compiler.spec.RelationCountAsserts", Set.of("com.legend.compiler.spec.RelationCounting")),
+            // (RelationCountAsserts -> RelationCounting: gone 2026-11-24, B3 step 2 -- the kind deleted, the planner's
+            // refusal a static check and upstream's count the edge's test-body door's; a guard moving down)
             Map.entry("com.legend.lowering.ProductListTexts", Set.of("com.legend.lowering.ListTexts")),
             // (JudgeJson -> JsonGrammar: no hook type's implementer now -- JsonGrammar is no two-form kind since the
             // database judge reads strict JSON directly, and the host judge's grammar is the edge hearing's to answer;
@@ -112,6 +115,9 @@ class HookLambdasTest {
             // trains 5 and 6 (2026-11-17): the lowering forms' product answer, an anonymous class in the kind (K5,
             // fd1df9928, a criterion (a) exception); the test-data printing's product form, its own class (K12, a095d0b56)
             Map.entry("com.legend.lowering.ProductLoweringForms", Set.of("com.legend.lowering.LoweringForms")),
+            // the edition's product form, no row and no stamp (the edition program's step 2, 2026-11-25; the planner's
+            // LiteEdition since 2026-11-26, with the kind)
+            Map.entry("com.legend.planner.LiteEdition", Set.of("com.legend.planner.Edition")),
             Map.entry("com.legend.testdatagen.LitePrinting", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")),
             // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18); census J29 (train 14's
             // 21a9734475) renamed it LiteVerdictWords, of the VerdictWords kind (re-measured 2026-11-18 on 1931d419b1)
@@ -126,11 +132,13 @@ class HookLambdasTest {
             // 59719a0153's train, train 11; HookRulingTest pins the kind; measured 2026-11-18)
             Map.entry("com.legend.sql.dialect.ProductDatabaseSettings", Set.of("com.legend.sql.dialect.DatabaseSettingsForm")),
             // the run's forms' product forms (J36 of the edge audit, 2026-11-18, RUN_FORMS): a cell's, S312's dates and a
-            // structure's JSON (CellText.PRODUCT); lite's host judge, two number kinds never equal (S127); lite's
+            // structure's JSON (CellText.PRODUCT); lite's host forms, a Float exact and a caught error's own words (its S127
+            // number-kind rule went to the judge itself 2026-11-24, B3 step 1a); lite's
             // rendered-text rule, two strings that differ never held
             Map.entry("com.legend.result.CellText$1", Set.of("com.legend.result.CellText$Forms")),
             Map.entry("com.legend.testexec.LiteHostForms", Set.of("com.legend.testexec.HostForms")),
-            Map.entry("com.legend.testexec.LiteRenderedTexts", Set.of("com.legend.testexec.RenderedTexts")),
+            // (LiteRenderedTexts, lite's rendered-text rule: deleted with its kind 2026-11-24, B3 step 2b -- the two texts
+            // are the verdict on every route, a printed side read and printed before the body, edge.UpstreamPrints)
             // (D's train 4's three product forms -- a rendered golden's null word, a date literal's message text, the
             // rendered-text rule -- deleted with their kinds: A4 of the compatibility program, stage A ratified by the
             // user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
@@ -167,11 +175,11 @@ class HookLambdasTest {
                     Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
             // (PlanAllocations$1#engines(): gone 2026-11-18, J40.PlanStyle -- the activity's upstream text is the edge's
             // form of the two-form ActivityTexts, which asks its own facet)
-            // the Lowerer's relation-text and result-envelope facets, each asked with its call's refusal (B8)
+            // the Lowerer's result-envelope facet, asked with its call's refusal (B8; the relation-text facet gone
+            // 2026-11-25, stage B's B2b S5c, a shrink)
             Map.entry("com.legend.planner.PlanEnv#configure(com.legend.lowering.Lowerer)",
-                    Set.of("(facet reaches 2)", "com.legend.lowering.RelationTexts",
-                            "com.legend.lowering.ResultEnvelopes")),
-            // the lowering helpers' Pure-only texts, asked with its call's refusal (B8); the three kinds beside it are
+                    Set.of("(facet reaches 1)", "com.legend.lowering.ResultEnvelopes")),
+            // the lowering helpers' Pure-only texts, asked with its call's refusal (B8); the kinds beside it are
             // twoForm's, named in the same method
             Map.entry("com.legend.planner.PlanEnv#styled()",
                     Set.of("(facet reaches 1)", "com.legend.lowering.DateTimeTexts", "com.legend.lowering.ListTexts",
@@ -256,7 +264,7 @@ class HookLambdasTest {
      *  host judge's behaviours and the rendered-text rule. Each is a hook type here, so its product implementers are
      *  pinned in {@link #CLASS_HOOKS} and a product lambda of one would be {@link #LAMBDA_HOOKS}'s. */
     static final List<Class<?>> RUN_FORMS = List.of(com.legend.result.CellText.Forms.class,
-            com.legend.testexec.HostForms.class, com.legend.testexec.RenderedTexts.class);
+            com.legend.testexec.HostForms.class);   // (RenderedTexts: deleted 2026-11-24, B3 step 2b)
 
     /** The hook types: the ruled hooks, the facet kinds, the two-form kinds, the run's forms, the plan style. */
     static Set<String> hookTypes() {
@@ -494,7 +502,7 @@ class HookLambdasTest {
         assertEquals(Map.of(f + "#plans(com.legend.database.PlanStyle)", Set.of("com.legend.planner.UpstreamPlans",
                         "(facet reaches 1)"),
                 f + "#both(com.legend.database.PlanStyle)", Set.of("com.legend.lowering.PureOnlyTexts",
-                        "com.legend.lowering.RelationTexts", "(facet reaches 2)"),
+                        "com.legend.lowering.ResultEnvelopes", "(facet reaches 2)"),
                 f + "#byReference(com.legend.database.PlanStyle)", Set.of("(facet reaches 1)")),
                 facetCallers(facets), "a facet's asks are read: a call of either overload and a reference");
         assertEquals(Map.of(f + "#plans(com.legend.database.PlanStyle)", "com.legend.planner.UpstreamPlans",
@@ -556,9 +564,11 @@ class HookLambdasTest {
             return style.facet(com.legend.planner.UpstreamPlans.class);
         }
 
+        // (its second facet ResultEnvelopes since 2026-11-25, stage B's B2b S5c: RelationTexts, the one it asked
+        // before, was deleted; the planted reach is the same, two facets with a refusal's overload)
         static Object both(PlanStyle style) {
             return List.of(style.facet(com.legend.lowering.PureOnlyTexts.class),
-                    style.facet(com.legend.lowering.RelationTexts.class, IllegalStateException::new));
+                    style.facet(com.legend.lowering.ResultEnvelopes.class, IllegalStateException::new));
         }
 
         static java.util.function.Function<Class<com.legend.lowering.ResultEnvelopes>,

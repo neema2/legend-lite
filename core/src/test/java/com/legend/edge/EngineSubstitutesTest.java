@@ -7,16 +7,8 @@ import com.legend.Compiler;
 import com.legend.TypedQuery;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
-import com.legend.compiler.element.TypedFunction;
-import com.legend.compiler.element.type.ExprType;
-import com.legend.compiler.element.type.Multiplicity;
-import com.legend.compiler.element.type.Type;
-import com.legend.compiler.spec.InferenceKernel;
-import com.legend.compiler.spec.typed.TypedNativeCall;
-import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.FunctionId;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -35,27 +27,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE DATABASE'S OWN SUBSTRING OVER THE ARGUMENTS AS GIVEN (A3 of the compatibility program, 2026-11-19; the native
- * {@code meta::legend::lite::substringAsGiven}, {@code SqlFn.SUBSTRING_AS_GIVEN}, and the {@code engine} rewrite's
- * substitute, {@link EngineSubstitutes}). Four claims, each with its partner:
+ * THE DATABASE'S OWN SUBSTRING OVER THE ARGUMENTS AS GIVEN (A3 of the compatibility program, 2026-11-19; the lowering's
+ * rule {@code NamedRule.SUBSTRING_AS_GIVEN}, {@code SqlFn.SUBSTRING_AS_GIVEN}, which legend-engine's door's edition
+ * table names for a store-bound {@code substring}: {@link EngineTable}; where the table lands is
+ * {@code EngineTablePlacementTest}'s). Three claims, each with its partner:
  * <ul>
- *   <li>each substitute ({@code substring} to {@code substringAsGiven}, the 2-argument String {@code indexOf} to
- *       {@code sqlPosition}) is the registry's function for its native's id, typed by the typer; each planted wrong
- *       callee or type is refused, and so is a call no substitute stands for (D-S2 of the design's review);</li>
  *   <li>every relational dialect writes it as its plain call: no {@code GREATEST(..., 1)} and no raised literal start,
  *       where the same arguments under {@code SUBSTRING} are clamped; MongoDB, which has no SUBSTRING of its own,
  *       refuses it by name;</li>
- *   <li>on the two databases the {@code engine} setting is measured on (H2, DuckDB), its answer to each of the
+ *   <li>on the two databases legend-engine's answer is checked on (H2, DuckDB), the door's answer to each of the
  *       batteries' {@code substring} rows ({@code tools/engine-runner/src/test/resources/batteries/
  *       substring_indexof.tsv}, {@code col.s01}-{@code s18} and {@code lit.s01}-{@code s18}) is the database's own
  *       SUBSTRING's, run directly as legend-engine writes it;</li>
@@ -119,53 +107,49 @@ class EngineSubstitutesTest {
         return String.format(STORE, connectionBody);
     }
 
-    private static boolean isPureSubstring(TypedSpec n) {
-        return n instanceof TypedNativeCall c && Pure.AT_STRING_SUBSTRING.contains(c.callee().id());
-    }
-
-    /** {@code body} with each node {@code pick} accepts replaced by {@code by}'s answer, by identity, bottom-up. */
-    private static List<TypedSpec> replace(List<TypedSpec> body, java.util.function.Predicate<TypedSpec> pick,
-            UnaryOperator<TypedSpec> by) {
-        List<TypedSpec> out = new ArrayList<>(body.size());
-        for (TypedSpec s : body) {
-            out.add(replace(s, pick, by));
+    /** The product's style handed legend-engine's edition: the product's own dialects and session settings (the
+     *  backends' sessions are the product's), every store-bound {@code substring} lowered by the table's row. */
+    private static final com.legend.database.PlanStyle PRODUCT_WITH_THE_TABLE = new com.legend.database.PlanStyle() {
+        @Override
+        public com.legend.sql.dialect.SqlDialect dialect(DatabaseType type) {
+            return com.legend.database.PlanStyle.PRODUCT.dialect(type);
         }
-        return out;
-    }
 
-    private static TypedSpec replace(TypedSpec n, java.util.function.Predicate<TypedSpec> pick,
-            UnaryOperator<TypedSpec> by) {
-        List<TypedSpec> kids = n.children();
-        List<TypedSpec> next = new ArrayList<>(kids.size());
-        boolean changed = false;
-        for (TypedSpec k : kids) {
-            TypedSpec r = replace(k, pick, by);
-            changed |= r != k;
-            next.add(r);
+        @Override
+        public TraceCell traceCell() {
+            return com.legend.database.PlanStyle.PRODUCT.traceCell();
         }
-        TypedSpec self = changed ? n.withChildren(next) : n;
-        return pick.test(self) ? by.apply(self) : self;
-    }
 
-    private static int count(List<TypedSpec> body, java.util.function.Predicate<TypedSpec> pick) {
-        int[] n = {0};
-        replace(body, pick, s -> {
-            n[0]++;
-            return s;
-        });
-        return n[0];
-    }
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return kind == com.legend.planner.Edition.class ? kind.cast(EngineTable.DOOR) : productForm;
+        }
 
-    /** {@code query} typed over {@code model}, each Pure {@code substring} in it the engine rewrite's substitute. */
-    private static TypedQuery asGiven(String model, String query) {
-        ModelContext ctx = Compiler.compileModel(model);
-        TypedQuery q = Compiler.query(ctx, query);
-        List<TypedSpec> body = replace(q.body(), EngineSubstitutesTest::isPureSubstring,
-                s -> EngineSubstitutes.substring(ctx, (TypedNativeCall) s));
-        assertTrue(count(q.body(), EngineSubstitutesTest::isPureSubstring) > 0, "the query holds a substring");
-        assertEquals(0, count(body, EngineSubstitutesTest::isPureSubstring), "every substring is substituted");
-        return q.withBody(body);
-    }
+        @Override
+        public String graphKeyDate(String written) {
+            return com.legend.database.PlanStyle.PRODUCT.graphKeyDate(written);
+        }
+
+        @Override
+        public String graphKeyString(String value) {
+            return com.legend.database.PlanStyle.PRODUCT.graphKeyString(value);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind) {
+            return com.legend.database.PlanStyle.PRODUCT.facet(kind);
+        }
+
+        @Override
+        public boolean judgesEngineText() {
+            return com.legend.database.PlanStyle.PRODUCT.judgesEngineText();
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            return com.legend.database.PlanStyle.PRODUCT.facet(kind, refusal);
+        }
+    };
 
     private static String query(String subject, String args) {
         return "|" + TABLE + "->extend(~x: r|" + subject + "->substring(" + args.replace("$", subject) + "))"
@@ -173,111 +157,6 @@ class EngineSubstitutesTest {
     }
 
     private static final String COLUMN = "$r.DESK->toOne()";
-
-    // ---- the substitute, typed as the typer types it (D-S2) --------------------------------------------------------
-
-    @Test
-    void theSubstituteIsTheRegistrysFunctionForEachArity_itsArgumentsAndTypeTheOriginals() {
-        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        TypedQuery q = Compiler.query(ctx, "|" + TABLE + "->extend(~[a: r|" + COLUMN + "->substring(1, 3), b: r|"
-                + COLUMN + "->substring(2)])->from(t::RT)");
-        List<TypedNativeCall> seen = new ArrayList<>();
-        replace(q.body(), EngineSubstitutesTest::isPureSubstring, s -> {
-            seen.add((TypedNativeCall) s);
-            return s;
-        });
-        assertEquals(2, seen.size(), seen.toString());
-        for (TypedNativeCall original : seen) {
-            TypedNativeCall sub = EngineSubstitutes.substring(ctx, original);
-            FunctionId expected = FunctionId.of(original.args().size() == 3
-                    ? Pure.SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1
-                    : Pure.SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1);
-            assertEquals(expected, sub.callee().id());
-            assertEquals(ctx.findFunctionById(expected.qualified()), List.of(sub.callee()),
-                    "the callee is the registry's function for the id, not a copy");
-            assertEquals(original.args(), sub.args());
-            assertEquals(original.info(), sub.info());
-            assertSame(original.pos(), sub.pos());
-        }
-    }
-
-    @Test
-    void aPlantedWrongCalleeOrTypeIsRefused_eachWay() {
-        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        TypedQuery q = Compiler.query(ctx, "|" + TABLE + "->extend(~a: r|" + COLUMN + "->substring(1, 3))"
-                + "->from(t::RT)");
-        TypedNativeCall[] original = new TypedNativeCall[1];
-        replace(q.body(), EngineSubstitutesTest::isPureSubstring, s -> {
-            original[0] = (TypedNativeCall) s;
-            return s;
-        });
-        TypedNativeCall good = EngineSubstitutes.substring(ctx, original[0]);
-        assertSame(good, EngineSubstitutes.checked(ctx, good, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN), "the registry's own passes");
-        TypedFunction right = good.callee();
-
-        // the other arity's overload
-        TypedFunction twoArgument = ctx.findFunctionById(
-                FunctionId.of(Pure.SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1).qualified()).get(0);
-        // piece 1's clamped native, over the same arguments
-        TypedFunction sqlSubstring = new InferenceKernel(ctx).resolveOverload(ctx.findFunction(Pure.Lite.SQL_SUBSTRING),
-                good.args().stream().map(TypedSpec::info).toList()).chosen();
-        // a hand-assembled signature carrying the right id and definition, its return type wrong
-        TypedFunction handMade = new TypedFunction(right.qualifiedName(), right.typeParameters(),
-                right.multiplicityParameters(), right.parameters(), Type.Primitive.INTEGER, right.returnMultiplicity(),
-                right.body(), right.isNative(), right.definition(), right.id());
-        for (TypedFunction wrong : List.of(twoArgument, sqlSubstring, handMade, original[0].callee())) {
-            TypedNativeCall planted = new TypedNativeCall(wrong, good.args(), good.info(), good.pos());
-            IllegalStateException e = assertThrows(IllegalStateException.class,
-                    () -> EngineSubstitutes.checked(ctx, planted, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN), wrong.qualifiedName());
-            assertTrue(e.getMessage().contains("not the registry's"), e.getMessage());
-        }
-        // the right callee, a hand-made type
-        TypedNativeCall wrongType = new TypedNativeCall(right, good.args(),
-                new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ZERO_ONE), good.pos());
-        IllegalStateException e = assertThrows(IllegalStateException.class,
-                () -> EngineSubstitutes.checked(ctx, wrongType, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN));
-        assertTrue(e.getMessage().contains("is typed"), e.getMessage());
-    }
-
-    @Test
-    void theIndexOfSubstituteIsSqlPosition_andACallNoSubstituteStandsForIsRefused() {
-        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        TypedQuery q = Compiler.query(ctx, "|" + TABLE + "->extend(~[a: r|" + COLUMN + "->indexOf('e'), b: r|"
-                + COLUMN + "->indexOf('e', 2), c: r|" + COLUMN + "->substring(1)])->from(t::RT)");
-        List<TypedNativeCall> indexOfs = new ArrayList<>();
-        List<TypedNativeCall> substrings = new ArrayList<>();
-        replace(q.body(), n -> n instanceof TypedNativeCall, s -> {
-            TypedNativeCall c = (TypedNativeCall) s;
-            if (Pure.AT_STRING_INDEX_OF.contains(c.callee().id())) {
-                indexOfs.add(c);
-            } else if (Pure.AT_STRING_SUBSTRING.contains(c.callee().id())) {
-                substrings.add(c);
-            }
-            return s;
-        });
-        assertEquals(2, indexOfs.size(), indexOfs.toString());
-        assertEquals(1, substrings.size(), substrings.toString());
-        TypedNativeCall two = indexOfs.stream().filter(c -> c.args().size() == 2).findFirst().orElseThrow();
-        TypedNativeCall three = indexOfs.stream().filter(c -> c.args().size() == 3).findFirst().orElseThrow();
-        TypedNativeCall sub = EngineSubstitutes.indexOf(ctx, two);
-        FunctionId position = FunctionId.of(Pure.SQL_POSITION__STRING_1__STRING_1);
-        assertEquals(position, sub.callee().id());
-        assertEquals(ctx.findFunctionById(position.qualified()), List.of(sub.callee()));
-        assertEquals(two.args(), sub.args());
-        assertEquals(two.info(), sub.info());
-        assertSame(two.pos(), sub.pos());
-        // the substitute holds to its own native's ids, not the other's
-        assertSame(sub, EngineSubstitutes.checked(ctx, sub, Pure.AT_LEGEND_LITE_SQL_POSITION));
-        assertThrows(RuntimeException.class,
-                () -> EngineSubstitutes.checked(ctx, sub, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN));
-        // the 3-argument indexOf has no substitute; neither entry takes the other's call
-        for (Runnable wrong : List.<Runnable>of(() -> EngineSubstitutes.indexOf(ctx, three),
-                () -> EngineSubstitutes.indexOf(ctx, substrings.get(0)),
-                () -> EngineSubstitutes.substring(ctx, two))) {
-            IllegalStateException e = assertThrows(IllegalStateException.class, wrong::run);
-            assertTrue(e.getMessage().contains("substitutes"), e.getMessage());
-        }
-    }
 
     // ---- each dialect's SQL: the plain call ------------------------------------------------------------------------
 
@@ -363,7 +242,8 @@ class EngineSubstitutesTest {
                     for (boolean literal : new boolean[] {false, true}) {
                         String subject = literal ? "'Credit'" : COLUMN;
                         String sqlSubject = literal ? "'Credit'" : "DESK";
-                        Lean.Result lite = Lean.run(asGiven(m, query(subject, row.pure())), "t::RT", c);
+                        Lean.Result lite = Lean.runInStyle(m, query(subject, row.pure()), "t::RT", c,
+                                PRODUCT_WITH_THE_TABLE);
                         List<String> liteAnswers = new ArrayList<>();
                         for (List<Object> r : lite.rows()) {
                             liteAnswers.add(r.get(1) == null ? null : r.get(1).toString());
@@ -389,93 +269,33 @@ class EngineSubstitutesTest {
 
     // ---- substr and the corrected substring: substrAsGiven (A3, 2026-11-20; the user's word ~07:45, "Okay 1") -------
 
-    /** substr's substitute, and the corrected substring's, is substrAsGiven's overload for the arity: the registry's
-     *  function, the call's own arguments, type and position. */
-    @Test
-    void theSubstrSubstituteIsSubstrAsGiven_forEachArity_andForTheCorrectedSubstring() {
-        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        TypedQuery q = Compiler.query(ctx, "|" + TABLE + "->extend(~[a: r|" + COLUMN + "->substr(1, 3), b: r|"
-                + COLUMN + "->substr(2), c: r|" + COLUMN + "->substring(1, 3)])->from(t::RT)");
-        List<TypedNativeCall> seen = new ArrayList<>();
-        replace(q.body(), n -> n instanceof TypedNativeCall c && (Pure.AT_STRING_SUBSTR.contains(c.callee().id())
-                || Pure.AT_STRING_SUBSTRING.contains(c.callee().id())), s -> {
-            seen.add((TypedNativeCall) s);
-            return s;
-        });
-        assertEquals(3, seen.size(), seen.toString());
-        for (TypedNativeCall original : seen) {
-            TypedNativeCall sub = EngineSubstitutes.substr(ctx, original);
-            FunctionId expected = FunctionId.of(original.args().size() == 3
-                    ? Pure.SUBSTR_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1
-                    : Pure.SUBSTR_AS_GIVEN__STRING_1__INTEGER_1);
-            assertEquals(expected, sub.callee().id());
-            assertEquals(ctx.findFunctionById(expected.qualified()), List.of(sub.callee()),
-                    "the callee is the registry's function for the id, not a copy");
-            assertEquals(original.args(), sub.args());
-            assertEquals(original.info(), sub.info());
-            assertSame(original.pos(), sub.pos());
-            // the two natives are not one another's: checked() holds each to its own ids
-            IllegalStateException e = assertThrows(IllegalStateException.class,
-                    () -> EngineSubstitutes.checked(ctx, sub, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN));
-            assertTrue(e.getMessage().contains("not the registry's"), e.getMessage());
-        }
-    }
-
     /** substrAsGiven's one lowering rule: SUBSTRING_AS_GIVEN over start + 1 and end - start as SQL arithmetic the
      *  database computes, a literal index included (no fold in Java), and no clamp or range check. */
     @Test
     void substrAsGivenLowersToTheDatabasesSubstringOverSqlArithmetic_noFoldNoClampNoCheck() {
         ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
         TypedQuery q = Compiler.query(ctx, "|" + TABLE + "->extend(~a: r|" + COLUMN + "->substr(1, 3))->from(t::RT)");
-        List<TypedSpec> body = replace(q.body(), n -> n instanceof TypedNativeCall c
-                && Pure.AT_STRING_SUBSTR.contains(c.callee().id()), s -> EngineSubstitutes.substr(ctx, (TypedNativeCall) s));
-        String sql = q.withBody(body).plan("t::RT", com.legend.edge.PureText.PURE_V1).sql()
-                .toLowerCase(java.util.Locale.ROOT);
+        String sql = q.plan("t::RT", com.legend.edge.PureText.PURE_V1).sql().toLowerCase(java.util.Locale.ROOT);
         assertTrue(sql.matches("(?s).*substr(ing)?\\(\"?[a-z0-9_]*\"?\\.?desk, \\(?1 \\+ 1\\)?, \\(?3 - 1\\)?\\).*"), sql);
         assertFalse(sql.contains("case"), sql);
     }
 
-    @Test
-    void substrAsGivenIsInternal_andAUserCannotNameItByAnyName() {
-        assertTrue(Pure.INTERNAL_DESUGAR.contains("substrAsGiven"), Pure.INTERNAL_DESUGAR.toString());
-        assertFalse(Pure.userResolvableFunctionFqns().contains(Pure.Lite.SUBSTR_AS_GIVEN));
-        assertEquals(2, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN.size());
-        assertTrue(Pure.COMPILER_OWN.contains(Pure.Lite.SUBSTR_AS_GIVEN), Pure.COMPILER_OWN.toString());
-        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        for (String query : List.of("|" + Pure.Lite.SUBSTR_AS_GIVEN + "('abc', 1, 2)",
-                "|" + Pure.Lite.SUBSTR_AS_GIVEN + "('abc', 1)",
-                "|" + com.legend.model.SignatureMangle.mangle(Pure.SUBSTR_AS_GIVEN__STRING_1__INTEGER_1) + "('abc', 1)",
-                "|" + Pure.Lite.SUBSTR_AS_GIVEN + "->eval('abc', 1)")) {
-            com.legend.error.LegendCompileException e = assertThrows(com.legend.error.LegendCompileException.class,
-                    () -> Compiler.query(ctx, query), query);
-            assertTrue(e.getMessage().contains("'" + Pure.Lite.SUBSTR_AS_GIVEN + "' is the compiler's own"),
-                    e.getMessage());
-        }
-    }
-
     // ---- the census ------------------------------------------------------------------------------------------------
 
+    /** The two substitutes are rules the door's table names ({@code lowering.NamedRule}), no functions of the language
+     *  (natives the compiler alone could write until 2026-11-26): nothing a program writes names one. */
     @Test
-    void theNativeIsInternal_andAUserCannotNameItByAnyName() {
-        assertTrue(Pure.INTERNAL_DESUGAR.contains("substringAsGiven"), Pure.INTERNAL_DESUGAR.toString());
-        assertFalse(Pure.userResolvableFunctionFqns().contains(Pure.Lite.SUBSTRING_AS_GIVEN));
-        assertEquals(2, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN.size());
-        assertTrue(Pure.COMPILER_OWN.contains(Pure.Lite.SUBSTRING_AS_GIVEN), Pure.COMPILER_OWN.toString());
-        // a user's program cannot name it: by its full name, by an overload's id, or under eval (the compiler's own
-        // natives' refusal, compiler.NameResolver); a bare name is none of the user's
+    void theSubstitutesAreNoFunctionsOfTheLanguage() {
         ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
-        for (String query : List.of("|" + Pure.Lite.SUBSTRING_AS_GIVEN + "('abc', 1, 2)",
-                "|" + Pure.Lite.SUBSTRING_AS_GIVEN + "('abc', 1)",
-                "|" + com.legend.model.SignatureMangle.mangle(Pure.SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1) + "('abc', 1)",
-                "|" + Pure.Lite.SUBSTRING_AS_GIVEN + "->eval('abc', 1)")) {
-            com.legend.error.LegendCompileException e = assertThrows(com.legend.error.LegendCompileException.class,
-                    () -> Compiler.query(ctx, query), query);
-            assertTrue(e.getMessage().contains("'" + Pure.Lite.SUBSTRING_AS_GIVEN + "' is the compiler's own"),
-                    e.getMessage());
+        for (String name : List.of("substringAsGiven", "substrAsGiven")) {
+            assertFalse(Pure.INTERNAL_DESUGAR.contains(name), Pure.INTERNAL_DESUGAR.toString());
+            assertFalse(Pure.userResolvableFunctionFqns().contains(Pure.Lite.PKG + name), name);
+            assertFalse(Pure.COMPILER_OWN.contains(Pure.Lite.PKG + name), Pure.COMPILER_OWN.toString());
+            for (String query : List.of("|'abc'->" + name + "(1, 2)", "|" + Pure.Lite.PKG + name + "('abc', 1, 2)")) {
+                RuntimeException unknown = assertThrows(RuntimeException.class,
+                        () -> Compiler.query(ctx, query).body(), query);
+                assertTrue(unknown.getMessage().contains(name), unknown.getMessage());
+            }
         }
-        // a bare name is none of the user's: an unknown function, found when the query is typed (its body read)
-        com.legend.error.TypeInferenceException bare = assertThrows(com.legend.error.TypeInferenceException.class,
-                () -> Compiler.query(ctx, "|'abc'->substringAsGiven(1, 2)").body());
-        assertTrue(bare.getMessage().contains("unknown function 'substringAsGiven'"), bare.getMessage());
     }
 }

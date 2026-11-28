@@ -19,10 +19,10 @@ import java.util.List;
 
 /**
  * A RELATION'S ROWS, THE PRODUCT'S HELPERS: the typed rows' shape ({@link #typedRows}), a select's order carried outside it
- * ({@link #liftOrder}), a write's count, a pivot's generated column name and the presented outputs. A relation's TEXT --
- * {@code toCSV}, a TDS's {@code csv}, a relation's {@code toString} -- is legend-pure's, the compatibility edge's
- * ({@code edge.RelationTextLowering}, through the plan style's {@link RelationTexts} facet; the separation census's B17,
- * 2026-11-17: it was composed here until then).
+ * ({@link #liftOrder}), a write's count, a pivot's generated column name and the presented outputs. A relation's
+ * {@code toString} and {@code toCSV} are lite's own texts ({@code ProductRelationText}, B2b S5a and S5b), and a TDS's
+ * {@code csv} is lite's CSV as {@code toCSV(t)} writes it (the user's ruling of 2026-11-25, S405; refused by name from
+ * B2b S5c until then; the edge composed legend-engine's text from the separation census's B17, 2026-11-17).
  */
 public final class Render {
 

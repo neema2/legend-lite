@@ -3,24 +3,21 @@
 
 package com.legend.testexec;
 
-
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * HOST MODE — the one judge (docs/JUDGING_TWO_MODES_2026_09_17.md §2, step 2).
  *
  * <p>One class decides every equality the host answers. It receives values
  * PAIRED WITH THEIR DECLARED KIND ({@link Typed}) and answers the engine's
- * own rules, literally: same kind, then equal by value — Integer exact,
- * Decimal by the engine's scale-sensitive equals, Float exact with ONE declared leniency (two
- * units in the last place of the larger magnitude, Double × Double, finite,
- * COUNTED every time it fires), String / Boolean / dates exact; collections
+ * rules: same kind, then equal by value — Integer exact, Decimal by value
+ * (S139), Float exact (the edge's 2-ULP tolerance, S15, asked of the run hook
+ * until B3 step 1b), String / Boolean exact, dates by kind and instant (S399);
+ * one rulebook on every route since B3 step 1a (2026-11-24); collections
  * ordered or as a multiset as the assertion says (the engine's
  * {@code assertSameElements} = sort, then ordered); class instances and maps
  * structurally through the same leaf; the two JSON comparators the engine
@@ -166,12 +163,13 @@ public final class Equality {
                     + a.getClass().getSimpleName());
         }
         if (ek != ak) {
-            // Rule 3 (register S127, the user's ruling of 2026-11-04: "the principled fix for the product, then compiled
-            // for backwards compatible"): a different kind is never equal in lite's own runs -- the type is part of the
-            // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
-            // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
-            // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
-            return rules.forms().equalAcrossNumberKinds(ek, ak, e, a);
+            // Rule 3 (register S127): a different kind is never equal -- the type is part of the value (1 == 1.0 and
+            // 1.5 == 1.5D false) -- but for two EXACT numbers, an Integer and a Decimal, which are equal by their value
+            // (the user's ruling of 2026-11-27, "Yes I like the rule": exact with exact by value, a Float only with a
+            // Float; until then, by the ruling of 2026-11-04, 1D == 1 was false too). On every route
+            return rules.forms().exactNumbersByValue() && ek != Kind.FLOAT && ak != Kind.FLOAT && isNumericKind(ek)
+                    && isNumericKind(ak) && e instanceof Number en && a instanceof Number an
+                    && decimal(en).compareTo(decimal(an)) == 0;
         }
         if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -180,21 +178,12 @@ public final class Equality {
             return toBigInteger(e).equals(toBigInteger(a));
         }
         if (ek == Kind.DECIMAL) {
-            // the engine's assert seam: getValue().equals — SCALE-SENSITIVE
-            // (VERDICT_RULE_AUDIT X2; the equality-worlds fixture pins
-            // 3.0D ≠ 3.00D in World 1, while SQL '=' is scale-blind)
             if (!(e instanceof Number en && a instanceof Number an)) {
                 return false;
             }
-            // the run hook's form (train 17, 2026-11-18): lite's by value (register S139, the user's ruling of
-            // 2026-11-05), as `==` does in the database; the edge's scale-sensitive, compiled legend-pure's
-            boolean eq = rules.forms().equalDecimals(decimal(en), decimal(an));
-            if (!eq && decimal(en).compareTo(decimal(an)) == 0) {
-                // leg 3.0 census: the pair differs by SCALE only — the
-                // witness set for the canon spec's Decimal amendment
-                CanonicalDivergence.decimalScaleOnly();
-            }
-            return eq;
+            // by value (register S139, the user's ruling of 2026-11-05), as `==` does in the database, on every route:
+            // B3's one rulebook (2026-11-24) deleted the edge's scale-sensitive rule, which moved no test
+            return decimal(en).compareTo(decimal(an)) == 0;
         }
         if (ek == Kind.FLOAT) {
             if (!(e instanceof Number en && a instanceof Number an)) {
@@ -207,9 +196,10 @@ public final class Equality {
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return true;   // the carriers agree exactly (digits kept)
             }
-            // two Floats whose values differ: the run hook's form (train 17, 2026-11-18) -- lite's exact (S15/S132, the
-            // user's ruling of 2026-11-05: "I like our clean float"), the edge's compiled legend-pure 2 ULP
-            return e instanceof Double de && a instanceof Double da && rules.forms().equalFloatsApart(de, da);
+            // two Floats whose values differ are never equal, on every route (S15, the user's ruling of 2026-11-05: "I like
+            // our clean float"; the compatibility routes' 2-ULP tolerance deleted 2026-11-24, B3 step 1b: legend-engine
+            // compares exactly, and the two tests it carried were a lite bug, a DuckDB literal cast one ULP low, fixed)
+            return false;
         }
         if (ek == Kind.STRING) {
             // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,
@@ -221,7 +211,7 @@ public final class Equality {
         if (ek == Kind.BOOLEAN) {
             return e.equals(a);
         }
-        return rules.forms().equalDates(e, a);   // dates: the run hook's form (register S399)
+        return LiteHostForms.STRICT.equalDates(e, a);   // dates by kind and instant (register S399), on every route
     }
 
     private static boolean structural(Object e, Object a, HostRules rules) {
@@ -250,7 +240,7 @@ public final class Equality {
      *  their text (the instances design's HIGH, 2026-11-22: two instances whose fields are one value written two ways,
      *  {@code 1.5D} and {@code 1.50D}, sorted apart by their text and failed a pair the database judge holds). */
     public static boolean sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
-        List<Typed> es = sorted(e), as = sorted(a);
+        List<Typed> es = sorted(e, rules), as = sorted(a, rules);
         int k = (int) es.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count();
         return e.size() == a.size() && k == as.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count()
                 && ordered(es.subList(0, k), as.subList(0, k), rules)
@@ -298,10 +288,20 @@ public final class Equality {
         return rows;
     }
 
-    static List<Typed> sorted(List<Typed> values) {
+    static List<Typed> sorted(List<Typed> values, HostRules rules) {
         List<Typed> out = new ArrayList<>(values);
+        // equal values of two families (3 and 3.0) in one place on both sides, whatever order each was written in: the
+        // family breaks the tie, an exact number before a Float (two lists are matched element by element after this
+        // sort, and 3 is not 3.0; an Integer and a Decimal of one value are equal, so either order of the two matches)
+        // lite's rule alone (the user's ruling for slice 6.2: lite's in lite's mode, upstream's at the other two): at
+        // a compatibility door a tie stays as each side wrote it, the stable sort legend-pure's assertSameElements
+        // has, so [3, 3.0] against [3.0, 3] fails there as it does upstream (the outside audit of 2026-11-27, HIGH:
+        // the tie-break had been applied whatever the forms)
         out.sort(java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
-                .thenComparing(t -> withinRank(t.value())));
+                .thenComparing(t -> withinRank(t.value()))
+                .thenComparingInt(t -> !rules.forms().exactNumbersByValue() ? 0 : java.util.Optional.ofNullable(
+                        effectiveKind(t)).map(k -> k == Kind.DECIMAL ? Kind.INTEGER.ordinal() : k.ordinal())
+                        .orElse(-1)));
         return out;
     }
 

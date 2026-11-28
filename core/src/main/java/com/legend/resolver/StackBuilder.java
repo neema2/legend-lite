@@ -726,6 +726,8 @@ final class StackBuilder {
                             && in.source() instanceof TypedVariable rv2 && rv2.name().equals(rowVar);
             case TypedNativeCall f -> f.args().stream().allMatch(x -> projectable(x, rowVar));
             case TypedCast c -> projectable(c.source(), rowVar);
+            // (a comparison kept for its call: as the call it holds)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison kept -> projectable(kept.comparison(), rowVar);
             case TypedIf i -> projectable(i.condition(), rowVar) && projectable(i.thenBranch(), rowVar)
                     && i.elseBranch().map(e -> projectable(e, rowVar)).orElse(true);
             case TypedCollection c -> c.elements().stream().allMatch(x -> projectable(x, rowVar));
@@ -1719,7 +1721,7 @@ final class StackBuilder {
         }
         List<TypedSpec> erased = kids.stream().map(c -> erase(c, tVar, sVar)).toList();
         if (n instanceof TypedNativeCall nc) {
-            return new TypedNativeCall(nc.callee(), erased, nc.info(), null);
+            return new TypedNativeCall(nc.callee(), erased, nc.info(), null, nc.outsideStore());
         }
         return n.withChildren(erased);
     }

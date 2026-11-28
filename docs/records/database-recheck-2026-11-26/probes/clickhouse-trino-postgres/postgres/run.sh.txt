@@ -1,0 +1,2 @@
+#!/bin/bash
+/root/.cache/bazel/_bazel_root/e8817d619d2dbe75028d8b0114f08e2c/execroot/_main/external/rules_java++toolchains+remotejdk25_linux/bin/java -cp /tmp/claude-0/-home-user-legend-lite/37e604d0-f16d-5c80-a65e-84a7c2121e8e/scratchpad/pgtool/out:$(cat /tmp/claude-0/-home-user-legend-lite/37e604d0-f16d-5c80-a65e-84a7c2121e8e/scratchpad/pgtool/cp) Q jdbc:postgresql://127.0.0.1:15432/postgres "$1" 2>&1 | grep -v _JAVA

@@ -7,12 +7,14 @@ legend_java_library(
     name = "edgenet",
     testonly = True,
     srcs = [
+        "CorpusOverlay.java",
         "EdgeNormalize.java",
         "PlatformOverlay.java",
     ],
     # the PCT module's recordings, normalized at build time (pct/BUILD.bazel); and the normalizer's planted changes,
     # tested from //tools/guards (the review of PR #123, 2026-11-19)
-    visibility = ["//pct:__pkg__", "//tools/guards:__pkg__"],
+    # and the corpus's diff tests, through the corpus's platform overlays (spec/corpus.bzl, CorpusOverlay; 2026-11-26)
+    visibility = ["//pct:__pkg__", "//spec:__pkg__", "//tools/guards:__pkg__"],
 )
 
 guards_package()

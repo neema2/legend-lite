@@ -154,6 +154,37 @@ class WriterCarriageGuardTest {
             // -- BigDecimal.valueOf -- and of a Decimal), in place of its plain digits. 2026-11-21 (the BE audit 3's S3):
             // that whole part is a Decimal's intValue, as upstream's CoreHelper.newDate takes it (a Double's is Java's
             // narrowing, no operation listed here) -- BigDecimal.valueOf and toBigInteger gone
+            // added 2026-11-24 (stage B's B2, B2b S1: legend-pure's text of a relation written in Java from typed rows at
+            // the edge, the plan of record's B2 and the user's ruling of 2026-11-19 ~18:12, "Yes record it"): the
+            // representation operations legend-pure's own printing performs, each read from the pinned sources -- a
+            // date's own carried precision, its day or its time of day (s.pure's toString: atLeast; toCSV's hasHour is
+            // read from the value's own kind); the escaping of a text by what the text holds (s.pure quotes a String
+            // holding a brace or a bracket, helperFunctions.pure's escapeCSVString one holding a comma, a quote, a line
+            // feed or a carriage return: contains), and a column name already quoted (toString.pure:28: startsWith); a
+            // Float column's cell read as the double the column declares, whatever kind the database held it in (an
+            // integer, a decimal an aggregate collapsed to: doubleValue, as the edge's SQL cast it to DOUBLE and
+            // legend-engine's TDS reads it), and a Number column's decimal as the Float it prints as. 2026-11-24, the
+            // independent review of S1: the Float print became legend-pure's own (CompiledSupport's
+            // DecimalFormat("0.0")), and an integer under a Float is the double, not the exact decimal (new BigDecimal
+            // gone, doubleValue 5). It decides nothing about a value: the database computed each one
+            // 2026-11-25, B2b S6a (the orchestrator's agreement, G1: one edge value printer): the date's precision read
+            // (atLeast 1) and the Float cell's kind conversions (doubleValue 5) MOVED, unchanged, with the cell rules to
+            // PureValueText -- a move, no growth: the two files together hold what PureRelationText held
+            Map.entry("PureRelationText.java", Map.ofEntries(
+                    Map.entry("contains(\"\")", 6),
+                    Map.entry("startsWith(\"\")", 1))),
+            // legend-pure's text of a value, the edge's value printer (B2b S6a's legend-pure door, 2026-11-25): a
+            // relation's cell, the rules moved from PureRelationText (above); a last step's Float print, lifted by S6a,
+            // held with the edge's value passes (the design audit of 2026-11-25; its pureFloat reused, no count moved)
+            Map.entry("PureValueText.java", Map.ofEntries(
+                    Map.entry("atLeast", 1),
+                    Map.entry("doubleValue", 5))),
+            // the tail of a lifted print (the edition program's step 8, 2026-11-26; the user's words that day, "maybe
+            // small set up string/count functions chained should all be in java", and on the set and its guard
+            // exception, ~13:57, "yes should add guard"): indexOf's start read as an int, as
+            // legend-pure's own Java reads it (CompiledSupport.indexOf: from.intValue()) -- the program's literal, not
+            // a value the database computed
+            Map.entry("PrintTail.java", Map.of("intValue", 1)),
             Map.entry("RaiseWords.java", Map.ofEntries(
                     Map.entry("intValue", 1),
                     Map.entry("doubleValue", 1),
@@ -290,14 +321,24 @@ class WriterCarriageGuardTest {
         // track Z, 2026-10-29 (the final audit's finding 2): the service test runner spelled a program's last side
         // itself; since door 1 (2026-10-29) it reads its answer from the boundary's writers -- scanned here with an
         // empty register so that it never spells a cell again
-        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/ServiceTestRunner.java"));
+        // (2026-11-26, the edition program's step 9, slice 1: the runner and its writer are test machinery, in the edge's harness root
+        // core/src/edge_harness; the two paths move with their files, still scanned)
+        files.add(SourceFiles.file("core/src/edge_harness/java/com/legend/edge/ServiceTestRunner.java"));
         // legend-engine's PURE_TDSOBJECT writer, moved from result/ to the edge with its runner (D1.4, 2026-11-15)
-        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/TdsObjectsWriter.java"));
+        files.add(SourceFiles.file("core/src/edge_harness/java/com/legend/edge/TdsObjectsWriter.java"));
         // legend-engine's pure/v1 writer and its receivers, and legend-engine's and legend-pure's cell text, moved from
         // result/ to the edge (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16): scanned where they live
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineAnswers.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/Presenter.java"));
+        // legend-pure's text of a relation written in Java from typed rows, and its run receiver (stage B's B2, B2b S1,
+        // 2026-11-24): scanned with the writers they are
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationText.java"));
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureRelationTextWriter.java"));
+        // the edge's value printer, the cell rules moved out of PureRelationText (B2b S6a, 2026-11-25)
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureValueText.java"));
+        // the tail of a lifted print (the edition program's step 8, 2026-11-26): scanned with the printers it follows
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PrintTail.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();

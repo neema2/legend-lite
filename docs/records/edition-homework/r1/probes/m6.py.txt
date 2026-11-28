@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""M6: lite's channel A as legend-pure's audience (raw outcomes, no expected failures) against the reference's
+manifests (core-compiled; core-interpreted noted). Usage: m6.py <engine root> <pure root> <probe dir> <s2 root> <out json>"""
+import glob, json, os, re, sys, collections
+eng, pure, pdir, s2, outjson = sys.argv[1:6]
+SIGNED = re.compile(r"^(.*)_Function_1__Boolean_1_$")
+
+def load(path):
+    d = json.load(open(path))
+    out = {}
+    for e in d["exclusions"]:
+        m = SIGNED.match(e["test"])
+        out.setdefault(m.group(1) if m else e["test"], e["expectedError"])
+    return out
+
+def ref(runtime, suite):
+    if suite in ("Essential", "Grammar"):
+        if runtime == "core-compiled":
+            p = {"Essential": "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/pct_essential_native.json",
+                 "Grammar": "legend-pure-runtime/legend-pure-runtime-java-engine-compiled/src/test/resources/platform/pure/grammar/functions/pct_grammar_compile_native.json"}[suite]
+        else:
+            p = {"Essential": "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/pct_essential_native.json",
+                 "Grammar": "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/pct_grammar_native.json"}[suite]
+        return load(os.path.join(pure, p)), p
+    fs = glob.glob(os.path.join(eng, "**", "pct-manifests", runtime, suite + "Functions_manifest.json"), recursive=True)
+    return load(fs[0]), os.path.relpath(fs[0], eng)
+
+def unescape(s):
+    out, i = [], 0
+    while i < len(s):
+        c = s[i]
+        if c == "\\" and i + 1 < len(s):
+            out.append("\n" if s[i + 1] == "n" else s[i + 1]); i += 2
+        else:
+            out.append(c); i += 1
+    return "".join(out)
+
+LEDGER = {"duckdb": "Test_LegendLite_%sFunctions_PCT.java", "sqlite": "Test_LegendLite_SQLite_%sFunctions_PCT.java",
+          "h2": "Test_LegendLite_H2_%sFunctions_PCT.java"}
+LDIR = os.path.join(s2, "pct/src/test/java/org/finos/legend/lite/pct")
+
+def ledger_row(db, suite, test):
+    p = os.path.join(LDIR, LEDGER[db] % suite)
+    if not os.path.exists(p):
+        return None
+    lines = open(p).read().split("\n")
+    key = '"' + test + "_Function_1__Boolean_1_\""
+    for i, l in enumerate(lines):
+        if key in l or ('"' + test + '"') in l:
+            j = i - 1
+            comment = []
+            # the nearest comment block above, past the group's other rows
+            while j >= 0 and lines[j].strip().startswith("one("):
+                j -= 1
+            while j >= 0 and lines[j].strip().startswith("//"):
+                comment.insert(0, lines[j].strip()); j -= 1
+            return {"file": os.path.relpath(p, s2), "line": i + 1, "row": l.strip(), "comment": comment}
+    return None
+
+res = {}
+for d in sorted(os.listdir(pdir)):
+    db, suite = d.split("_", 1)
+    suite = suite.capitalize()
+    oc = {}
+    for line in open(os.path.join(pdir, d, "outcomes.tsv"), encoding="utf-8"):
+        line = line.rstrip("\n")
+        if not line:
+            continue
+        f = line.split("\t", 2)
+        oc[f[0]] = ("PASS" if f[1] == "SUCCESSFUL" else "FAIL", unescape(f[2]) if len(f) > 2 else "")
+    compiled, cpath = ref("core-compiled", suite)
+    interp, ipath = ref("core-interpreted", suite)
+    rows = []
+    for test in sorted(set(oc) | set(compiled) | set(interp)):
+        lite = oc.get(test)
+        r = {"test": test, "lite": lite[0] if lite else None, "lite_message": lite[1] if lite else None,
+             "compiled": "FAIL" if test in compiled else "PASS", "compiled_error": compiled.get(test),
+             "interpreted": "FAIL" if test in interp else "PASS", "interpreted_error": interp.get(test)}
+        if lite is None:
+            r["bucket"] = "not run by lite"
+        else:
+            rp, lp = r["compiled"] == "PASS", lite[0] == "PASS"
+            r["bucket"] = ("both pass" if rp and lp else "reference passes, lite fails" if rp else
+                           "reference fails, lite passes" if lp else "both fail")
+            if lite[0] == "FAIL":
+                r["ledger"] = ledger_row(db, suite, test)
+        rows.append(r)
+    res[d] = {"db": db, "suite": suite, "compiled_manifest": cpath, "interpreted_manifest": ipath,
+              "compiled_rows": len(compiled), "interpreted_rows": len(interp), "lite_ran": len(oc), "rows": rows}
+json.dump(res, open(outjson, "w"), indent=1)

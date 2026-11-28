@@ -541,6 +541,9 @@ public class DuckDb extends AnsiSqlRenderer {
             // the engine's answer — not propagating DuckDB's exception.
             case ACOS -> domainGuarded(writer, "acos", a);
             case ASIN -> domainGuarded(writer, "asin", a);
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("acos", a);
+            case ASIN_IN_DOMAIN -> writer.function("asin", a);
             // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
             // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
             // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
@@ -582,6 +585,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
                     w -> w.append("regexp_full_match(").expr(c.args().get(0), 0).append(", '[+-]?[0-9]+')"),
                     w -> castAs(w, c.args().get(0), "BIGINT"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
@@ -615,11 +619,15 @@ public class DuckDb extends AnsiSqlRenderer {
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", "DECIMAL");
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: DuckDB's own cast (its shortest digits, which read back)
+            case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -730,7 +738,7 @@ public class DuckDb extends AnsiSqlRenderer {
     /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: NaN outside the domain, as the engine's H2. */
     private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn).append("(")
-                .expr(a.get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
+                .expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0).append(") IS NOT NULL THEN 'NaN'::DOUBLE END)");
     }
 
     /** len(DOUBLE): the corpus spells length() over numeric-typed expressions (engine H2 coerces); DuckDB has no
@@ -874,10 +882,52 @@ public class DuckDb extends AnsiSqlRenderer {
 
     // ---- list idioms: DuckDB is the lambda backend ----
 
+    /** {@inheritDoc} A sub-query inside a list's function is refused by name here: DuckDB runs none there ("Binder
+     *  Error: subqueries in lambda expressions are not supported", 1.5.6; measured by the equality measure,
+     *  2026-11-27: a comparison of two tables or two maps written inside a list's function failed so when the query
+     *  ran). What needs a statement of its own -- two tables compared, two maps -- cannot stand inside one. */
     @Override
     protected SqlWriter lambda(SqlWriter writer, SqlExpr.Lambda l) {
+        if (holdsASubquery(l.body())) {
+            throw new DialectCapability("a value that needs a statement of its own (a comparison of two tables or of"
+                    + " two maps, a read of another query) stands inside a list's function, where DuckDB runs no"
+                    + " sub-query: write it outside the function");
+        }
         return writer.append(l.params().size() == 1 ? l.params().get(0) : "(" + String.join(", ", l.params()) + ")")
                 .append(" -> ").expr(l.body(), 0);
+    }
+
+    private static boolean holdsASubquery(SqlExpr body) {
+        // what DuckDB WRITES of the body: of the "same values" instruction its two list values alone (sameLists);
+        // the two sides' rows that ride with it, for the dialects that compare rows, are never written here
+        SqlExpr written = new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr x) {
+                return x instanceof SqlExpr.Call c && c.args().size() == 4
+                        && (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER)
+                        ? new SqlExpr.Call(c.fn(), c.args().subList(0, 2)) : x;
+            }
+
+            SqlExpr of(SqlExpr x) {
+                return rewriteExpr(x);
+            }
+        }.of(body);
+        boolean[] hit = {false};
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr x) {
+                if (x instanceof SqlExpr.ScalarSubquery || x instanceof SqlExpr.Exists
+                        || x instanceof SqlExpr.InSubquery || x instanceof SqlExpr.Quantified) {
+                    hit[0] = true;
+                }
+                return x;
+            }
+
+            void scan(SqlExpr x) {
+                rewriteExpr(x);
+            }
+        }.scan(written);
+        return hit[0];
     }
 
 
@@ -1271,6 +1321,26 @@ public class DuckDb extends AnsiSqlRenderer {
      * ({@code ->>} strips JSON quoting) — the swap lives HERE, in rendering,
      * not in the IR.
      */
+    /** A Float literal as DuckDB's double: the double itself, its exponent form, which DuckDB reads correctly rounded
+     *  (its DECIMAL-to-DOUBLE cast is not: B3 step 1b, 2026-11-24); a negative one bare, as every negative literal is
+     *  written, a negation before it parenthesizing it ({@link #writesLeadingMinus}). */
+    @Override
+    protected SqlWriter.Piece floatLiteralAsDouble(SqlExpr.FloatLit f) {
+        String d = doubleLiteral(f.value());
+        return w -> w.append(d);
+    }
+
+    /** A Float literal cast to DOUBLE is written bare here ({@link #floatLiteralAsDouble}): a negative one starts with
+     *  a minus. */
+    @Override
+    protected boolean writesLeadingMinus(SqlExpr x) {
+        if (x instanceof SqlExpr.Cast c && c.target() == com.legend.sql.SqlType.Scalar.DOUBLE
+                && c.value() instanceof SqlExpr.FloatLit f && Double.isFinite(f.value())) {
+            return Math.copySign(1.0, f.value()) < 0;
+        }
+        return super.writesLeadingMinus(x);
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE) {
@@ -1344,6 +1414,15 @@ public class DuckDb extends AnsiSqlRenderer {
                     .expr(SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
                             List.of(v))), 0)
                     .append(" END)");
+        }
+        if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.value() instanceof SqlExpr.FloatLit f
+                && Double.isFinite(f.value())) {
+            // a Float literal cast to DOUBLE is written as the double itself, its exponent form, which DuckDB reads as
+            // a DOUBLE, correctly rounded: DuckDB's DECIMAL-to-DOUBLE cast is not (CAST(0.09531017980432493 AS DOUBLE)
+            // is 0.09531017980432492, one unit in the last place below the literal's double; measured on DuckDB 1.5.6,
+            // B3 step 1b, 2026-11-24 -- an assert's expected Float on the compatibility route, whose literal is written
+            // as a decimal, compared one ULP off the database's own ln). The value the literal names, nothing computed.
+            return writer.piece(floatLiteralAsDouble(f));
         }
         return super.variantAwareCast(writer, c);
     }

@@ -522,9 +522,9 @@ class BodyRouterParityTest {
                     + " (2, 'New', date '2010-01-01', date '9999-12-31')");
     /** A frame over a business-temporal class (M9d): its eager run is the product's lowering of the temporal read. */
     private static final String EXECUTE_TEMPORAL = "meta::pure::router::execute(|x::TFirm.all(%2020-06-01)"
-            + "->project([t|$t.name], ['name']), x::M, x::RT.runtimeValue, [])";
-    private static final String EXECUTE = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']),"
-            + " x::M, x::RT.runtimeValue, [])";
+            + "->project([t|$t.name], ['name'])->sort('name'), x::M, x::RT.runtimeValue, [])";
+    private static final String EXECUTE = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name'])"
+            + "->sort('name'), x::M, x::RT.runtimeValue, [])";
     /** A class-rooted frame (the M9a audit's S2): the eager run is the product's lowering of an object read. */
     private static final String EXECUTE_CLASS = "meta::pure::router::execute(|x::Firm.all(), x::M, x::RT.runtimeValue,"
             + " [])";
@@ -674,7 +674,7 @@ class BodyRouterParityTest {
                         + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}",
                 // the M9a audit's S2: a class-rooted frame (the eager run an object read; its values the objects)
                 "{| let r = " + EXECUTE_CLASS + "; assertSize($r.values, 2); assertEquals(['Acme', 'Bolt'],"
-                        + " $r.values.name);}",
+                        + " $r.values.name->sort());}",
                 // the M9a audit's S4: a frame read only through a value let; a failing first assert, then a reader
                 "{| let r = " + EXECUTE + "; let n = $r.values.rows->size(); assertEquals(2, $n);}",
                 "{| let r = " + EXECUTE + "; assertEquals(['Acme'], $r.values.rows.values); assertSize($r.values.rows,"
@@ -903,8 +903,10 @@ class BodyRouterParityTest {
                         + "->filter(r|$r.a > 0));}", "AssertFailed"),
                 java.util.Map.entry("{| assertNotEquals(" + grid + "->filter(r|$r.a > 1), " + grid
                         + "->filter(r|$r.a > 0));}", "ok"),
-                // a defined order on both sides: the rows a multiset (the actual side is not sorted)
-                java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + ");}", "ok"),
+                // a defined order on both sides, two literal grids in different orders: in order an AssertFailed (B3 step 4's review, M4, 2026-11-24),
+                // as a multiset of rows a pass (M5)
+                java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + ");}", "AssertFailed"),
+                java.util.Map.entry("{| assertSameElements(#TDS\na,b\n2,y\n1,x\n#, " + grid + ");}", "ok"),
                 // the actual side sorted: the rows compared in order
                 java.util.Map.entry("{| assertEquals(#TDS\na,b\n2,y\n1,x\n#, " + grid + "->sort(asc('a')));}",
                         "AssertFailed"),
@@ -914,8 +916,12 @@ class BodyRouterParityTest {
                 // a frame's grid rendered
                 java.util.Map.entry("{| let r = " + EXECUTE + "; assertEquals('name\nAcme\nBolt\n',"
                         + " $r.values->toOne()" + csv + ");}", "ok"),
-                // the rendered text under assertSameElements: the lines a multiset
-                java.util.Map.entry("{| assertSameElements('a\n2\n1\n', #TDS\na\n1\n2\n#" + csv + ");}", "ok"))) {
+                // the rendered text under assertSameElements: two Strings, compared as the two one-element lists they
+                // are, as legend-pure compares them (B3 step 2b, 2026-11-24: the compatibility rules' rendered-text
+                // multiset of lines, S131's, deleted with the run hook's renderedTexts -- an unordered printed table is an
+                // explicit assertSameElements of its lines at the door, edge.UpstreamPrints)
+                java.util.Map.entry("{| assertSameElements('a\n2\n1\n', #TDS\na\n1\n2\n#" + csv + ");}",
+                        "AssertFailed"))) {
             Run moved = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS,
                     com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
             assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
@@ -1187,7 +1193,7 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void consumedElementReferencePrograms(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
-        String query = "|x::Firm.all()->project([f|$f.name], ['name'])";
+        String query = "|x::Firm.all()->project([f|$f.name], ['name'])->sort('name')";
         String inlineRuntime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
                 + "element = x::DB, connection = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                 + "type = meta::relational::runtime::DatabaseType." + backend.type().name() + ")))";
@@ -1346,7 +1352,7 @@ class BodyRouterParityTest {
                         + EXECUTE + "; assertSize($r.values.rows, 2); " + EXEC
                         + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}",
                 "{| let r = " + EXECUTE_CLASS + "; assertSize($r.values, 2); assertEquals(['Acme', 'Bolt'],"
-                        + " $r.values.name);}",
+                        + " $r.values.name->sort());}",
                 // the activities: the SQL text, and the comment (the fused statement's own stamp)
                 "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
                         + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",
@@ -1877,7 +1883,9 @@ class BodyRouterParityTest {
         // lite's own sentence (the user's judge model, 2026-11-17): the actual after its last ", got ", JSON-quoted; on
         // the edge's run (a body binding legend-engine's plan handle) legend-pure's, after "\nactual:   ", %r-quoted
         // (census C1, 2026-11-17: the edge's style and its hook write legend-pure's words together)
-        String marker = run.outcome.contains("\nactual:   ") ? "\nactual:   " : ", got ";
+        // (B3 step 3, 2026-11-24: the catalog's ", actual: ", legend-pure's frame on one line)
+        String marker = run.outcome.contains("\nactual:   ") ? "\nactual:   "
+                : run.outcome.contains(", actual: ") ? ", actual: " : ", got ";
         int from = run.outcome.lastIndexOf(marker);
         assertTrue(run.outcome.startsWith("AssertFailed") && from >= 0, "an assert's failure naming its actual: "
                 + run.outcome);
@@ -1885,7 +1893,7 @@ class BodyRouterParityTest {
         if (shown.startsWith("[") && shown.endsWith("]")) {
             shown = shown.substring(1, shown.length() - 1);   // a collection of the one text
         }
-        char quote = marker.equals(", got ") ? '"' : '\'';
+        char quote = marker.startsWith("\n") ? '\'' : '"';
         assertTrue(shown.length() >= 2 && shown.charAt(0) == quote && shown.charAt(shown.length() - 1) == quote,
                 "one text: " + shown);
         StringBuilder text = new StringBuilder();

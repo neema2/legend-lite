@@ -866,7 +866,7 @@ public class ClickHouse extends AnsiSqlRenderer {
                         // 2026-11-21: its name was held by the where alone until the where went)
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(
                                 new SqlExpr.StringLit("DateTime"), new SqlExpr.StringLit(p.name()),
-                                new SqlExpr.StringLit("ClickHouse"), new SqlExpr.IntLit(6)), null)),
+                                new SqlExpr.StringLit("ClickHouse"), new SqlExpr.IntLit(6)))),
                         w -> w.append("NOT coalesce(").piece(yearOutside).append(", false) AND ").piece(fractionPast)))
                 .append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
@@ -917,7 +917,10 @@ public class ClickHouse extends AnsiSqlRenderer {
             return v > 0 ? "inf" : "-inf";
         }
         java.math.BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(v);
-        return plain != null ? decimal(plain) : "toFloat64('" + v + "')";
+        // an extreme magnitude is the NUMBER in exponent form, never its text parsed: ClickHouse's parse of a text is
+        // its fast one, a last digit off for some values (measured 2026-11-26 on 26.3 with clickhouse local, the lane
+        // on the next batch: toFloat64('1.3421E-8') is 1.3421000000000002e-8, the literal 1.3421e-8 exact)
+        return plain != null ? decimal(plain) : "toFloat64(" + Double.toString(v).replace('E', 'e') + ")";
     }
 
     /** {@code CAST('d' AS Decimal(p, s))} for its own precision and scale (at most 76 digits). */
@@ -1931,6 +1934,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> parseInteger(writer, c.args().get(0));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -1942,6 +1946,9 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: ClickHouse's own toString (its shortest digits; a NULL stays NULL, where
+            // CAST to a non-Nullable String refuses one), never re-spelled
+            case FLOAT_FULL_TEXT -> writer.append("toString(").expr(c.args().get(0), 0).append(")");
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -1962,8 +1969,8 @@ public class ClickHouse extends AnsiSqlRenderer {
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
             case VARIANT_GET -> variantGet(writer, c.args());
             // this database's plain spellings: name(args)
-            case ACOS -> writer.function("acos", c.args());
-            case ASIN -> writer.function("asin", c.args());
+            case ACOS, ACOS_IN_DOMAIN -> writer.function("acos", c.args());
+            case ASIN, ASIN_IN_DOMAIN -> writer.function("asin", c.args());
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
@@ -2031,6 +2038,8 @@ public class ClickHouse extends AnsiSqlRenderer {
             case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");
             case COT -> writer.append("(1 / tan(").expr(a.get(0), 0).append("))");
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "round", null);
 
             // exp and log are approximations here (exp(1) is 2.718281828460626, log(e()) 0.9999999987491066, measured);
             // pow and log2 are exact, DuckDB's bits

@@ -46,19 +46,14 @@ final class CastPolicy {
     // are the correct plumbing for that seam.
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
-    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, LoweringForms forms) {
-        if (c.wire()) {
-            // the mapping's WIRE coercion, the style's form (the audit's K5, 2026-11-17: LoweringForms#wireCast; one
-            // forms source since J40, 2026-11-18): the
-            // product writes the cast (DuckDB does not wire-convert, audit 19 F7); legend-engine's SQL leaves it to its
-            // reader, which converts on the wire
-            return forms.wireCast(value, () -> written(c, value, isMany, forms));
-        }
-        return written(c, value, isMany, forms);
+    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, EditionTable edition) {
+        // a mapping's WIRE coercion is written as any cast is (DuckDB does not wire-convert, audit 19 F7); the two-form
+        // LoweringForms#wireCast, identical in both forms, went with the edition program's dead choices, 2026-11-25
+        return written(c, value, isMany, edition);
     }
 
     /** The cast as the product writes it. */
-    private static SqlExpr written(TypedCast c, SqlExpr value, boolean isMany, LoweringForms forms) {
+    private static SqlExpr written(TypedCast c, SqlExpr value, boolean isMany, EditionTable edition) {
         boolean variantSource = c.source().info().type()
                 instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
         if (!variantSource) {
@@ -68,7 +63,7 @@ final class CastPolicy {
             if (!c.wire() && crossKindRaise(
                     c.source().info().type(), c.target())
                     instanceof SqlExpr raise) {
-                return impossible(raise, value, forms);
+                return impossible(raise, value, edition);
             }
             // A CONVERTING primitive cast (String->@Integer) must reach
             // SQL (bare return left VARCHAR arithmetic); a WIDENING cast
@@ -173,23 +168,24 @@ final class CastPolicy {
     }
 
     static SqlExpr castByPolicy(SqlExpr e, Type src, Type target) {
-        return castByPolicy(e, src, target, false, ProductLoweringForms.INSTANCE);
+        return castByPolicy(e, src, target, false, LiteEditionTable.INSTANCE);
     }
 
-    /** A cast that can never succeed under the plan style ({@link LoweringForms#raise}, the audit's K5; B7, 2026-11-17): the
-     *  product's raise, or, where the style writes CAST_IMPOSSIBLE plain, legend-engine's: its {@code processCast} of a
-     *  scalar is a no-op, the value itself (pureToSQLQuery.pure:3160-3183 at legend-engine 230c1591). */
-    private static SqlExpr impossible(SqlExpr raise, SqlExpr value, LoweringForms forms) {
-        return forms.raise(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, () -> raise, value);
+    /** A cast that can never succeed: the product's raise, or, where the door's table writes no check for
+     *  CAST_IMPOSSIBLE ({@link EditionTable#checks}; B7, 2026-11-17), legend-engine's: its {@code processCast} of a
+     *  scalar is a no-op, the value itself (pureToSQLQuery.pure:3160-3183 at legend-engine 230c1591). A cast is its
+     *  own node, no call: it carries no stamp. */
+    private static SqlExpr impossible(SqlExpr raise, SqlExpr value, EditionTable edition) {
+        return edition.checks(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, null) ? raise : value;
     }
 
     /** {@code wire}: a mapping WIRE coercion — the engine converts on
      * the wire (string columns feeding Integer properties), so the
      * cross-kind raise never applies to it. */
     static SqlExpr castByPolicy(SqlExpr e, Type src, Type target,
-            boolean wire, LoweringForms forms) {
+            boolean wire, EditionTable edition) {
         if (!wire && crossKindRaise(src, target) instanceof SqlExpr raise) {
-            return impossible(raise, e, forms);
+            return impossible(raise, e, edition);
         }
         if (isSqlPrimitive(target) && isSqlPrimitive(src)
                 && !isWidening(src, target)
@@ -234,7 +230,7 @@ final class CastPolicy {
         // part 1 audit's S4, 2026-11-15)
         return SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, java.util.List.of(new SqlExpr.StringLit(src.typeName()),
-                        new SqlExpr.StringLit(target.typeName())), null));
+                        new SqlExpr.StringLit(target.typeName()))));
     }
 
     private static Type.Primitive.@com.legend.base.Nullable Family familyOf(Type t) {

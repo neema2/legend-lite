@@ -49,6 +49,14 @@ class InstanceIdentityTest {
               <<equality.Key>> id: Integer[1];
               other: String[1];
             }
+            Class m::KD
+            {
+              <<equality.Key>> d: Decimal[1];
+            }
+            Class m::KT
+            {
+              <<equality.Key>> at: DateTime[1];
+            }
             Class m::Side
             {
               <<equality.Key>> sid: String[1];
@@ -138,7 +146,7 @@ class InstanceIdentityTest {
                         + " assertEq($a, $b);}"));
         // upstream's words under either judge (2026-11-04, the core parity program): '\nexpected: %r\nactual:   %r'
         // lite's own sentence: an identity assert names each instance by its class and identity (2026-11-17)
-        assertTrue(e.getMessage().matches("expected m::P \\(instance \\w+\\), got m::P \\(instance \\w+\\)"),
+        assertTrue(e.getMessage().matches("expected: m::P \\(instance \\w+\\), actual: m::P \\(instance \\w+\\)"),
                 e.getMessage());
     }
 
@@ -183,6 +191,24 @@ class InstanceIdentityTest {
     }
 
     @Test
+    @DisplayName("a key is compared by its value inside a condition too: a Decimal by its number, a date-time by its"
+            + " instant (the one equality, the edition program's step 6)")
+    void aKeyIsComparedByItsValueInACondition() throws Exception {
+        assertEquals(Boolean.TRUE, run(
+                "{|let a = ^m::KD(d=1.0D);"
+                        + " let b = ^m::KD(d=1.00D);"
+                        + " assert(equal($a, $b) && ($a == $b));}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|let a = ^m::KD(d=1.0D);"
+                        + " let c = ^m::KD(d=1.5D);"
+                        + " assert(!equal($a, $c) && ($a != $c));}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|let a = ^m::KT(at=%2020-01-01T10:00:00.5);"
+                        + " let b = ^m::KT(at=%2020-01-01T10:00:00.500);"
+                        + " assert(equal($a, $b) && ($a == $b));}").one());
+    }
+
+    @Test
     @DisplayName("F13c: equal inside a CONDITION is the KEY relation —"
             + " non-key content is outside it, cross-class is false")
     void equalInCondition() throws Exception {
@@ -196,11 +222,15 @@ class InstanceIdentityTest {
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let c = ^m::K(id=2, other='x');"
                         + " assert(!equal($a, $c) && ($a != $c));}").one());
-        // cross-class: never equal (engine classifier rule)
-        assertEquals(Boolean.TRUE, run(
+        // cross-class: two unrelated classes are two types, so the comparison is a compile error (B3 step 5, the one
+        // equality; the user's ruling of 2026-11-24 -- until then never equal by the engine's classifier rule)
+        com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let p = ^m::P(name='x');"
-                        + " assert(!equal($a, $p));}").one());
+                        + " assert(!equal($a, $p));}"));
+        org.junit.jupiter.api.Assertions.assertTrue(refused.getMessage().contains("two values are equal only when"),
+                refused.getMessage());
     }
 
     @Test

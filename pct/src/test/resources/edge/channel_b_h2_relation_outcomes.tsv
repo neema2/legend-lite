@@ -18,7 +18,7 @@ meta::pure::functions::relation::tests::composition::testExtendWindowFilter	PASS
 meta::pure::functions::relation::tests::composition::testFilterArithmeticComparisonExpression	PASS	
 meta::pure::functions::relation::tests::composition::testFilterEqualOnNullableColumns	PASS	
 meta::pure::functions::relation::tests::composition::testFilterNotEqualOnNullableColumns	PASS	
-meta::pure::functions::relation::tests::composition::testFilterPostProject	ERROR	DialectCapability: LIST_GET reached a dialect without a list encoding
+meta::pure::functions::relation::tests::composition::testFilterPostProject	PASS	
 meta::pure::functions::relation::tests::composition::testGroupByCastAfterAgg	PASS	
 meta::pure::functions::relation::tests::composition::testGroupByCastBeforeAgg	PASS	
 meta::pure::functions::relation::tests::composition::testGroupByFilterExtendFilter	PASS	
@@ -243,10 +243,10 @@ meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Sor
 meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	ERROR	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 meta::pure::functions::relation::tests::lag::testOLAPWithPartitionAndOrderWindowUsingLag	PASS	
 meta::pure::functions::relation::tests::last::testOLAPWithPartitionAndOrderLastWindow	PASS	
-meta::pure::functions::relation::tests::lateral::testLateralJoin	ERROR	DataError: Function "LATERAL" not found; SQL statement: ⏎ WITH __bs0 AS (SELECT 0 AS "__ix", 1 AS "__rn", concat('#TDS ⏎ ', '   departmentId,departmentName,employeeId,employeeName,department ⏎ ', '   1,Engineering,101,Rafael,1 ⏎ ', '   1,Engineering,102,Pierre,1 ⏎ ', '   1,Engineering,103,Jake,1 ⏎ ', '   2,Support,104,John,2 ⏎ ', '   2,Support,105,Jane,2 ⏎ ', '   3,Sales,106,Alice,3 ⏎ ', '   3,Sales,107,Bob,…"_tds3"("employeeId", "employeeName", "department") WHERE "_tds3"."department" = "_tds2"."departmentId" ) AS "t9" ORDER BY "_tds2"."departmentId" NULLS LAST, "t9"."employeeId" NULLS LAST ) AS "t8") AS "value" ⏎   ) AS "__b" ⏎   CROSS JOIN ( ⏎     SELECT COUNT(1) AS "__n" ⏎     FROM __bs0 AS "__bs0" ⏎   ) AS "__g0" ⏎ ) AS "__u" ⏎ ORDER BY "__u"."__ix" NULLS LAST, "__u"."__rn" NULLS LAST [90022-252]
-meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	ERROR	DataError: Function "LATERAL" not found; SQL statement: ⏎ WITH __bs0 AS (SELECT 0 AS "__ix", 1 AS "__rn", concat('#TDS ⏎ ', '   employeeId,employeeName,department,departmentId,departmentName ⏎ ', '   101,Rafael,1,1,Engineering ⏎ ', '   102,Pierre,1,1,Engineering ⏎ ', '   103,Jake,1,1,Engineering ⏎ ', '   104,John,2,2,Support ⏎ ', '   105,Jane,2,2,Support ⏎ ', '   106,Alice,3,3,Sales ⏎ ', '   107,Bob,3,3,Sale…les')) AS "_tds3"("departmentId", "departmentName") WHERE "_tds2"."department" = "_tds3"."departmentId" ) AS "t9" ORDER BY "t9"."departmentId" NULLS LAST, "_tds2"."employeeId" NULLS LAST ) AS "t8") AS "value" ⏎   ) AS "__b" ⏎   CROSS JOIN ( ⏎     SELECT COUNT(1) AS "__n" ⏎     FROM __bs0 AS "__bs0" ⏎   ) AS "__g0" ⏎ ) AS "__u" ⏎ ORDER BY "__u"."__ix" NULLS LAST, "__u"."__rn" NULLS LAST [90022-252]
-meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	ERROR	DataError: Function "LATERAL" not found; SQL statement: ⏎ WITH __bs0 AS (SELECT 0 AS "__ix", 1 AS "__rn", concat('#TDS ⏎ ', '   departmentId,departmentName,did,Budget,Program,employeeId,employeeName,department ⏎ ', '   1,Engineering,1,0.5,1,101,Rafael,1 ⏎ ', '   1,Engineering,1,1.0,2,101,Rafael,1 ⏎ ', '   1,Engineering,1,0.5,1,102,Pierre,1 ⏎ ', '   1,Engineering,1,1.0,2,102,Pierre,1 ⏎ ', '   1,Engineering,1,…Name", "department") WHERE "_tds5"."department" = "_tds3"."departmentId" ) AS "t14" ORDER BY "_tds3"."departmentId" NULLS LAST, "t14"."employeeId" NULLS LAST, "t13"."Program" NULLS LAST ) AS "t12") AS "value" ⏎   ) AS "__b" ⏎   CROSS JOIN ( ⏎     SELECT COUNT(1) AS "__n" ⏎     FROM __bs0 AS "__bs0" ⏎   ) AS "__g0" ⏎ ) AS "__u" ⏎ ORDER BY "__u"."__ix" NULLS LAST, "__u"."__rn" NULLS LAST [90022-252]
-meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	ERROR	DataError: Function "LATERAL" not found; SQL statement: ⏎ WITH __bs0 AS (SELECT 0 AS "__ix", 1 AS "__rn", concat('#TDS ⏎ ', '   personId,ref,itemId ⏎ ', '   1,10,10 ⏎ ', '#') AS "__h0_0", CAST(NULL AS VARCHAR) AS "__h1_0") ⏎ SELECT "__u"."__ix" AS "__ix", "__u"."__rn" AS "__rn", "__u"."__h0_0" AS "__h0_0", "__u"."__h1_0" AS "__h1_0" ⏎ FROM ( ⏎   SELECT "__bs0"."__ix" AS "__ix", "__bs0"."__rn" AS "__rn", "__b…( SELECT "_tds3"."itemId" AS "itemId" FROM (VALUES (10, 99), (30, 99)) AS "_tds3"("itemId", "ref") WHERE "_tds3"."itemId" = "_tds2"."ref" ) AS "t9" ORDER BY "_tds2"."personId" NULLS LAST ) AS "t8") AS "value" ⏎   ) AS "__b" ⏎   CROSS JOIN ( ⏎     SELECT COUNT(1) AS "__n" ⏎     FROM __bs0 AS "__bs0" ⏎   ) AS "__g0" ⏎ ) AS "__u" ⏎ ORDER BY "__u"."__ix" NULLS LAST, "__u"."__rn" NULLS LAST [90022-252]
+meta::pure::functions::relation::tests::lateral::testLateralJoin	PASS	
+meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	PASS	
+meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	PASS	
+meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	PASS	
 meta::pure::functions::relation::tests::lead::testOLAPWithPartitionAndOrderWindow	PASS	
 meta::pure::functions::relation::tests::lessThanAll::testLessThanAll	PASS	
 meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_EmptyRelation	PASS	
@@ -354,9 +354,9 @@ meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle	PASS
 meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions	PASS	
 meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle	PASS	
 meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_StringPivotValue	PASS	
-meta::pure::functions::relation::tests::project::testSimpleProject	ERROR	DialectCapability: LIST_GET reached a dialect without a list encoding
-meta::pure::functions::relation::tests::project::testSimpleProjectList	ERROR	DialectCapability: LIST_GET reached a dialect without a list encoding
-meta::pure::functions::relation::tests::project::testSimpleProjectWithEmpty	ERROR	DialectCapability: LIST_GET reached a dialect without a list encoding
+meta::pure::functions::relation::tests::project::testSimpleProject	PASS	
+meta::pure::functions::relation::tests::project::testSimpleProjectList	PASS	
+meta::pure::functions::relation::tests::project::testSimpleProjectWithEmpty	PASS	
 meta::pure::functions::relation::tests::project::testSimpleRelationProject	PASS	
 meta::pure::functions::relation::tests::project::testSimpleRelationProjectLiterals	PASS	
 meta::pure::functions::relation::tests::rank::testOLAPWithPartitionAndOrderRank	PASS	

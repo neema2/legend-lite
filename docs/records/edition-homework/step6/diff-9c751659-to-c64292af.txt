@@ -1,0 +1,61 @@
+Counter({'newly answered': 15})
+[newly answered] AssertBarTest:187 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(1D, 1)}
+   before: REFUSED ModelException: == compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  PASS 1 verdicts
+[newly answered] AssertBarTest:188 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(1.5, 1.5D)}
+   before: REFUSED ModelException: == compares Float with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a mis
+   after:  PASS 1 verdicts
+[newly answered] AssertBarTest:189 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertNotEquals(3, 3D)}
+   before: REFUSED ModelException: == compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  FAIL Assert failed
+[newly answered] AssertBarTest:484 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEq(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+   before: REFUSED ModelException: eq compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  FAIL Assert failed
+[newly answered] AssertBarTest:485 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEq(2, p::Q.all()->filter(x | $x.id == 2)->toOne().e)}
+   before: REFUSED ModelException: eq compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  FAIL Assert failed
+[newly answered] AssertBarTest:486 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEq(1, 1.50D)}
+   before: REFUSED ModelException: eq compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  FAIL Assert failed
+[newly answered] AssertBarTest:487 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEq(2, -2D)}
+   before: REFUSED ModelException: eq compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  FAIL Assert failed
+[newly answered] AssertBarTest:544 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+   before: REFUSED ModelException: == compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  FAIL Assert failed
+[newly answered] AssertBarTest:545 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(2.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+   before: REFUSED ModelException: == compares Float with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a mis
+   after:  FAIL Assert failed
+[newly answered] EqualityCompatEdgeTest:45 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: |assertEquals(1D, 1)
+   before: REFUSED ModelException: == compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  PASS 1 verdicts
+[newly answered] NumberKindsEdgeTest:54 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(3, 3D)}
+   before: REFUSED ModelException: == compares Integer with Decimal: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  PASS 1 verdicts
+[newly answered] NumberKindsEdgeTest:55 (6 cells: DuckDB/r/D,DuckDB/r/H,H2/r/D,H2/r/H,SQLite/r/D,SQLite/r/H)
+   body: {|assertEquals(1.0D, 1)}
+   before: REFUSED ModelException: == compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison is a m
+   after:  PASS 1 verdicts
+[newly answered] pure:meta::pure::functions::boolean::tests::conjunctions::and::testShortCircuitSimple (12 cells: DuckDB/r/D,DuckDB/r/H,DuckDB/w/D,DuckDB/w/H,H2/r/D,H2/r/H,H2/w/D,H2/w/H,SQLite/r/D,SQLite/r/H,SQLite/w/D,SQLite/w/H)
+   body: {|assertFalse((false && (12/0 > 0)));}
+   before: REFUSED ModelException: > compares Float with Integer: two values are equal only when they have the same type and the same value, so this comparison is a mist
+   after:  PASS 1 verdicts
+[newly answered] pure:meta::pure::functions::boolean::tests::conjunctions::or::testShortCircuitSimple (12 cells: DuckDB/r/D,DuckDB/r/H,DuckDB/w/D,DuckDB/w/H,H2/r/D,H2/r/H,H2/w/D,H2/w/H,SQLite/r/D,SQLite/r/H,SQLite/w/D,SQLite/w/H)
+   body: {|assert((true || (12/0 > 0)));}
+   before: REFUSED ModelException: > compares Float with Integer: two values are equal only when they have the same type and the same value, so this comparison is a mist
+   after:  PASS 1 verdicts
+[newly answered] pure:meta::pure::functions::lang::tests::compare::testCompareDecimalAndLongTypes (12 cells: DuckDB/r/D,DuckDB/r/H,DuckDB/w/D,DuckDB/w/H,H2/r/D,H2/r/H,H2/w/D,H2/w/H,SQLite/r/D,SQLite/r/H,SQLite/w/D,SQLite/w/H)
+   body: {|assert((compare(9999999999999992d, 9999999999999992) == 0));\n     assert((compare(9999999999999992d, 9999999999999991) > 0));\n     assert((compare(9999999999999992d, 9999999999999993) < 0));}
+   before: REFUSED ModelException: compare compares Decimal with Integer: two values are equal only when they have the same type and the same value, so this comparison i
+   after:  PASS 3 verdicts

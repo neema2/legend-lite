@@ -28,20 +28,10 @@ final class JudgmentFacts {
     private JudgmentFacts() {
     }
 
-    /** An equality pair's TYPED kinds (item 3's S4): the kinds the database judge compares its two sides as -- each
-     *  side's typed class ({@code VerdictSql.typedClass}; two number kinds then the same only where both are empty,
-     *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair has no typed form here
-     *  (the caller refuses it by name). A Decimal literal is typed: its written scale rides its
-     *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
-    record TypedPair(Type e, Type a, Form form, @Nullable EqualityKeys keys) {
-        /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
-         *  empty (an empty side, Nil), tagged values (each its kind and its value), instances of one class (each a row
-         *  of its typed leaves: its keys, {@code keys}, or its identity where it has none; item 3's S4, instances). */
-        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES, COLLECTIONS, INSTANCE_TEXTS }
-
-        TypedPair(Type e, Type a, Form form) {
-            this(e, a, form, null);
-        }
+    /** An equality pair as the database judge reads it: how its sides compare is the product's equality's
+     *  ({@code lowering.SideEqualities.Pair}); here, the judge's own facts about it -- whether it is compared at all in
+     *  the literal channel, and the family whose record the host's builders write. */
+    record TypedPair(com.legend.lowering.SideEqualities.Pair pair) {
 
         /** Whether both sides carry their values in ONE scalar SQL type (the literal channel's Any-stamped or mixed
          *  side whose plan holds one typed column: compared as typed values all the same) -- never an instance's kind
@@ -50,7 +40,8 @@ final class JudgmentFacts {
                 ModelContext ctx) {
             // (each side's declared type too: a rider's kind is no proof -- the audit of 2026-11-22's metamodel pair, a
             // SetImplementation carried as its JSON text under a rider naming a Mapping)
-            return form == Form.VALUES && byValue(e, ctx) && byValue(a, ctx) && byValue(eSpec.info().type(), ctx)
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.VALUES && byValue(pair.e(), ctx)
+                    && byValue(pair.a(), ctx) && byValue(eSpec.info().type(), ctx)
                     && byValue(aSpec.info().type(), ctx) && !ePlan.outputs().isEmpty()
                     && !aPlan.outputs().isEmpty() && ePlan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Scalar t
                     && t != com.legend.sql.SqlType.Scalar.JSON && t.equals(aPlan.outputs().get(0).type());
@@ -61,233 +52,64 @@ final class JudgmentFacts {
                     ? ctx.isSubtype(c, PACKAGEABLE) : true;
         }
 
-        /** Whether the pair's two typed kinds differ (two kinds lite never calls equal, register S127): decided by
-         *  their kinds, the same only where both are empty, whatever channel carries them (the audit of 946d16f2). */
         boolean kindsDiffer() {
-            return form == Form.VALUES && !e.equals(a)
-                    // a Variant against values of another type (register S401): the same only where both are empty
-                    || form == Form.EMPTY_ONLY && (PlatformTypes.isVariant(e) || PlatformTypes.isVariant(a));
+            return pair.kindsDiffer();
         }
 
         /** The family whose record the host's builders write: an instance's identity assert ({@code assertEq},
          *  {@code assertIs}) names it by its class and identity, as the host's does; else the equality's. */
         com.legend.testexecutionplan.RootLoop.Family family(boolean multiset, String name) {
-            return form == Form.INSTANCES && (name.equals("assertEq") || name.equals("assertIs"))
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.INSTANCES
+                    && (name.equals("assertEq") || name.equals("assertIs"))
                     ? com.legend.testexecutionplan.RootLoop.Family.EQ
-                    : form == Form.INSTANCE_TEXTS && !multiset ? com.legend.testexecutionplan.RootLoop.Family.EQUALS_DOCUMENTS
+                    : instanceTexts() && !multiset ? com.legend.testexecutionplan.RootLoop.Family.EQUALS_DOCUMENTS
                     : com.legend.testexecutionplan.RootLoop.Family.equality(multiset, tagged());
         }
 
         boolean dates() {
-            return form == Form.DATES;
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.DATES;
+        }
+
+        /** Whether the pair is of plain values compared as values (no date, no tag, no instance, no "empty only"). */
+        boolean plainValues() {
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.VALUES;
         }
 
         boolean tagged() {
-            return form == Form.TAGGED;
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.TAGGED;
         }
 
-        /** The pair's typed member over the two sides' plans, or null where its values have no typed column. */
+        boolean instanceTexts() {
+            return pair.form() == com.legend.lowering.SideEqualities.Pair.Form.INSTANCE_TEXTS;
+        }
+
+        /** The pair's typed member over the two sides' plans: the product's comparison of them under the assert's
+         *  polarity, each side's values riding the failure; null where its values have no typed column. */
         com.legend.lowering.VerdictSql.@Nullable TypedRow row(com.legend.sql.SqlQuery ePlan,
                 com.legend.sql.SqlQuery aPlan, boolean multiset, boolean wantEqual) {
-            return switch (form) {
-                case TAGGED -> com.legend.lowering.VerdictSql.typedTagged(ePlan, e, aPlan, a, multiset, wantEqual);
-                case INSTANCES -> com.legend.lowering.VerdictSql.typedInstances(ePlan, e, aPlan, a, keys, multiset,
-                        wantEqual);
-                case COLLECTIONS -> com.legend.lowering.VerdictSql.typedCollections(ePlan, e, aPlan, a, multiset,
-                        wantEqual);
-                case VALUES, DATES, EMPTY_ONLY -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e, aPlan, a,
-                        multiset, wantEqual, form == Form.EMPTY_ONLY);
-                case INSTANCE_TEXTS -> com.legend.lowering.VerdictSql.typedInstanceTexts(ePlan, e, aPlan, a, multiset,
-                        wantEqual);
-            };
+            return com.legend.lowering.VerdictSql.typed(pair.compared(ePlan, aPlan, multiset), wantEqual);
         }
     }
 
     private static final String PACKAGEABLE = "meta::pure::metamodel::PackageableElement";
 
+    /** The pair of an equality's two sides ({@code lowering.SideEqualities.pair}), or null where it has no typed
+     *  comparison (the caller refuses it by name). */
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan, ModelContext ctx) {
-        // a Variant among a side's values (a mixed collection's member too): register S401's refusal where only
-        // identity decides, before any other form reads the pair
-        refuseIdentityOnly(eSpec, aSpec);
-        // a side declared Any is a Variant only where the plan sees one under its casts ({@link #sideType}); its JSON
-        // carrier cannot tell a Variant from the value it holds (the audit of 8477c703: an Integer cast to Any had been
-        // read as a Variant, and two Variants cast to Any raised at run)
-        Type eSide = PlatformTypes.isAny(eSpec.info().type()) ? sideType(eSpec) : eKind;
-        Type aSide = PlatformTypes.isAny(aSpec.info().type()) ? sideType(aSpec) : aKind;
-        if (PlatformTypes.isVariant(eSide) || PlatformTypes.isVariant(aSide)) {
-            // register S401 (ruled by the user 2026-11-23): two whole Variants, or a Variant and an Any the plan cannot
-            // see, refused by name (refuseIdentityOnly); a Variant against a value of any other type is not equal, as
-            // in Pure -- the two the same only where both are empty (VerdictSql.typedEquals), its values riding the
-            // record as carried
-            refuseIdentityOnly(eSpec, aSpec);
-            return new TypedPair(eSide, aSide, TypedPair.Form.EMPTY_ONLY);
-        }
-        boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan) || jsonCarried(ePlan);
-        boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan) || jsonCarried(aPlan);
-        if (eMixed || aMixed) {
-            // a value whose kind the database decides among candidates (a Number's max, a mixed list), or a Date
-            // written as its text (a partial date, a Date the egress writes): each value its kind and its value,
-            // against a side of one typed class or another such side (VerdictSql.typedTagged)
-            return (eMixed || sideKind(eSpec, eKind, ePlan) != null) && (aMixed || sideKind(aSpec, aKind, aPlan) != null)
-                    ? new TypedPair(eKind, aKind, TypedPair.Form.TAGGED) : null;
-        }
-        if (PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind)) {
-            // an empty side (Nil, the empty collection's kind): the two the same only where both are empty, the other
-            // side's values typed by its own kind for the record
-            Type e = PlatformTypes.isNil(eKind) ? eKind : emptyKind(eKind, ePlan) != null ? eKind
-                    : sideKind(eSpec, eKind, ePlan);
-            Type a = PlatformTypes.isNil(aKind) ? aKind : emptyKind(aKind, aPlan) != null ? aKind
-                    : sideKind(aSpec, aKind, aPlan);
-            return e == null || a == null ? null : new TypedPair(e, a, TypedPair.Form.EMPTY_ONLY);
-        }
-        Type e = dateKind(eSpec, eKind, ePlan);
-        Type a = dateKind(aSpec, aKind, aPlan);
-        if (e != null && a != null) {
-            // a date literal's side rides the literal channel (its written text), its value column still the
-            // database's DATE or TIMESTAMP, which the pair compares (S399)
-            return new TypedPair(e, a, TypedPair.Form.DATES);
-        }
-        e = com.legend.lowering.VerdictSql.typedClass(eKind);
-        a = com.legend.lowering.VerdictSql.typedClass(aKind);
-        if (e != null && a != null) {
-            return new TypedPair(e, a, TypedPair.Form.VALUES);
-        }
-        String ef = EqualityKeys.fqnOf(eSpec.info().type());
-        if (named(ePlan) && named(aPlan) && ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
-                && !PlatformTypes.isAny(eSpec.info().type()) && !ctx.isSubtype(ef, PACKAGEABLE)) {
-            // instances of one class carried as their JSON documents' text (a metamodel's SetImplementation, a Table):
-            // the documents compared as texts, recorded as documents (item 3's S4, the last families)
-            return new TypedPair(eSpec.info().type(), aSpec.info().type(), TypedPair.Form.INSTANCE_TEXTS);
-        }
-        if (named(ePlan) && named(aPlan) && EqualityKeys.fqnOf(eKind) instanceof String ek
-                && ek.equals(EqualityKeys.fqnOf(aKind))) {
-            // a packageable element carried by its path (a Mapping, a class reference of either class): its path
-            // compared, a String; one kind for both, the metaclass they share -- Class<p::Q> and Class<Any> are two
-            // views of one reference, never kinds that differ (the audit of 3f2fe452)
-            return new TypedPair(eKind, eKind, TypedPair.Form.VALUES);
-        }
-        if (collection(ePlan) && collection(aPlan)) {
-            // nested lists and maps: each value as its database holds it (VerdictSql.typedCollections)
-            return new TypedPair(eKind, aKind, TypedPair.Form.COLLECTIONS);
-        }
-        // instances of ONE class -- a model class's or a Pair's -- its keys read here, at planning (a subtype pair
-        // restricts by the classifiers its run carries, which the host reads)
-        return ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
-                ? new TypedPair(eKind, aKind, TypedPair.Form.INSTANCES, variantKeysRefused(EqualityKeys.resolve(ctx,
-                        eSpec.info().type())))
-                : null;
-    }
-
-    /** The kind an emptiness assert's typed member lists a side's values as (item 3's S4): its typed class, or, where
-     *  its values are carried as a struct, a map, a list or a JSON document (an instance, a Pair, a Map, a nested
-     *  list, an Any), its own kind -- whether a side is empty is a fact of its rows whatever their type, its values
-     *  riding the failure as the host's reader reads them; null where its plan types no value column (a tagged value
-     *  lists its kinds' values: its own member). */
-    static @Nullable Type emptyKind(@Nullable Type kind, com.legend.sql.SqlQuery plan) {
-        Type typed = com.legend.lowering.VerdictSql.typedClass(kind);
-        if (typed != null || kind == null || plan.outputs().isEmpty()) {
-            return typed;
-        }
-        // any carrier the plan types: a struct, a map, a list, JSON, or a scalar of a kind of its own (an Any-typed side
-        // whose values one SQL type holds); never a tagged value's tag (its kinds' values: its own member)
-        com.legend.sql.SqlType t = plan.outputs().get(0).type();
-        return t instanceof com.legend.sql.SqlType.Tagged ? null : kind;
-    }
-
-    /** Whether a side of a class's kind carries each value as a text (a packageable element by its path). */
-    private static boolean named(com.legend.sql.SqlQuery plan) {
-        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.VARCHAR;
-    }
-
-    /** Whether a side's values are lists or maps (a nested List, a Map). */
-    private static boolean collection(com.legend.sql.SqlQuery plan) {
-        return !plan.outputs().isEmpty() && (plan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Array
-                || plan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Map);
-    }
-
-    /** Whether a side's values are carried as JSON (an Any): each its JSON kind's value (VerdictSql.typedTagged). */
-    private static boolean jsonCarried(com.legend.sql.SqlQuery plan) {
-        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.JSON;
-    }
-
-    /** Whether a side's plan carries a tagged value (its first column a {@code SqlType.Tagged}: the kind the
-     *  database decided among candidates). */
-    private static boolean tagged(com.legend.sql.SqlQuery plan) {
-        return !plan.outputs().isEmpty() && plan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Tagged;
-    }
-
-    /** Whether a side is a {@code Date} carried as its written text (a partial date's literal, a Date the egress
-     *  writes as text): each value's kind is its text's -- a year, a year-month, a day, a date-time (S399). */
-    private static boolean writtenDate(Type kind, com.legend.sql.SqlQuery plan) {
-        return kind == Type.Primitive.DATE && !plan.outputs().isEmpty()
-                && (plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
-                        || plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.VARCHAR);
-    }
-
-    /** A side's typed kind: its date kind ({@link #dateKind}), else its typed class; null where it has neither. */
-    private static @Nullable Type sideKind(TypedSpec spec, Type kind, com.legend.sql.SqlQuery plan) {
-        Type d = dateKind(spec, kind, plan);
-        return d != null ? d : com.legend.lowering.VerdictSql.typedClass(kind);
-    }
-
-    /** A date side's kind under register S399 (the user's ruling of 2026-11-22: the product compares a date by its
-     *  kind and its instant, the database comparing): a literal's own -- a day a StrictDate, a date-time of any written
-     *  precision a DateTime, a partial date none (its written text the tagged form's) --, a StrictDate's or DateTime's side
-     *  its own, a {@code Date} side's by its column's SQL type (a DATE holds days, a TIMESTAMP date-times); null for any
-     *  other side. A fact of the types, fixed at planning. */
-    private static @Nullable Type dateKind(TypedSpec spec, Type kind, com.legend.sql.SqlQuery plan) {
-        if (spec instanceof com.legend.compiler.spec.typed.TypedCDate d) {
-            return d.value() instanceof com.legend.values.PureDateLiteral.StrictDate ? Type.Primitive.STRICT_DATE
-                    : d.value().precision().atLeast(com.legend.values.PureDateLiteral.Precision.HOUR)
-                            ? Type.Primitive.DATE_TIME : null;
-        }
-        if (kind == Type.Primitive.STRICT_DATE || kind == Type.Primitive.DATE_TIME) {
-            return kind;
-        }
-        if (kind != Type.Primitive.DATE || plan.outputs().isEmpty()) {
-            return null;
-        }
-        com.legend.sql.SqlType sql = plan.outputs().get(0).type();
-        return sql == com.legend.sql.SqlType.Scalar.DATE ? Type.Primitive.STRICT_DATE
-                : sql == com.legend.sql.SqlType.Scalar.TIMESTAMP || sql == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ
-                        ? Type.Primitive.DATE_TIME : null;
-    }
-
-    /** Register S401 (ruled by the user 2026-11-23): an equality only identity decides -- two whole Variants, a
-     *  Variant and an Any the plan cannot see, or a Variant among values of other types -- refused by name at planning,
-     *  under both judges alike, as the product refuses it ({@code VariantEquality.between}, which reads a side through
-     *  its casts and its collection literal's members). */
-    static com.legend.compiler.spec.typed.VariantEquality.Verdict refuseIdentityOnly(TypedSpec e, TypedSpec a) {
-        refuseMixedDays(e, a);
-        return com.legend.compiler.spec.typed.VariantEquality.between(e, a);
-    }
-
-    /** Register S399 (a day is never a date-time): a side whose values hold both days and date-times (a list literal,
-     *  read through a map, a filter or an if as {@code VariantEquality.dateKinds} reads it, never a function's arguments) reaches the
-     *  database as one kind (DuckDB's and H2's arrays hold one type), so neither judge can tell its days apart --
-     *  refused by name at planning, under both judges alike (the final audit of c758fe95, 2026-11-23: the host had
-     *  called a day contained in such a list; the narrow review of f9e74256: a list read through a map had escaped).
-     *  A list bound by a let reaches the judges as a variable, unread: a recorded gap (S399). */
-    static void refuseMixedDays(TypedSpec... sides) {
-        for (TypedSpec s : sides) {
-            java.util.Set<Type> kinds = com.legend.compiler.spec.typed.VariantEquality.dateKinds(s);
-            if (kinds.contains(Type.Primitive.STRICT_DATE) && kinds.contains(Type.Primitive.DATE_TIME)) {
-                throw new com.legend.error.NotImplementedException("values holding both days and date-times are not"
-                        + " compared: the database carries them as one kind, so their days cannot be told apart (register"
-                        + " S399); compare the days and the date-times apart");
-            }
-        }
+        com.legend.lowering.SideEqualities.Pair pair = com.legend.lowering.SideEqualities.pair(eSpec, eKind, ePlan,
+                aSpec, aKind, aPlan, ctx);
+        return pair == null ? null : new TypedPair(pair);
     }
 
     /** Whether no Variant is among either side's values (after {@link #refuseIdentityOnly}'s refusal). */
     static boolean computed(TypedSpec e, TypedSpec a) {
-        return refuseIdentityOnly(e, a) == com.legend.compiler.spec.typed.VariantEquality.Verdict.COMPUTED;
+        return com.legend.lowering.SideEqualities.refuseIdentityOnly(e, a) == com.legend.compiler.spec.typed.VariantEquality.Verdict.COMPUTED;
     }
 
     /** Whether a side's Variants meet values of other types alone (after {@link #refuseIdentityOnly}'s refusal). */
     static boolean variantDisjoint(TypedSpec e, TypedSpec a) {
-        return refuseIdentityOnly(e, a) == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT;
+        return com.legend.lowering.SideEqualities.refuseIdentityOnly(e, a) == com.legend.compiler.spec.typed.VariantEquality.Verdict.DISJOINT;
     }
 
     /** A membership of or in a Variant (after {@link #refuseIdentityOnly}'s refusal): the database judge's has no
@@ -336,12 +158,6 @@ final class JudgmentFacts {
         return fqn != null ? new KindClass.Instance(fqn) : null;
     }
 
-    /** {@code k}, after register S401's refusal of a key declared Variant. */
-    private static @Nullable EqualityKeys variantKeysRefused(@Nullable EqualityKeys k) {
-        com.legend.compiler.spec.typed.VariantEquality.refuseVariantKeys(k);
-        return k;
-    }
-
     /** The compiler's key tree in the plan's vocabulary. */
     static @Nullable KeyTree keyTree(@Nullable EqualityKeys k) {
         if (k == null) {
@@ -362,7 +178,7 @@ final class JudgmentFacts {
      */
     static HostJudgment.Keys keys(TypedSpec eSpec, TypedSpec aSpec, ModelContext ctx) {
         // the host's comparison families (equals, contains, sameElements) all read their two sides' facts here
-        refuseIdentityOnly(eSpec, aSpec);
+        com.legend.lowering.SideEqualities.refuseIdentityOnly(eSpec, aSpec);
         String ef = EqualityKeys.fqnOf(eSpec.info().type());
         String af = EqualityKeys.fqnOf(aSpec.info().type());
         boolean eSubA = false;

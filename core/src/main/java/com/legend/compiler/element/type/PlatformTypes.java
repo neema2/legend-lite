@@ -50,6 +50,15 @@ public final class PlatformTypes {
         return t instanceof Type.ClassType c && c.fqn().equals(TDS_NULL_FQN);
     }
 
+    /** The relational SQL null's CLASS: what a bare {@code TDSNull} reference types as, through the {@code sqlNull()}
+     *  funnel (a presence test, never a value). */
+    public static final String SQL_NULL_FQN = "meta::relational::metamodel::SQLNull";
+
+    /** Whether {@code t} is the SQL null's class. */
+    public static boolean isSqlNull(Type t) {
+        return t instanceof Type.ClassType c && c.fqn().equals(SQL_NULL_FQN);
+    }
+
     private PlatformTypes() {
     }
 
@@ -189,6 +198,15 @@ public final class PlatformTypes {
     /** The TDS class's csv property name (tds.pure:19); a read of it over a
      * TDS-shaped value is the csv TEXT the engine prints for the relation. */
     public static final String TDS_CSV_PROPERTY = "csv";
+
+    /** Whether a read of {@code property}, typed {@code read}, over a {@code source}-typed value is the TDS class's csv
+     *  property ({@code csv : String[1]}, tds.pure:19), never a relation's column named csv, which the typer reads as
+     *  the column's cells ({@code [*]}): the one test the lowering, the resolver and the doors read (the review of
+     *  d6e94cdfe, 2026-11-25: a column named csv was read as the relation's text). */
+    public static boolean isTdsCsvRead(String property, Type source, ExprType read) {
+        return TDS_CSV_PROPERTY.equals(property) && isTdsShaped(source)
+                && read.multiplicity() instanceof Multiplicity.Bounded b && b.isToOne();
+    }
 
     /** Whether {@code t} is TDS-SHAPED: a schema-bearing {@code Relation<..>},
      * the {@code TDS<T>} relation class, or TabularDataSet — the types a
@@ -678,6 +696,11 @@ public final class PlatformTypes {
     /** The top type. */
     public static boolean isAny(Type t) {
         return t instanceof Type.ClassType c && c.fqn().equals(ANY);
+    }
+
+    /** The class every enumeration extends ({@code Enum}): an enumeration's value is one of it. */
+    public static boolean isEnumClass(Type t) {
+        return t instanceof Type.ClassType c && c.fqn().equals(ENUM);
     }
 
     /** Whether {@code g} is the metaclass {@code Class<...>} (a class referenced as a value). */

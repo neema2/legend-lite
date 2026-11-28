@@ -1,0 +1,706 @@
+database	matrix	comparison	what
+*	values	(places)	statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+*	values	int same	expected T: 1 == 1
+*	values	int differ	expected F: 1 == 2
+*	values	int computed	expected T: 1 + 1 == 2
+*	values	float same	expected T: 1.5 == 1.5
+*	values	string same	expected T: 'a' == 'a'
+*	values	string differ	expected F: 'a' == 'b'
+*	values	boolean same	expected T: true == true
+*	values	enum same	expected T: t::E.A == t::E.A
+*	values	enum differ	expected F: t::E.A == t::E.B
+*	values	boolean differ	expected F: true == false
+*	values	string case differs	expected F: 'a' == 'A'
+*	values	string trailing space	expected F: 'a' == 'a '
+*	values	enum and string	expected N: t::E.A == 'A'
+*	values	float sum not exact	expected F: 0.1 + 0.2 == 0.3
+*	values	float differ	expected F: 1.5 == 2.5
+*	values	integers past 2^53 differ	expected F: 9007199254740993 == 9007199254740992
+*	values	int and decimal differ	expected F: 1 == 1.5D
+*	values	decimal differ	expected F: 1.0D == 1.5D
+*	values	decimal sum exact	expected T: 0.1D + 0.2D == 0.3D
+*	values	day differ	expected F: %2020-01-01 == %2020-01-02
+*	values	date-time a millisecond apart	expected F: %2020-01-01T10:00:00.001 == %2020-01-01T10:00:00.002
+*	values	pairs differ	expected F: pair(1, 'a') == pair(1, 'b')
+*	values	int and decimal	expected T: 1 == 1D
+*	values	decimal two scales	expected T: 1.0D == 1.00D
+*	values	decimal computed two scales	expected T: 1.0D + 1.0D == 2.00D
+*	values	int and float	expected N: 1 == 1.0
+*	values	day same	expected T: %2020-01-01 == %2020-01-01
+*	values	day and date-time	expected N: %2020-01-01 == %2020-01-01T00:00:00
+*	values	date-time two written precisions	expected T: %2020-01-01T10:00:00.000 == %2020-01-01T10:00:00
+*	values	date-time hour and minute	expected T: %2020-01-01T10 == %2020-01-01T10:00
+*	values	date-times built to the hour and to the minute	expected T: date(2020, 1, 1, 10) == date(2020, 1, 1, 10, 0)
+*	values	date-times built to the hour, another hour	expected F: date(2020, 1, 1, 10) == date(2020, 1, 1, 11, 0)
+*	values	year same	expected T: %2020 == %2020
+*	values	year and computed year	expected T: %2020 == date(2020)
+*	values	year-month same	expected T: %2020-01 == %2020-01
+*	values	year and year-month	expected F: %2020 == %2020-01
+*	values	built to the hour and literal	expected T: date(2015, 4, 16, 14) == %2015-04-16T14:00:00
+*	values	day computed	expected T: %2020-01-01->adjust(1, DurationUnit.DAYS) == %2020-01-02
+*	values	Number same	expected T: 1->cast(@Number) == 1->cast(@Number)
+*	values	Number int and float	expected F: 1->cast(@Number) == 1.0->cast(@Number)
+*	values	Number int and decimal	expected T: 1->cast(@Number) == 1D->cast(@Number)
+*	values	Any same	expected T: 1->cast(@Any) == 1->cast(@Any)
+*	values	Any int and string	expected F;generic=R: 1->cast(@Any) == '1'->cast(@Any)
+*	values	Any day and date-time	expected F;generic=R: %2020-01-01->cast(@Any) == %2020-01-01T00:00:00->cast(@Any)
+*	values	Date day and date-time	expected F: %2020-01-01->cast(@Date) == %2020-01-01T00:00:00->cast(@Date)
+*	values	max of a mixed list	expected T: [1, 2.0]->max() == 2.0
+*	values	Number value from a sorted list, and a Float	expected F: [2, 1]->cast(@Number)->sort()->at(0) == [1.0, 2.0]->cast(@Number)->sort()->at(0)
+*	values	Number value from a sorted list, and an upcast Float literal	expected ?: [2, 1]->cast(@Number)->sort()->at(0) == 1.0->cast(@Number)
+*	values	raising single value, two families	expected E: [1, 2]->at(5)->cast(@Number) == 1.0->cast(@Number)
+*	values	year and string through Any	expected F: %2020->cast(@Any) == '2020'->cast(@Any)
+*	values	computed Float and whole literal	expected T@F;generic=R: 1.5 + 0.5 == 2
+*	values	computed Decimal and Float literal	expected T@F;generic=R: 0.1D + 0.2D == 0.3
+*	values	computed Integer and fraction literal	expected N: 1 + 1 == 2.5
+*	values	computed Float and Decimal literal	expected N: 1.5 + 0.5 == 2D
+*	values	Integer literal past 2^53 against a Float	expected N: 0.5 + 0.5 == 9007199254740993
+*	values	signed literal	expected T@F;generic=R: 1 - 2 == -1.0
+*	values	Decimal arithmetic with a Float literal	expected T: 1.0D * 0.1 == 0.1D
+*	values	pairs, Integer and Float	expected N: pair(1, 'a') == pair(1.0, 'a')
+*	values	built to the hour, sides swapped	expected T: %2015-04-16T14:00:00 == date(2015, 4, 16, 14)
+*	values	year and day	expected F: %2020 == %2020-01-01
+*	values	date-time with a time zone	expected T: %2020-01-01T10:00:00+0100 == %2020-01-01T09:00:00
+*	values	date-time fraction at two precisions	expected T: %2020-01-01T10:00:00.5 == %2020-01-01T10:00:00.500
+*	values	a comparison with an empty side, as an operand	expected T: [1, 2]->filter(x | $x > 5)->first() == 1 == false
+*	values	38-digit Decimals differ	expected F: 99999999999999999999999999999999999999D == 99999999999999999999999999999999999998D
+*	values	a toOne over many	expected E: [1, 2]->toOne() == 1
+*	values	two optional enums both empty	expected T: [t::E.A]->filter(e | $e == t::E.B)->first() == [t::E.B]->filter(e | $e == t::E.A)->first()
+*	values	two optionals of two kinds via Any, both empty	expected T: [1]->filter(x | $x > 5)->first()->cast(@Any) == ['a']->filter(s | $s == 'b')->first()->cast(@Any)
+*	values	two optionals of two families, both empty	expected N@T: [1]->filter(x | $x > 5)->first() == [1.5]->filter(x | $x > 5.0)->first()
+*	values	true and an empty optional Boolean	expected F: true == [true]->filter(b | !$b)->first()
+*	values	Number list through sort, and Floats	expected F: [2, 1]->cast(@Number)->sort() == [1.0, 2.0]->cast(@Number)
+*	values	optional one and a computed list of one	expected T: [1, 2]->filter(x | $x > 1)->first() == [1, 2]->filter(x | $x > 1)
+*	values	optional none and a computed empty list	expected T: [1, 2]->filter(x | $x > 5)->first() == [1, 2]->filter(x | $x > 5)
+*	values	Date lists: years and date-times	expected F: [%2020, %2021]->cast(@Date) == [%2020-01-01T00:00:00, %2021-01-01T00:00:00]->cast(@Date)
+*	values	removeDuplicates keeps its order	expected T: [2, 1, 2]->removeDuplicates() == [2, 1]
+*	values	Float lists computed	expected T: [1.5, 2.5]->filter(x | $x > 0.0) == [1.5, 2.5]
+*	values	enum lists computed	expected T: [t::E.A, t::E.B]->filter(e | true) == [t::E.A, t::E.B]
+*	values	String lists, a trailing space	expected F: ['a ', 'b']->filter(s | true) == ['a', 'b']
+*	values	written lists, Integer and Decimal	expected T: [1, 2] == [1D, 2.00D]
+*	values	built to the hour against a held list	expected T: date(2015, 4, 16, 14) == [%2015-04-16T14:00:00]->filter(d | true)
+*	values	a year through a filter	expected T: [%2020]->filter(d | true) == %2020
+*	values	empty string and the empty list	expected F: '' == []
+*	values	an empty list forced to one, and the empty list	expected E: []->toOne() == []
+*	values	lists inside lists, Integer and Decimal	expected T: list([1, 2]) == list([1D, 2D])
+*	values	an empty slot through a second map	expected T: [1, 2]->map(x | if($x == 1, |1, |[]))->map(y | if($y > 0, |'a', |'b')) == ['a']
+*	values	list decimal differs	expected F: [1.0D, 10.125D]->filter(x | $x > 0D) == [1.0D, 10.5D]
+*	values	hasSameElements: another order	expected T: hasSameElements([1, 2]->filter(e | true), [2, 1]->filter(e | true)) == true
+*	values	hasSameElements: duplicates counted	expected T: hasSameElements([1, 2, 2]->filter(e | true), [2, 1, 1]->filter(e | true)) == false
+*	values	hasSameElements: Integers and Decimals	expected T: hasSameElements([1, 2]->filter(e | true), [2D, 1.0D]->filter(e | true)) == true
+*	values	hasSameElements: Strings, a trailing space	expected T: hasSameElements(['a ', 'b']->filter(e | true), ['b', 'a']->filter(e | true)) == false
+*	values	hasSameElements: date-times to the hour and to the minute	expected T: hasSameElements([date(2015, 4, 16, 14), date(2015, 4, 16, 15)]->filter(e | true), [date(2015, 4, 16, 15, 0), date(2015, 4, 16, 14, 0)]->filter(e | true)) == true
+*	values	hasSameElements: an empty computed list and the written empty list	expected T: hasSameElements([1]->filter(e | $e > 5), []) == true
+*	values	hasSameElements: a list with an empty slot	expected T: hasSameElements([1, 2]->map(y | if($y == 1, |1, |[])), [1]->filter(e | true)) == true
+*	values	hasSameElements: written Strings in an if	expected T: if(['a', 'b']->hasSameElements(['b', 'a']), |1, |0) == 1
+*	values	membership past a take	expected T: [1, 2]->cast(@Number)->take(1)->contains([1.0, 2.0]->cast(@Number)->at(0)) == false
+*	values	hasSameElements: Booleans	expected T: hasSameElements([true, false]->filter(e | true), [false, true]->filter(e | true)) == true
+*	values	empty and empty	expected T: [] == []
+*	values	empty and value	expected F: [] == 1
+*	values	empty forced to one value, and a value	expected E: []->toOne() == 1
+*	values	date-time lists hour and minute	expected T: [date(2015, 4, 16, 14), date(2015, 4, 16, 15)]->filter(d | true) == [date(2015, 4, 16, 14, 0), date(2015, 4, 16, 15, 0)]->filter(d | true)
+*	values	Date lists built and written	expected T: [date(2015, 4, 16, 14), date(2015, 4, 16, 15)]->cast(@Date) == [%2015-04-16T14:00:00, %2015-04-16T15:00:00]->cast(@Date)
+*	values	list with an empty slot	expected T: [1, 2]->map(x | if($x == 1, |1, |[])) == [1]
+*	values	list of empty slots and written empty	expected T: [1, 2]->map(x | if($x > 5, |1, |[])) == []
+*	values	boolean list with an empty slot	expected T: [1, 2]->map(x | if($x == 1, |true, |[])) == [true]
+*	values	built to the hour and a list built to the minute	expected T: date(2015, 4, 16, 14) == [date(2015, 4, 16, 14, 0), date(2015, 4, 16, 15, 0)]->take(1)
+*	values	computed empty and written empty	expected T: [1, 2]->filter(x | $x > 5) == []
+*	values	two computed empties	expected T: [1, 2]->filter(x | $x > 5) == [3]->filter(x | $x > 5)
+*	values	computed empty and value	expected F: [1, 2]->filter(x | $x > 5) == 1
+*	values	optional none and value	expected F: [1, 2]->filter(x | $x > 5)->first() == 1
+*	values	two optionals none	expected T: [1, 2]->filter(x | $x > 5)->first() == [3]->filter(x | $x > 5)->first()
+*	values	optional one and value	expected T: [1, 2]->filter(x | $x > 1)->first() == 2
+*	values	written lists same	expected T: [1, 2] == [1, 2]
+*	values	written lists other order	expected F: [1, 2] == [2, 1]
+*	values	computed list same	expected T: [1, 2]->map(x | $x + 1) == [2, 3]
+*	values	computed list other order	expected F: [1, 2]->map(x | $x + 1) == [3, 2]
+*	values	two computed lists	expected T: [1, 2]->map(x | $x + 1) == [2, 3]->filter(x | $x > 0)
+*	values	computed list shorter	expected F: [1, 2]->filter(x | $x > 1) == [1, 2]
+*	values	list int and decimal	expected T: [1, 2]->filter(x | $x > 0) == [1.0D, 2.00D]
+*	values	list decimal two scales	expected T: [1.0D, 10.125D]->filter(x | $x > 0D) == [1.000D, 10.125D]
+*	values	written list decimal two scales	expected T: [1.0D, 10.125D] == [1.000D, 10.125D]
+*	values	list strings computed	expected T: ['a', 'b']->map(s | $s + 'x') == ['ax', 'bx']
+*	values	list date-times two precisions	expected T: [%2020-01-01T10:00:00.000]->filter(d | true) == [%2020-01-01T10:00:00]
+*	values	list days computed	expected T: [%2020-01-01, %2020-01-02]->filter(d | true) == [%2020-01-01, %2020-01-02]
+*	values	list joined from an empty value	expected T: [1, 2]->filter(x | $x > 5)->first()->concatenate([1]) == [1]
+*	values	string lists differ in case	expected F: ['a', 'b']->filter(s | true) == ['A', 'b']
+*	values	one value and list of one	expected T: 1 == [1, 2]->filter(x | $x < 2)
+*	values	mixed list written same	expected T: [1, 'a'] == [1, 'a']
+*	values	mixed list int and float	expected F: [1, 'a'] == [1.0, 'a']
+*	values	mixed list decimal two scales	expected T: [1.0D, 'a'] == [1.00D, 'a']
+*	values	mixed list computed	expected T: [1, 'a']->filter(x | true) == [1, 'a']
+*	values	mixed list with dates	expected F: [%2020-01-01, 'a'] == [%2020-01-01T00:00:00, 'a']
+*	values	Number lists int and float	expected F: [1, 2]->cast(@Number) == [1.0, 2.0]->cast(@Number)
+*	values	Number lists int and decimal	expected T: [1, 2]->cast(@Number) == [1D, 2D]->cast(@Number)
+*	values	Any lists same	expected T: [1, 2]->cast(@Any) == [1, 2]->cast(@Any)
+*	values	nested lists	expected T: list([1, 2]) == list([1, 2])
+*	values	maps same order	expected T: newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('a', 1), pair('b', 2)])
+*	values	maps other order	expected T: newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('b', 2), pair('a', 1)])
+*	values	maps a value differs	expected F: newMap([pair('a', 1), pair('b', 2)]) == newMap([pair('a', 1), pair('b', 3)])
+*	values	pairs same	expected T: pair(1, 'a') == pair(1, 'a')
+*	values	pairs int and decimal	expected T: pair(1, 1D) == pair(1, 1)
+*	values	list of pairs computed	expected T: [pair(1, 'a'), pair(2, 'b')]->filter(p | true) == [pair(1, 'a'), pair(2, 'b')]
+*	values	instances written alike	expected F: ^t::K(id=1, name='a') == ^t::K(id=1, name='a')
+*	values	tables same	expected T: #TDS\n id, s\n 1, x\n 2, y\n# == #TDS\n id, s\n 1, x\n 2, y\n#
+*	values	tables rows other order	expected F: #TDS\n id, s\n 1, x\n 2, y\n# == #TDS\n id, s\n 2, y\n 1, x\n#
+*	values	tables a cell differs	expected F: #TDS\n id, s\n 1, x\n 2, y\n# == #TDS\n id, s\n 1, x\n 2, z\n#
+*	values	tables a column's name differs	expected F: #TDS\n id\n 1\n# == #TDS\n ix\n 1\n#
+DuckDB	values	max of a mixed list	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	max of a mixed list	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	max of a mixed list	  refused DialectCapability [refused]: reads-element
+DuckDB	values	computed Float and whole literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	computed Float and whole literal	  T [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	computed Float and whole literal	  refused ModelException [refused]: lets, reads-element
+DuckDB	values	computed Float and whole literal	  F [right]: function-any
+DuckDB	values	computed Float and whole literal	  refused ModelException [right]: function-generic
+DuckDB	values	computed Decimal and Float literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	computed Decimal and Float literal	  T [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	computed Decimal and Float literal	  refused ModelException [refused]: lets, reads-element
+DuckDB	values	computed Decimal and Float literal	  F [right]: function-any
+DuckDB	values	computed Decimal and Float literal	  refused ModelException [right]: function-generic
+DuckDB	values	signed literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	signed literal	  T [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	signed literal	  refused ModelException [refused]: lets, reads-element
+DuckDB	values	signed literal	  F [right]: function-any
+DuckDB	values	signed literal	  refused ModelException [right]: function-generic
+DuckDB	values	Number list through sort, and Floats	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	Number list through sort, and Floats	  F [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	Number list through sort, and Floats	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	Date lists: years and date-times	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	Date lists: years and date-times	  F [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	Date lists: years and date-times	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	enum lists computed	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	enum lists computed	  T [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	enum lists computed	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	a year through a filter	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	a year through a filter	  T [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	a year through a filter	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	lists inside lists, Integer and Decimal	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	lists inside lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+DuckDB	values	lists inside lists, Integer and Decimal	  unjudged [refused]: assertEquals (database)
+DuckDB	values	membership past a take	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	membership past a take	  T [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	membership past a take	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+DuckDB	values	Date lists built and written	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	Date lists built and written	  T [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	Date lists built and written	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	mixed list computed	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	mixed list computed	  T [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	mixed list computed	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	maps same order	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	maps same order	  T [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	maps same order	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	maps same order	  refused NotImplementedException [refused]: reads-element
+DuckDB	values	maps other order	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	maps other order	  T [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	maps other order	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	maps other order	  refused NotImplementedException [refused]: reads-element
+DuckDB	values	maps a value differs	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	maps a value differs	  F [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	maps a value differs	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	maps a value differs	  refused NotImplementedException [refused]: reads-element
+DuckDB	values	pairs int and decimal	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	pairs int and decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+DuckDB	values	pairs int and decimal	  unjudged [refused]: assertEquals (database)
+DuckDB	values	list of pairs computed	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	list of pairs computed	  T [right]: statement, not, if, and, or, not-equal, lets, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	list of pairs computed	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll
+DuckDB	values	tables same	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	tables same	  T [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	tables same	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+DuckDB	values	tables rows other order	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	tables rows other order	  F [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	tables rows other order	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+DuckDB	values	tables a cell differs	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	tables a cell differs	  F [right]: statement, not, if, and, or, not-equal, lets, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	tables a cell differs	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+DuckDB	values	tables a column's name differs	ANSWERED ONLY IN SOME PLACES
+DuckDB	values	tables a column's name differs	  F [right]: statement, not, if, and, or, not-equal, lets, function-any, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+DuckDB	values	tables a column's name differs	  refused DialectCapability [refused]: kept-in-map, list-filter, list-exists, list-forAll, reads-element
+DuckDB	values	tables a column's name differs	  refused TypeInferenceException [refused]: function-generic
+H2	values	(a place left out)	kept-in-map: refused DialectCapability
+H2	values	(a place left out)	list-exists: refused DialectCapability
+H2	values	(a place left out)	list-forAll: refused DialectCapability
+H2	values	(a place left out)	reads-element: refused DialectCapability
+H2	values	max of a mixed list	refused by name everywhere
+H2	values	max of a mixed list	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	Number value from a sorted list, and a Float	refused by name everywhere
+H2	values	Number value from a sorted list, and a Float	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	Number value from a sorted list, and an upcast Float literal	refused by name everywhere
+H2	values	Number value from a sorted list, and an upcast Float literal	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	raising single value, two families	FAILS SOMEWHERE
+H2	values	raising single value, two families	  refused DialectCapability [failed]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	computed Float and whole literal	ANSWERED ONLY IN SOME PLACES
+H2	values	computed Float and whole literal	  T [right]: statement, not, if, and, or, not-equal, list-filter, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	computed Float and whole literal	  refused ModelException [refused]: lets
+H2	values	computed Float and whole literal	  F [right]: function-any
+H2	values	computed Float and whole literal	  refused ModelException [right]: function-generic
+H2	values	computed Decimal and Float literal	ANSWERED ONLY IN SOME PLACES
+H2	values	computed Decimal and Float literal	  T [right]: statement, not, if, and, or, not-equal, list-filter, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	computed Decimal and Float literal	  refused ModelException [refused]: lets
+H2	values	computed Decimal and Float literal	  F [right]: function-any
+H2	values	computed Decimal and Float literal	  refused ModelException [right]: function-generic
+H2	values	signed literal	ANSWERED ONLY IN SOME PLACES
+H2	values	signed literal	  T [right]: statement, not, if, and, or, not-equal, list-filter, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	signed literal	  refused ModelException [refused]: lets
+H2	values	signed literal	  F [right]: function-any
+H2	values	signed literal	  refused ModelException [right]: function-generic
+H2	values	a comparison with an empty side, as an operand	refused by name everywhere
+H2	values	a comparison with an empty side, as an operand	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	a toOne over many	FAILS SOMEWHERE
+H2	values	a toOne over many	  refused DialectCapability [failed]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	two optional enums both empty	refused by name everywhere
+H2	values	two optional enums both empty	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	two optionals of two kinds via Any, both empty	refused by name everywhere
+H2	values	two optionals of two kinds via Any, both empty	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	two optionals of two families, both empty	ANSWERED ONLY IN SOME PLACES
+H2	values	two optionals of two families, both empty	  refused ModelException [right]: statement, not, if, and, or, not-equal, lets, list-filter, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	two optionals of two families, both empty	  refused DialectCapability [refused]: function-any
+H2	values	true and an empty optional Boolean	refused by name everywhere
+H2	values	true and an empty optional Boolean	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	Number list through sort, and Floats	refused by name everywhere
+H2	values	Number list through sort, and Floats	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	optional one and a computed list of one	refused by name everywhere
+H2	values	optional one and a computed list of one	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	optional none and a computed empty list	refused by name everywhere
+H2	values	optional none and a computed empty list	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	Date lists: years and date-times	refused by name everywhere
+H2	values	Date lists: years and date-times	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	built to the hour against a held list	refused by name everywhere
+H2	values	built to the hour against a held list	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	lists inside lists, Integer and Decimal	FAILS SOMEWHERE
+H2	values	lists inside lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+H2	values	lists inside lists, Integer and Decimal	  error DataError [failed]: assertEquals (host)
+H2	values	lists inside lists, Integer and Decimal	  unjudged [refused]: assertEquals (database)
+H2	values	an empty slot through a second map	refused by name everywhere
+H2	values	an empty slot through a second map	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	hasSameElements: a list with an empty slot	refused by name everywhere
+H2	values	hasSameElements: a list with an empty slot	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	membership past a take	refused by name everywhere
+H2	values	membership past a take	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	Date lists built and written	refused by name everywhere
+H2	values	Date lists built and written	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	list with an empty slot	refused by name everywhere
+H2	values	list with an empty slot	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	list of empty slots and written empty	refused by name everywhere
+H2	values	list of empty slots and written empty	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	boolean list with an empty slot	refused by name everywhere
+H2	values	boolean list with an empty slot	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	built to the hour and a list built to the minute	refused by name everywhere
+H2	values	built to the hour and a list built to the minute	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	optional none and value	refused by name everywhere
+H2	values	optional none and value	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	two optionals none	refused by name everywhere
+H2	values	two optionals none	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	optional one and value	refused by name everywhere
+H2	values	optional one and value	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	computed list same	refused by name everywhere
+H2	values	computed list same	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	computed list other order	refused by name everywhere
+H2	values	computed list other order	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	two computed lists	refused by name everywhere
+H2	values	two computed lists	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	list strings computed	refused by name everywhere
+H2	values	list strings computed	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	list date-times two precisions	refused by name everywhere
+H2	values	list date-times two precisions	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	list joined from an empty value	refused by name everywhere
+H2	values	list joined from an empty value	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	nested lists	FAILS SOMEWHERE
+H2	values	nested lists	  T [right]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+H2	values	nested lists	  error DataError [failed]: assertEquals (host)
+H2	values	nested lists	  refused DialectCapability [refused]: assertEquals (database)
+H2	values	maps same order	FAILS SOMEWHERE
+H2	values	maps same order	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
+H2	values	maps same order	  error DataError [failed]: assertEquals (host)
+H2	values	maps other order	FAILS SOMEWHERE
+H2	values	maps other order	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
+H2	values	maps other order	  error DataError [failed]: assertEquals (host)
+H2	values	maps a value differs	FAILS SOMEWHERE
+H2	values	maps a value differs	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
+H2	values	maps a value differs	  error DataError [failed]: assertEquals (host)
+H2	values	pairs int and decimal	ANSWERED ONLY IN SOME PLACES
+H2	values	pairs int and decimal	  T [right]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+H2	values	pairs int and decimal	  unjudged [refused]: assertEquals (database)
+H2	values	instances written alike	ANSWERED ONLY IN SOME PLACES
+H2	values	instances written alike	  F [right]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column
+H2	values	instances written alike	  refused DialectCapability [refused]: assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	tables a column's name differs	ANSWERED ONLY IN SOME PLACES
+H2	values	tables a column's name differs	  F [right]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	tables a column's name differs	  refused TypeInferenceException [refused]: function-generic
+SQLite	values	int and decimal differ	ANSWERED ONLY IN SOME PLACES
+SQLite	values	int and decimal differ	  F [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	int and decimal differ	  refused DialectCapability [refused]: reads-element
+SQLite	values	decimal sum exact	refused by name everywhere
+SQLite	values	decimal sum exact	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	decimal two scales	ANSWERED ONLY IN SOME PLACES
+SQLite	values	decimal two scales	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	decimal two scales	  refused DialectCapability [refused]: reads-element
+SQLite	values	decimal computed two scales	refused by name everywhere
+SQLite	values	decimal computed two scales	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	date-time two written precisions	CONTRADICTS
+SQLite	values	date-time two written precisions	  F [wrong]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+SQLite	values	date-time two written precisions	  T [right]: assertEquals (host), assertEquals (database)
+SQLite	values	max of a mixed list	ANSWERED ONLY IN SOME PLACES
+SQLite	values	max of a mixed list	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	max of a mixed list	  refused DialectCapability [refused]: reads-element
+SQLite	values	raising single value, two families	A WRONG ANSWER SOMEWHERE
+SQLite	values	raising single value, two families	  error DataError [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	raising single value, two families	  F [wrong]: reads-element
+SQLite	values	computed Float and whole literal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	computed Float and whole literal	  T [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	computed Float and whole literal	  refused ModelException [refused]: lets, reads-element
+SQLite	values	computed Float and whole literal	  F [right]: function-any
+SQLite	values	computed Float and whole literal	  refused ModelException [right]: function-generic
+SQLite	values	computed Decimal and Float literal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	computed Decimal and Float literal	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, function-any, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	computed Decimal and Float literal	  refused ModelException [refused]: lets, reads-element
+SQLite	values	computed Decimal and Float literal	  refused ModelException [right]: function-generic
+SQLite	values	signed literal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	signed literal	  T [right]: statement, not, if, and, or, not-equal, kept-in-map, list-filter, list-exists, list-forAll, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	signed literal	  refused ModelException [refused]: lets, reads-element
+SQLite	values	signed literal	  F [right]: function-any
+SQLite	values	signed literal	  refused ModelException [right]: function-generic
+SQLite	values	Decimal arithmetic with a Float literal	refused by name everywhere
+SQLite	values	Decimal arithmetic with a Float literal	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	date-time fraction at two precisions	CONTRADICTS
+SQLite	values	date-time fraction at two precisions	  F [wrong]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assert (host), assert (database)
+SQLite	values	date-time fraction at two precisions	  T [right]: assertEquals (host), assertEquals (database)
+SQLite	values	38-digit Decimals differ	A WRONG ANSWER SOMEWHERE
+SQLite	values	38-digit Decimals differ	  T [wrong]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	Date lists: years and date-times	ANSWERED ONLY IN SOME PLACES
+SQLite	values	Date lists: years and date-times	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	Date lists: years and date-times	  F [right]: reads-element
+SQLite	values	written lists, Integer and Decimal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	written lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	written lists, Integer and Decimal	  refused DialectCapability [refused]: reads-element
+SQLite	values	built to the hour against a held list	ANSWERED ONLY IN SOME PLACES
+SQLite	values	built to the hour against a held list	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	built to the hour against a held list	  T [right]: reads-element
+SQLite	values	lists inside lists, Integer and Decimal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	lists inside lists, Integer and Decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+SQLite	values	lists inside lists, Integer and Decimal	  unjudged [refused]: assertEquals (database)
+SQLite	values	list decimal differs	ANSWERED ONLY IN SOME PLACES
+SQLite	values	list decimal differs	  F [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	list decimal differs	  refused DialectCapability [refused]: reads-element
+SQLite	values	Date lists built and written	ANSWERED ONLY IN SOME PLACES
+SQLite	values	Date lists built and written	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	Date lists built and written	  T [right]: reads-element
+SQLite	values	optional one and value	CONTRADICTS
+SQLite	values	optional one and value	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	optional one and value	  F [wrong]: list-filter
+SQLite	values	list int and decimal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	list int and decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	list int and decimal	  refused DialectCapability [refused]: reads-element
+SQLite	values	list date-times two precisions	A WRONG ANSWER SOMEWHERE
+SQLite	values	list date-times two precisions	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	list date-times two precisions	  F [wrong]: reads-element
+SQLite	values	nested lists	ANSWERED ONLY IN SOME PLACES
+SQLite	values	nested lists	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+SQLite	values	nested lists	  refused DialectCapability [refused]: assertEquals (database)
+SQLite	values	maps same order	ANSWERED ONLY IN SOME PLACES
+SQLite	values	maps same order	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
+SQLite	values	maps same order	  refused NotImplementedException [refused]: reads-element
+SQLite	values	maps same order	  T [right]: assertEquals (host)
+SQLite	values	maps other order	ANSWERED ONLY IN SOME PLACES
+SQLite	values	maps other order	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
+SQLite	values	maps other order	  refused NotImplementedException [refused]: reads-element
+SQLite	values	maps other order	  T [right]: assertEquals (host)
+SQLite	values	maps a value differs	ANSWERED ONLY IN SOME PLACES
+SQLite	values	maps a value differs	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (database), assert (host), assert (database)
+SQLite	values	maps a value differs	  refused NotImplementedException [refused]: reads-element
+SQLite	values	maps a value differs	  F [right]: assertEquals (host)
+SQLite	values	pairs int and decimal	ANSWERED ONLY IN SOME PLACES
+SQLite	values	pairs int and decimal	  T [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, reads-element, function-any, function-generic, table-filter, table-column, assertEquals (host), assert (host), assert (database)
+SQLite	values	pairs int and decimal	  unjudged [refused]: assertEquals (database)
+SQLite	values	tables rows other order	CONTRADICTS
+SQLite	values	tables rows other order	  F [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	tables rows other order	  T [wrong]: reads-element
+SQLite	values	tables a column's name differs	CONTRADICTS
+SQLite	values	tables a column's name differs	  F [right]: statement, not, if, and, or, not-equal, lets, kept-in-map, list-filter, list-exists, list-forAll, function-any, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+SQLite	values	tables a column's name differs	  T [wrong]: reads-element
+SQLite	values	tables a column's name differs	  refused TypeInferenceException [refused]: function-generic
+*	functions	(places)	in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+*	functions	int same	expected T: 1 == 1
+*	functions	int differ	expected F: 1 == 2
+*	functions	int computed	expected T: 1 + 1 == 2
+*	functions	float same	expected T: 1.5 == 1.5
+*	functions	string same	expected T: 'a' == 'a'
+*	functions	string differ	expected F: 'a' == 'b'
+*	functions	boolean same	expected T: true == true
+*	functions	enum same	expected T: t::E.A == t::E.A
+*	functions	enum differ	expected F: t::E.A == t::E.B
+*	functions	boolean differ	expected F: true == false
+*	functions	string case differs	expected F: 'a' == 'A'
+*	functions	string trailing space	expected F: 'a' == 'a '
+*	functions	enum and string	expected N: t::E.A == 'A'
+*	functions	float sum not exact	expected F: 0.1 + 0.2 == 0.3
+*	functions	float differ	expected F: 1.5 == 2.5
+*	functions	integers past 2^53 differ	expected F: 9007199254740993 == 9007199254740992
+*	functions	int and decimal differ	expected F: 1 == 1.5D
+*	functions	decimal differ	expected F: 1.0D == 1.5D
+*	functions	decimal sum exact	expected T: 0.1D + 0.2D == 0.3D
+*	functions	day differ	expected F: %2020-01-01 == %2020-01-02
+*	functions	date-time a millisecond apart	expected F: %2020-01-01T10:00:00.001 == %2020-01-01T10:00:00.002
+*	functions	pairs differ	expected F: pair(1, 'a') == pair(1, 'b')
+*	functions	int and decimal	expected T: 1 == 1D
+*	functions	decimal two scales	expected T: 1.0D == 1.00D
+*	functions	decimal computed two scales	expected T: 1.0D + 1.0D == 2.00D
+*	functions	int and float	expected N: 1 == 1.0
+*	functions	day same	expected T: %2020-01-01 == %2020-01-01
+*	functions	day and date-time	expected N: %2020-01-01 == %2020-01-01T00:00:00
+*	functions	date-time two written precisions	expected T: %2020-01-01T10:00:00.000 == %2020-01-01T10:00:00
+*	functions	date-time hour and minute	expected T: %2020-01-01T10 == %2020-01-01T10:00
+*	functions	date-times built to the hour and to the minute	expected T: date(2020, 1, 1, 10) == date(2020, 1, 1, 10, 0)
+*	functions	date-times built to the hour, another hour	expected F: date(2020, 1, 1, 10) == date(2020, 1, 1, 11, 0)
+*	functions	year same	expected T: %2020 == %2020
+*	functions	year and computed year	expected T: %2020 == date(2020)
+*	functions	year-month same	expected T: %2020-01 == %2020-01
+*	functions	year and year-month	expected F: %2020 == %2020-01
+*	functions	built to the hour and literal	expected T: date(2015, 4, 16, 14) == %2015-04-16T14:00:00
+*	functions	day computed	expected T: %2020-01-01->adjust(1, DurationUnit.DAYS) == %2020-01-02
+*	functions	Number same	expected T: 1->cast(@Number) == 1->cast(@Number)
+*	functions	Number int and float	expected F: 1->cast(@Number) == 1.0->cast(@Number)
+*	functions	Number int and decimal	expected T: 1->cast(@Number) == 1D->cast(@Number)
+*	functions	Any same	expected T: 1->cast(@Any) == 1->cast(@Any)
+*	functions	Any int and string	expected F;generic=R: 1->cast(@Any) == '1'->cast(@Any)
+*	functions	Any day and date-time	expected F;generic=R: %2020-01-01->cast(@Any) == %2020-01-01T00:00:00->cast(@Any)
+*	functions	Date day and date-time	expected F: %2020-01-01->cast(@Date) == %2020-01-01T00:00:00->cast(@Date)
+*	functions	max of a mixed list	expected T: [1, 2.0]->max() == 2.0
+*	functions	Number value from a sorted list, and a Float	expected F: [2, 1]->cast(@Number)->sort()->at(0) == [1.0, 2.0]->cast(@Number)->sort()->at(0)
+*	functions	Number value from a sorted list, and an upcast Float literal	expected ?: [2, 1]->cast(@Number)->sort()->at(0) == 1.0->cast(@Number)
+*	functions	raising single value, two families	expected E: [1, 2]->at(5)->cast(@Number) == 1.0->cast(@Number)
+*	functions	year and string through Any	expected F: %2020->cast(@Any) == '2020'->cast(@Any)
+*	functions	computed Float and whole literal	expected T@F;generic=R: 1.5 + 0.5 == 2
+*	functions	computed Decimal and Float literal	expected T@F;generic=R: 0.1D + 0.2D == 0.3
+*	functions	computed Integer and fraction literal	expected N: 1 + 1 == 2.5
+*	functions	computed Float and Decimal literal	expected N: 1.5 + 0.5 == 2D
+*	functions	Integer literal past 2^53 against a Float	expected N: 0.5 + 0.5 == 9007199254740993
+*	functions	signed literal	expected T@F;generic=R: 1 - 2 == -1.0
+*	functions	Decimal arithmetic with a Float literal	expected T: 1.0D * 0.1 == 0.1D
+*	functions	pairs, Integer and Float	expected N: pair(1, 'a') == pair(1.0, 'a')
+*	functions	built to the hour, sides swapped	expected T: %2015-04-16T14:00:00 == date(2015, 4, 16, 14)
+*	functions	year and day	expected F: %2020 == %2020-01-01
+*	functions	date-time with a time zone	expected T: %2020-01-01T10:00:00+0100 == %2020-01-01T09:00:00
+*	functions	date-time fraction at two precisions	expected T: %2020-01-01T10:00:00.5 == %2020-01-01T10:00:00.500
+*	functions	a comparison with an empty side, as an operand	expected T: [1, 2]->filter(x | $x > 5)->first() == 1 == false
+*	functions	38-digit Decimals differ	expected F: 99999999999999999999999999999999999999D == 99999999999999999999999999999999999998D
+*	functions	a toOne over many	expected E: [1, 2]->toOne() == 1
+DuckDB	functions	day computed	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+DuckDB	functions	day computed	  unjudged [refused]: assertContains (database)
+DuckDB	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+DuckDB	functions	Number int and float	  unjudged [refused]: assertContains (database)
+DuckDB	functions	Any same	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Any same	  T [right]: in, in-of-two, contains, not-contains, in-inside-a-list-function
+DuckDB	functions	Any same	  refused DialectCapability [refused]: contains-computed, indexOf
+DuckDB	functions	Any same	  refused NotImplementedException [refused]: assertContains (host)
+DuckDB	functions	Any same	  unjudged [refused]: assertContains (database)
+DuckDB	functions	Any int and string	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Any int and string	  F [right]: in, in-of-two, contains, not-contains, in-inside-a-list-function
+DuckDB	functions	Any int and string	  refused DialectCapability [refused]: contains-computed, indexOf
+DuckDB	functions	Any int and string	  refused NotImplementedException [refused]: assertContains (host)
+DuckDB	functions	Any int and string	  unjudged [refused]: assertContains (database)
+DuckDB	functions	Any day and date-time	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Any day and date-time	  refused DialectCapability [refused]: in, contains-computed, indexOf, in-inside-a-list-function
+DuckDB	functions	Any day and date-time	  F [right]: in-of-two, contains, not-contains, assertContains (host)
+DuckDB	functions	Any day and date-time	  unjudged [refused]: assertContains (database)
+DuckDB	functions	Date day and date-time	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Date day and date-time	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+DuckDB	functions	Date day and date-time	  unjudged [refused]: assertContains (database)
+DuckDB	functions	max of a mixed list	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	max of a mixed list	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+DuckDB	functions	max of a mixed list	  T [right]: assertContains (host), assertContains (database)
+DuckDB	functions	Number value from a sorted list, and a Float	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Number value from a sorted list, and a Float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+DuckDB	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
+DuckDB	functions	Number value from a sorted list, and an upcast Float literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+DuckDB	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
+DuckDB	functions	raising single value, two families	FAILS SOMEWHERE
+DuckDB	functions	raising single value, two families	  error DataError [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+DuckDB	functions	raising single value, two families	  unjudged [failed]: assertContains (database)
+DuckDB	functions	year and string through Any	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	year and string through Any	  refused DialectCapability [refused]: in, contains-computed, indexOf, in-inside-a-list-function
+DuckDB	functions	year and string through Any	  F [right]: in-of-two, contains, not-contains
+DuckDB	functions	year and string through Any	  refused NotImplementedException [refused]: assertContains (host)
+DuckDB	functions	year and string through Any	  unjudged [refused]: assertContains (database)
+DuckDB	functions	computed Float and whole literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	computed Float and whole literal	  T [right]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+DuckDB	functions	computed Float and whole literal	  refused ModelException [refused]: contains-computed
+DuckDB	functions	computed Decimal and Float literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	computed Decimal and Float literal	  T [right]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+DuckDB	functions	computed Decimal and Float literal	  refused ModelException [refused]: contains-computed
+DuckDB	functions	signed literal	ANSWERED ONLY IN SOME PLACES
+DuckDB	functions	signed literal	  T [right]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+DuckDB	functions	signed literal	  refused ModelException [refused]: contains-computed
+H2	functions	(a place left out)	contains-computed: refused DialectCapability
+H2	functions	(a place left out)	indexOf: refused DialectCapability
+H2	functions	(a place left out)	in-inside-a-list-function: refused DialectCapability
+H2	functions	date-time a millisecond apart	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-time a millisecond apart	  F [right]: in, in-of-two, contains, not-contains
+H2	functions	date-time a millisecond apart	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+H2	functions	date-time two written precisions	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-time two written precisions	  T [right]: in, in-of-two, contains, not-contains
+H2	functions	date-time two written precisions	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+H2	functions	date-time hour and minute	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-time hour and minute	  T [right]: in, in-of-two, contains, not-contains
+H2	functions	date-time hour and minute	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+H2	functions	date-times built to the hour and to the minute	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-times built to the hour and to the minute	  T [right]: in, assertContains (host), assertContains (database)
+H2	functions	date-times built to the hour and to the minute	  refused DialectCapability [refused]: in-of-two, contains, not-contains
+H2	functions	date-times built to the hour, another hour	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-times built to the hour, another hour	  F [right]: in, assertContains (host), assertContains (database)
+H2	functions	date-times built to the hour, another hour	  refused DialectCapability [refused]: in-of-two, contains, not-contains
+H2	functions	built to the hour and literal	ANSWERED ONLY IN SOME PLACES
+H2	functions	built to the hour and literal	  T [right]: in
+H2	functions	built to the hour and literal	  refused DialectCapability [refused]: in-of-two, contains, not-contains, assertContains (host), assertContains (database)
+H2	functions	day computed	ANSWERED ONLY IN SOME PLACES
+H2	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, assertContains (host)
+H2	functions	day computed	  unjudged [refused]: assertContains (database)
+H2	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
+H2	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, assertContains (host)
+H2	functions	Number int and float	  unjudged [refused]: assertContains (database)
+H2	functions	Any same	ANSWERED ONLY IN SOME PLACES
+H2	functions	Any same	  T [right]: in, in-of-two, contains, not-contains
+H2	functions	Any same	  refused NotImplementedException [refused]: assertContains (host)
+H2	functions	Any same	  unjudged [refused]: assertContains (database)
+H2	functions	Any int and string	ANSWERED ONLY IN SOME PLACES
+H2	functions	Any int and string	  F [right]: in, in-of-two, contains, not-contains
+H2	functions	Any int and string	  refused NotImplementedException [refused]: assertContains (host)
+H2	functions	Any int and string	  unjudged [refused]: assertContains (database)
+H2	functions	Any day and date-time	ANSWERED ONLY IN SOME PLACES
+H2	functions	Any day and date-time	  refused DialectCapability [refused]: in
+H2	functions	Any day and date-time	  F [right]: in-of-two, contains, not-contains, assertContains (host)
+H2	functions	Any day and date-time	  unjudged [refused]: assertContains (database)
+H2	functions	Date day and date-time	ANSWERED ONLY IN SOME PLACES
+H2	functions	Date day and date-time	  F [right]: in, in-of-two, contains, not-contains
+H2	functions	Date day and date-time	  refused DialectCapability [refused]: assertContains (host)
+H2	functions	Date day and date-time	  unjudged [refused]: assertContains (database)
+H2	functions	max of a mixed list	refused by name everywhere
+H2	functions	max of a mixed list	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host), assertContains (database)
+H2	functions	Number value from a sorted list, and a Float	refused by name everywhere
+H2	functions	Number value from a sorted list, and a Float	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host)
+H2	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
+H2	functions	Number value from a sorted list, and an upcast Float literal	refused by name everywhere
+H2	functions	Number value from a sorted list, and an upcast Float literal	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host)
+H2	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
+H2	functions	raising single value, two families	FAILS SOMEWHERE
+H2	functions	raising single value, two families	  refused DialectCapability [failed]: in, in-of-two, contains, not-contains, assertContains (host)
+H2	functions	raising single value, two families	  unjudged [failed]: assertContains (database)
+H2	functions	year and string through Any	ANSWERED ONLY IN SOME PLACES
+H2	functions	year and string through Any	  refused DialectCapability [refused]: in
+H2	functions	year and string through Any	  F [right]: in-of-two, contains, not-contains
+H2	functions	year and string through Any	  refused NotImplementedException [refused]: assertContains (host)
+H2	functions	year and string through Any	  unjudged [refused]: assertContains (database)
+H2	functions	built to the hour, sides swapped	ANSWERED ONLY IN SOME PLACES
+H2	functions	built to the hour, sides swapped	  T [right]: in, assertContains (host), assertContains (database)
+H2	functions	built to the hour, sides swapped	  refused DialectCapability [refused]: in-of-two, contains, not-contains
+H2	functions	date-time with a time zone	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-time with a time zone	  T [right]: in, in-of-two, contains, not-contains
+H2	functions	date-time with a time zone	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+H2	functions	date-time fraction at two precisions	ANSWERED ONLY IN SOME PLACES
+H2	functions	date-time fraction at two precisions	  T [right]: in, in-of-two, contains, not-contains
+H2	functions	date-time fraction at two precisions	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+H2	functions	a comparison with an empty side, as an operand	refused by name everywhere
+H2	functions	a comparison with an empty side, as an operand	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, assertContains (host), assertContains (database)
+H2	functions	a toOne over many	FAILS SOMEWHERE
+H2	functions	a toOne over many	  refused DialectCapability [failed]: in, in-of-two, contains, not-contains, assertContains (host), assertContains (database)
+SQLite	functions	decimal sum exact	refused by name everywhere
+SQLite	functions	decimal sum exact	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+SQLite	functions	date-time a millisecond apart	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	date-time a millisecond apart	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	date-time a millisecond apart	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+SQLite	functions	decimal computed two scales	refused by name everywhere
+SQLite	functions	decimal computed two scales	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+SQLite	functions	date-time two written precisions	A WRONG ANSWER SOMEWHERE
+SQLite	functions	date-time two written precisions	  F [wrong]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	date-time two written precisions	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+SQLite	functions	date-time hour and minute	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	date-time hour and minute	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	date-time hour and minute	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+SQLite	functions	built to the hour and literal	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	built to the hour and literal	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	built to the hour and literal	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+SQLite	functions	day computed	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	day computed	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+SQLite	functions	day computed	  unjudged [refused]: assertContains (database)
+SQLite	functions	Number int and float	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Number int and float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+SQLite	functions	Number int and float	  unjudged [refused]: assertContains (database)
+SQLite	functions	Any same	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Any same	  T [right]: in, in-of-two, contains, not-contains, in-inside-a-list-function
+SQLite	functions	Any same	  refused DialectCapability [refused]: contains-computed, indexOf
+SQLite	functions	Any same	  refused NotImplementedException [refused]: assertContains (host)
+SQLite	functions	Any same	  unjudged [refused]: assertContains (database)
+SQLite	functions	Any int and string	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Any int and string	  F [right]: in, in-of-two, contains, not-contains, in-inside-a-list-function
+SQLite	functions	Any int and string	  refused DialectCapability [refused]: contains-computed, indexOf
+SQLite	functions	Any int and string	  refused NotImplementedException [refused]: assertContains (host)
+SQLite	functions	Any int and string	  unjudged [refused]: assertContains (database)
+SQLite	functions	Any day and date-time	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Any day and date-time	  refused DialectCapability [refused]: in, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	Any day and date-time	  F [right]: in-of-two, contains, not-contains, assertContains (host)
+SQLite	functions	Any day and date-time	  unjudged [refused]: assertContains (database)
+SQLite	functions	Date day and date-time	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Date day and date-time	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	Date day and date-time	  refused DialectCapability [refused]: assertContains (host)
+SQLite	functions	Date day and date-time	  unjudged [refused]: assertContains (database)
+SQLite	functions	max of a mixed list	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	max of a mixed list	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	max of a mixed list	  T [right]: assertContains (host), assertContains (database)
+SQLite	functions	Number value from a sorted list, and a Float	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Number value from a sorted list, and a Float	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+SQLite	functions	Number value from a sorted list, and a Float	  unjudged [refused]: assertContains (database)
+SQLite	functions	Number value from a sorted list, and an upcast Float literal	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	Number value from a sorted list, and an upcast Float literal	  F [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+SQLite	functions	Number value from a sorted list, and an upcast Float literal	  unjudged [refused]: assertContains (database)
+SQLite	functions	raising single value, two families	FAILS SOMEWHERE
+SQLite	functions	raising single value, two families	  error DataError [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host)
+SQLite	functions	raising single value, two families	  unjudged [failed]: assertContains (database)
+SQLite	functions	year and string through Any	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	year and string through Any	  refused DialectCapability [refused]: in, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	year and string through Any	  F [right]: in-of-two, contains, not-contains
+SQLite	functions	year and string through Any	  refused NotImplementedException [refused]: assertContains (host)
+SQLite	functions	year and string through Any	  unjudged [refused]: assertContains (database)
+SQLite	functions	computed Float and whole literal	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	computed Float and whole literal	  T [right]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+SQLite	functions	computed Float and whole literal	  refused ModelException [refused]: contains-computed
+SQLite	functions	computed Decimal and Float literal	refused by name everywhere
+SQLite	functions	computed Decimal and Float literal	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+SQLite	functions	computed Decimal and Float literal	  refused ModelException [refused]: contains-computed
+SQLite	functions	signed literal	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	signed literal	  T [right]: in, in-of-two, contains, not-contains, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+SQLite	functions	signed literal	  refused ModelException [refused]: contains-computed
+SQLite	functions	Decimal arithmetic with a Float literal	refused by name everywhere
+SQLite	functions	Decimal arithmetic with a Float literal	  refused DialectCapability [refused]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (host), assertContains (database)
+SQLite	functions	date-time with a time zone	ANSWERED ONLY IN SOME PLACES
+SQLite	functions	date-time with a time zone	  T [right]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	date-time with a time zone	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+SQLite	functions	date-time fraction at two precisions	A WRONG ANSWER SOMEWHERE
+SQLite	functions	date-time fraction at two precisions	  F [wrong]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function
+SQLite	functions	date-time fraction at two precisions	  refused DialectCapability [refused]: assertContains (host), assertContains (database)
+SQLite	functions	38-digit Decimals differ	A WRONG ANSWER SOMEWHERE
+SQLite	functions	38-digit Decimals differ	  T [wrong]: in, in-of-two, contains, not-contains, contains-computed, indexOf, in-inside-a-list-function, assertContains (database)
+SQLite	functions	38-digit Decimals differ	  error DataError [failed]: assertContains (host)
+*	store	(places)	filter, filter-not, filter-not-equal, filter-and, filter-if, filter-function-any, value, value-not, value-if
+*	store	two integer columns	expected 1,5: $r.i == $r.i2
+*	store	integer column and literal	expected 1,2,4: $r.i == 1
+*	store	integer and decimal columns	expected 1,5: $r.i == $r.d
+*	store	decimal column and literal at another scale	expected 1,3: $r.d == 1D
+*	store	integer and float columns	expected N@3,5: $r.i == $r.f
+*	store	float column and literal	expected 1,4: $r.f == 1.0
+*	store	two string columns	expected 1,5: $r.s == $r.s2
+*	store	string column and literal	expected 1,2,4: $r.s == 'a'
+*	store	day column and literal	expected 1,2: $r.day == %2020-01-01
+*	store	date-time column and literal	expected 2: $r.at == %2020-01-01T10:00:00
+*	store	day and date-time columns	expected N@3,5: $r.day == $r.at
+*	store	float column and whole-number literal	expected 1,4@: $r.f == 1
+*	store	decimal column and whole-number literal	expected 1,3: $r.d == 1
+*	store	integer column and literal with a fraction	expected N: $r.i == 1.5
+*	store	date-time column and day literal	expected N: $r.at == %2020-01-01
+*	store	date-time column and literal to the hour	expected 2: $r.at == %2020-01-01T10
+*	store	column and the empty list	expected 3,5: $r.i == []
+*	store	computed column value and literal	expected 1,2,4: $r.i->map(x | $x + 1) == 2
+*	store	conditional number and integer column	expected 1,2,4: if($r.id > 0, |1, |2.5) == $r.i

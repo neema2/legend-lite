@@ -263,31 +263,39 @@ public final class LiteralSpelling {
             if (!columnRooted(e)) {
                 return null;
             }
-            SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
-            // strip FRACTIONAL trailing zeros only (a dotless spelling
-            // has no wire scale to erase), then a bare trailing dot
-            SqlExpr stripped = new SqlExpr.Case(List.of(
-                    new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.GREATER,
-                                    SqlExpr.Call.of(SqlFn.STRPOS, text,
-                                            new SqlExpr.StringLit(".")),
-                                    new SqlExpr.IntLit(0)),
-                            SqlExpr.Call.of(SqlFn.RTRIM,
-                                    SqlExpr.Call.of(SqlFn.RTRIM, text,
-                                            new SqlExpr.StringLit("0")),
-                                    new SqlExpr.StringLit(".")))),
-                    text, SqlExpr.Reason.PRINT);
-            // NULL-preserving by hand: DuckDB concat treats NULL as ''
-            // (a NULL cell must egress NULL, not a bare 'D')
-            return new SqlExpr.Cast(new SqlExpr.Case(List.of(
-                    new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.IS_NULL, e),
-                            new SqlExpr.NullLit())),
-                    SqlExpr.Call.of(SqlFn.CONCAT, stripped,
-                            new SqlExpr.StringLit("D")), SqlExpr.Reason.PRINT),
-                    SqlType.Scalar.DECIMAL_TEXT, SqlExpr.Reason.PRINT);
+            return decimalText(e);
         }
         return null;
+    }
+
+    /** A Decimal (or a whole number) as the canonical text a store-read Decimal is carried in ({@code DECIMAL_TEXT}):
+     *  its digits with no fractional trailing zero and no bare point, then {@code D}; NULL of NULL. Two such texts
+     *  are the same exactly where the two numbers are, so the product's comparison of two sides reads a typed
+     *  Decimal beside a store-read one through it ({@code SideEqualities}). */
+    static SqlExpr.Cast decimalText(SqlExpr e) {
+        SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
+        // strip FRACTIONAL trailing zeros only (a dotless spelling
+        // has no wire scale to erase), then a bare trailing dot
+        SqlExpr stripped = new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER,
+                                SqlExpr.Call.of(SqlFn.STRPOS, text,
+                                        new SqlExpr.StringLit(".")),
+                                new SqlExpr.IntLit(0)),
+                        SqlExpr.Call.of(SqlFn.RTRIM,
+                                SqlExpr.Call.of(SqlFn.RTRIM, text,
+                                        new SqlExpr.StringLit("0")),
+                                new SqlExpr.StringLit(".")))),
+                text, SqlExpr.Reason.PRINT);
+        // NULL-preserving by hand: DuckDB concat treats NULL as ''
+        // (a NULL cell must egress NULL, not a bare 'D')
+        return new SqlExpr.Cast(new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                        new SqlExpr.NullLit())),
+                SqlExpr.Call.of(SqlFn.CONCAT, stripped,
+                        new SqlExpr.StringLit("D")), SqlExpr.Reason.PRINT),
+                SqlType.Scalar.DECIMAL_TEXT, SqlExpr.Reason.PRINT);
     }
 
     /** A column-rooted egress expression (possibly cast-wrapped): a
@@ -500,36 +508,20 @@ public final class LiteralSpelling {
 
     /**
      * A Float's text ({@code toString}, {@code format}'s {@code %f}): one call, {@link SqlFn#FLOAT_TO_TEXT}, which each
-     * dialect writes -- the product six decimals trimmed (the user's ruling of 2026-11-10), the compatibility edge
-     * legend-pure's print form (phase D's D1.2, 2026-11-15; until then this was Pure's form, FLOAT_SHORTEST_TEXT, everywhere).
+     * dialect writes -- the product six decimals trimmed, a whole value keeping one (the user's rulings of 2026-11-10
+     * and 2026-11-23), the compatibility edge legend-engine's in-query cast (edge/PurePrintForms; phase D's D1.2,
+     * 2026-11-15; until then this was Pure's form, FLOAT_SHORTEST_TEXT, everywhere).
      */
     public static SqlExpr floatPrint(SqlExpr x) {
-        // (D1.2: the product's text of an integer-held value is its digits too, the same text as six decimals trimmed,
-        // so this lean form is both styles')
-        // A Float the STORE holds as an integer -- a physical column the store declares integral under a Float
-        // property (legend-engine's test tradeTable.quantity INT under the validation showcase's Float) -- prints the
-        // integer the database holds, as legend-engine's cast of the column does ('Quantity not in range: 1000000',
-        // measured on the corpus 2026-10-18, step 6 of the plan path program). The store's fact, read off the scan's
-        // own column (origin PHYSICAL), never inferred; a computed Float, and a projected one read back through a
-        // frame, keep Pure's text (the output layer's step 5: a whole Float's .0 on every database).
-        if (heldAsInteger(x)) {
-            return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
-        }
+        // ONE text for every Float, a value the store holds as an integer too (a physical column the store declares
+        // integral under a Float property: legend-engine's test tradeTable.quantity INT under the validation
+        // showcase's Float): the dialect reads the column as a double, so its whole value prints 2.0 (S311 amended,
+        // the user's ruling of 2026-11-23, "I think we do it as 2.0"; B2a, 2026-11-24 -- until then a plain cast wrote
+        // its digits, the same text while a whole value printed 2, and both styles shared the cast). The compatibility
+        // edge writes legend-engine's in-query cast for this node (edge/PurePrintForms), so its text of such a column
+        // is still the integer the database holds ('Quantity not in range: 1000000', measured on the corpus
+        // 2026-10-18). The judges' print of such a column at the edge is its digits (edge/EdgePureOnlyTexts).
         return SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x);
-    }
-
-    /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral
-     *  (its text is its digits; {@link #floatPrint}). */
-    static boolean heldAsInteger(SqlExpr x) {
-        return x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
-                && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
-                        || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
-                && isIntegral(t.type());
-    }
-
-    /** Whether {@code t} is one of the integral SQL kinds. */
-    private static boolean isIntegral(SqlType t) {
-        return t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.HUGEINT;
     }
 
     /** Decimal PRINT form: the value's cast text with the {@code D}

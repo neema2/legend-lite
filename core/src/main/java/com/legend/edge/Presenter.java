@@ -21,8 +21,11 @@ import java.util.Map;
  * over typed values, never the database's printed text -- legend-engine's JSON token of a cell ({@code pure/v1}
  * execute's, its service tests' and its TDS objects': {@link #engine}), a pivot column's presented name
  * ({@link #presentedName}), legend-pure's date text the {@code pure/v1} Arrow route hands its writer
- * ({@link #LEGEND_PURE}), legend-pure's print of a value ({@link #legendPure}: a raise sentence's fixed operand at
- * planning, a failed verdict's message) and legend-engine's text of an empty TDS cell ({@link #TDS_NULL}). The
+ * ({@link #LEGEND_PURE}) and legend-engine's text of an empty TDS cell ({@link #TDS_NULL}); legend-pure's print of a
+ * value, a second Float printer with no caller since the catalog's sentences (BE, 84a063611), was deleted by B2b's
+ * design audit of 2026-11-25 (G1: a relation's cell is printed by {@link PureValueText}, legend-pure's own
+ * DecimalFormat; a Float inside a list or a map under {@link #LEGEND_PURE} is still {@link CellText#element}'s
+ * {@code carriedFloat}, which differs on values such as {@code 1e23}, recorded in B2b's record). The
  * product writes its own forms ({@link CellText}); the rules here are the same serialization rule, never a
  * computation: each chooses digits for a value it holds whole, converts no kind, shifts no zone and defaults no null.
  */
@@ -35,41 +38,6 @@ public final class Presenter {
      *  for an empty element (the product's join skips one, its cell's text is empty: register S313, S316; phase D's
      *  D1.3). */
     public static final String TDS_NULL = "TDSNull";
-
-    /** legend-pure's print of a value, its {@code toString}, given its Pure type's name, which must be the value's own:
-     *  an Integer's digits; a Float's shortest digits laid out with a point always, never an exponent
-     *  ({@link CellText#carriedFloat}: the one rule, which the product's carried text uses too); a Decimal at its own
-     *  scale; a Boolean; a String as it is; a StrictDate, a Date or a DateTime at the precision it was written,
-     *  {@code +0000} from a minute on ({@link #pureZoned}); a StrictTime as written. Any other type, a value that is not
-     *  its type's, and a null (a Pure value is never null: an empty one is {@code []}, the caller's) are refused by name
-     *  -- never a default (AGENTS.md invariant 4). */
-    public static String legendPure(Object value, String pureType) {
-        String text = switch (pureType) {
-            case "Integer" -> switch (value) {
-                case Long l -> Long.toString(l);
-                case Integer i -> Integer.toString(i);
-                case BigInteger b -> b.toString();
-                case null, default -> null;
-            };
-            case "Float" -> switch (value) {
-                case Double d -> CellText.carriedFloat(d);
-                case BigDecimal d -> CellText.carriedFloat(d);
-                case null, default -> null;
-            };
-            case "Decimal" -> value instanceof BigDecimal d ? d.toPlainString() : null;
-            case "Boolean" -> value instanceof Boolean b ? b.toString() : null;
-            case "String" -> value instanceof String s ? s : null;
-            case "StrictDate", "Date", "DateTime" -> value instanceof PureDateLiteral d ? pureZoned(d) : null;
-            case "StrictTime" -> value instanceof PureTimeLiteral t ? t.canonicalText() : null;
-            default -> throw new IllegalArgumentException("legend-pure's print of a " + pureType
-                    + " is not defined at the edge (" + value + ")");
-        };
-        if (text == null) {
-            throw new IllegalArgumentException("legend-pure's print of a " + pureType + ": the value " + value + " ("
-                    + (value == null ? "null" : value.getClass().getSimpleName()) + ") is not a " + pureType);
-        }
-        return text;
-    }
 
     /** legend-engine's JSON token of a cell of column {@code c} ({@code pure/v1} execute, measured 4.145.0): null as
      *  {@code null}; an Integer's digits; a Float as Java's {@code Double.toString} writes the double, and a NaN or an

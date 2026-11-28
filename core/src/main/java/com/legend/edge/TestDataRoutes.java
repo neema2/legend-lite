@@ -353,7 +353,7 @@ public final class TestDataRoutes {
             return ModelInput.of(request.getObj("model")).with(models, ctx -> {
                 // through the product's door before its scan, as the generator's other routes (the last list of
                 // 2026-11-14's observation: the census scanned first; it plans and runs nothing either way)
-                com.legend.planner.QueryDoor.refuseRawSql(com.legend.Compiler.query(ctx, query));
+                com.legend.planner.QueryDoor.refuseRawSql(EngineComparisons.query(ctx, query));
                 List<Map<String, Object>> tables = new ArrayList<>();
                 for (List<String> t : TestDataCensus.rows(ctx, query, mapping)) {
                     Map<String, Object> table = new LinkedHashMap<>();
@@ -392,7 +392,7 @@ public final class TestDataRoutes {
      *  orchestrator's completion A of item 5: these routes scan the query's relations and lower its seed, apart from
      *  the door every execute passes, PlanMaker.plan's QueryDoor.refuseTestOnly). */
     private static ModelContext doored(ModelContext ctx, Request r) {
-        com.legend.planner.QueryDoor.refuseRawSql(com.legend.Compiler.query(ctx, r.query()));
+        com.legend.planner.QueryDoor.refuseRawSql(EngineComparisons.query(ctx, r.query()));
         return ctx;
     }
 
@@ -408,16 +408,15 @@ public final class TestDataRoutes {
 
     /** The seed of the request's query, lowered on its runtime through its mapping, whatever mappings the runtime
      *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
-     *  mapping). The seed's query is the one whose meaning chooses the keys, so each call the detector flags in it is
-     *  rewritten to legend-engine's meaning before it is lowered, or the request is refused by name
-     *  ({@link PureV1Routes#checkMeaning}; the user's ruling of 2026-11-20 ~07:55). The routes' other queries choose no
-     *  row by a call's value: generateTestData_WithSeed's rows are the identifiers'. */
+     *  mapping). The seed's query is the one whose meaning chooses the keys, so it is planned as every query of this
+     *  door is, with legend-engine's meaning, or refused by name ({@link PureV1Routes#loweredSeed}; the user's ruling of
+     *  2026-11-20 ~07:55). The routes' other queries choose no row by a call's value:
+     *  generateTestData_WithSeed's rows are the identifiers'. */
     private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
         return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> {
-            com.legend.TypedQuery typed = com.legend.Compiler.query(ctx,
+            com.legend.TypedQuery typed = EngineComparisons.query(ctx,
                     TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery));
-            return com.legend.planner.ProductStatements.lowerTestDataSeed(
-                    PureV1Routes.checkMeaning(typed, ctx, r.runtime(), r.mapping()), r.runtime());
+            return PureV1Routes.loweredSeed(typed, r.runtime());
         });
     }
 
@@ -478,7 +477,7 @@ public final class TestDataRoutes {
     /** {@code statement}'s one cell, the database's text: the statement a value the query answers, planned and run by
      *  the host's door, its one cell written as it is. */
     private static String run(ModelContext ctx, SqlQuery statement, String runtime, LiteV1Api.Runner runner) {
-        com.legend.TypedQuery shape = com.legend.Compiler.query(ctx, "|''");
+        com.legend.TypedQuery shape = EngineComparisons.query(ctx, "|''");
         com.legend.TypedQuery query = shape.withBody(List.of(com.legend.compiler.spec.GeneratorSplice.plannedValue(
                 statement, shape.body().get(0).info())));
         java.io.StringWriter out = new java.io.StringWriter();

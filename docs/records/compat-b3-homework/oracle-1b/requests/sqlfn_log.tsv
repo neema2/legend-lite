@@ -1,0 +1,6 @@
+# B3 step 1b (phase 1, 2026-11-24): the mapping::sqlFunction::log tests S15 moves, each the test's own
+# execute(|...) lambda re-packaged under oracle1b::sqlfn and closed by ->from(mapping, runtime).
+# meta::relational::tests::mapping::sqlFunction::log::testProject (testSqlFunctionsInMapping.pure:568)
+log::testProject	|oracle1b::sqlfn::SqlFunctionDemo.all()->project([s | $s.logResult], ['log'])->from(oracle1b::sqlfn::testMapping, oracle1b::sqlfn::RT)
+# meta::relational::tests::mapping::sqlFunction::log::testFilter (testSqlFunctionsInMapping.pure:575)
+log::testFilter	|oracle1b::sqlfn::SqlFunctionDemo.all()->filter(s | $s.logResult < 0.1)->project([s | $s.logResult], ['log'])->from(oracle1b::sqlfn::testMapping, oracle1b::sqlfn::RT)

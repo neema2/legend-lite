@@ -17,12 +17,12 @@ import java.util.List;
     }
 
     /** The facet kinds, in the order they were added: the engine-text assert's arm (W9's judge half, 2026-11-16);
-     *  upstream's plan text at planning (W9's planner half, 2026-11-16: {@code planner.UpstreamPlans}); a relation's
-     *  text at lowering (the separation census's B17, 2026-11-17: {@code lowering.RelationTexts}, asked with its
-     *  call's refusal); a text only legend-pure writes at lowering (B8 (i), 2026-11-17: {@code lowering.PureOnlyTexts}); legend-engine's result
+     *  upstream's plan text at planning (W9's planner half, 2026-11-16: {@code planner.UpstreamPlans}); (a relation's
+     *  text at lowering, the separation census's B17's {@code lowering.RelationTexts}: gone 2026-11-25, stage B's B2b
+     *  S5c, a shrink); a text only legend-pure writes at lowering (B8 (i), 2026-11-17: {@code lowering.PureOnlyTexts}); legend-engine's result
      *  envelope at lowering (Phase 6's B5, 2026-11-17: {@code lowering.ResultEnvelopes}, asked with its call's refusal). */
     public static final List<Class<?>> KINDS = List.of(EngineTestText.class, com.legend.planner.UpstreamPlans.class,
-            com.legend.lowering.RelationTexts.class, com.legend.lowering.PureOnlyTexts.class,
+            com.legend.lowering.PureOnlyTexts.class,
             com.legend.lowering.ResultEnvelopes.class);
 
     /** The TWO-FORM kinds ({@code PlanStyle.twoForm}, the orchestrator's ruling of 2026-11-17, census B9): each a value
@@ -36,9 +36,9 @@ import java.util.List;
     public static final List<Class<?>> TWO_FORMS = List.of(com.legend.lowering.DateTimeTexts.class,
             // a list's text (F's B8, 2026-11-17: TEXT_FORMS left the MIR): the product's JSON array, the edge's [a, b]
             com.legend.lowering.ListTexts.class,
-            // how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty (census C1, 2026-11-17,
-            // register S137): the product refuses it, the edge counts it as one value
-            com.legend.compiler.spec.RelationCounting.class,
+            // (RelationCounting, how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty, census
+            // C1's of 2026-11-17, register S137: left 2026-11-24, B3 step 2 -- the planner refuses it, and upstream's
+            // count is a body rewritten by the edge's test-body door before planning, edge.UpstreamTestBodies)
             // a test-data generator's timestamp text (census C1, 2026-11-17, L9): the product's clean form, the
             // edge's legend-engine test-data CSV
             com.legend.testdatagen.TestDataPlanner.Printing.class,
@@ -59,5 +59,12 @@ import java.util.List;
             // catalog words every assert failure, and the database judge plans for lite's flow alone)
             // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
             // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
-            com.legend.sql.dialect.DatabaseSettingsForm.class);
+            com.legend.sql.dialect.DatabaseSettingsForm.class,
+            // the door's edition (the edition program's step 2, 2026-11-25;
+            // docs/records/edition-plan-to-finish-stage-b-2026-11-25.md sections 2.2 and 2.3): the product's has no
+            // row and stamps nothing; a compatibility door's names, per native, the product rule its audience means,
+            // and says where its audience's own code runs. The one kind the other lowering forms fold into as the
+            // program goes. (2026-11-26: the kind is the planner's Edition, which makes the lowering's table for the
+            // statement's database; until then the lowering's table itself, which made the lowering see a database.)
+            com.legend.planner.Edition.class);
 }

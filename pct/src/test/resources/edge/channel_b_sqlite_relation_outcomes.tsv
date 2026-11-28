@@ -130,7 +130,7 @@ meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAn
 meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_MultipleExpressions	PASS	
 meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow	PASS	
 meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_MultipleExpressions	PASS	
-meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	PASS	
 meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyFirst	PASS	
 meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyLast	PASS	
 meta::pure::functions::relation::tests::extend::testOLAPAggWithOrderWindow	PASS	
@@ -207,14 +207,14 @@ meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqua
 meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_Negated	PASS	
 meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_NullInRelation	PASS	
 meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_NullValue	PASS	
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
-meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	PASS	
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	PASS	
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	PASS	
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	PASS	
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	PASS	
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	PASS	
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	PASS	
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	PASS	
 meta::pure::functions::relation::tests::in::testIn_CorrelatedSubQuery	PASS	
 meta::pure::functions::relation::tests::in::testIn_DerivedRelation	PASS	
 meta::pure::functions::relation::tests::in::testIn_EmptyRelation	PASS	
@@ -240,7 +240,7 @@ meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_For
 meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_MultipleSortColumns	PASS	
 meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_RowFunction	PASS	
 meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_SortColumnNotAggregated	PASS	
-meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	ERROR	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	PASS	
 meta::pure::functions::relation::tests::lag::testOLAPWithPartitionAndOrderWindowUsingLag	PASS	
 meta::pure::functions::relation::tests::last::testOLAPWithPartitionAndOrderLastWindow	PASS	
 meta::pure::functions::relation::tests::lateral::testLateralJoin	PASS	

@@ -45,7 +45,7 @@ final class HostJudge {
 
     /** A side the canon fetch reads ({@link #sideCanonOf}): never folded, on the identity lane. */
     private static HostSides.Ask canonAsk(TypedSpec arg, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return new HostSides.Ask(arg, true, HostSides.Fold.NONE, hook);
+        return HostSides.Ask.canon(arg, hook);
     }
 
     /** The static facts of one side, read once at planning. */
@@ -67,13 +67,13 @@ final class HostJudge {
 
     /** The GRID PAIR ({@code assertEquals} / {@code assertNotEquals} over two statically relation-stamped sides,
      *  D3): both grids executed in definition order, the grid owner ({@code testexec.TdsCompare#grids}:
-     *  columns ordered, rows under the order view of the actual side) judges -- never a byte decline. */
-    static HostSides.Check planGridPair(String name, boolean wantEqual, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        boolean sorted = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
-                == com.legend.compiler.spec.OrderView.SORTED;
+     *  columns ordered, the rows in order for assertEquals and assertNotEquals -- a side with no defined order is
+     *  refused before, B3 step 4's review, M4, 2026-11-24 -- and as a multiset for assertSameElements, M5) judges --
+     *  never a byte decline. */
+    static HostSides.Check planGridPair(String name, boolean wantEqual, List<TypedSpec> args, boolean inOrder,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
-                new HostJudgment.GridPair(name, wantEqual, sorted));
+                new HostJudgment.GridPair(name, wantEqual, inOrder));
     }
 
     static HostSides.Check planSize(List<TypedSpec> args, List<TypedSpec> letPrefix,
@@ -316,8 +316,7 @@ final class HostJudge {
         out.add(source);
     }
 
-    static HostSides.Check planEquals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
-            boolean gridPair, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+    static HostSides.Check planEquals(String name, boolean wantEqual, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         HostJudgment.SideFacts e = facts(args.get(0));
         HostJudgment.SideFacts a = facts(args.get(1));
         HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
@@ -326,7 +325,7 @@ final class HostJudge {
                 AssertVerdicts.wrappedRelationStamp(args.get(0), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(1), letPrefix));
         return new HostSides.Check(List.of(canonAsk(com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(args.get(0)), hook), canonAsk(args.get(1), hook)),
-                new HostJudgment.Equals(name, wantEqual, incidental, gridPair, e, a, keys, flat));
+                new HostJudgment.Equals(name, wantEqual, gridPair, e, a, keys, flat));
     }
 
     static HostSides.Check planJsonStringsEqual(List<TypedSpec> args, List<TypedSpec> letPrefix,

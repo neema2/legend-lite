@@ -231,7 +231,7 @@ public final class ResultEnvelopeSplice {
                     rp0.source(),
                     List.of(new TypedFuncCol("cnt", lam)),
                     new ExprType(Type.relation(cntRow), one1));
-            return new TypedNativeCall(szr.callee(), List.of(proj), szr.info(), szr.pos());
+            return new TypedNativeCall(szr.callee(), List.of(proj), szr.info(), szr.pos(), szr.outsideStore());
         }
         // cast(@TabularDataSet) over a SPLICED relation is the identity
         // (CastChecker's rule, which typing could not apply: the envelope
@@ -349,7 +349,7 @@ public final class ResultEnvelopeSplice {
                 }
                 List<TypedSpec> args = new java.util.ArrayList<>(w.args());
                 args.set(0, spliced);
-                return new TypedNativeCall(w.callee(), args, w.info(), w.pos());
+                return new TypedNativeCall(w.callee(), args, w.info(), w.pos(), w.outsideStore());
             }
         }
         // (rewrittenQuery is navigation over the activity ROWS: the router's

@@ -54,7 +54,7 @@ final class NullSemantics {
         return new SqlExpr.Group(new SqlExpr.Call(SqlFn.AND, conj));
     }
 
-    private static boolean isOptional(
+    static boolean isOptional(
             com.legend.compiler.element.type.Multiplicity m) {
         return m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                 && b.lower() == 0 && Integer.valueOf(1).equals(b.upper());
@@ -84,13 +84,6 @@ final class NullSemantics {
         return new SqlExpr.Call(SqlFn.NULL_SAFE_NOT_EQUAL, ops);
     }
 
-    /** Engine isEqualsFromFilter (dbExtension.pure:926-930): equality
-     * of two NULLABLE COLUMNS is NULL-SAFE — pure empty==empty is TRUE
-     * ({@code a = b OR (a is null AND b is null)}, the
-     * testConsistencyWithNulls col-to-col golden). Approximated by
-     * operand shape (both plain columns, both optional operands) — the
-     * engine's callingFromFilter flag has no analog at this layer; the
-     * corpus goldens referee. Anything else stays the bare EQUAL. */
     /** The VERBATIM-EQUALITY rewrite (Phase 2a, batch 136): a resolver-
      * synthesized join condition or a CORRELATION-stamped filter is the
      * MAPPING's own definition and lowers plain '=' — the null-safe grant
@@ -102,51 +95,6 @@ final class NullSemantics {
         return verbatim && e instanceof SqlExpr.Call c && c.fn() == SqlFn.NULL_SAFE_EQUAL
                 ? new SqlExpr.Call(SqlFn.EQUAL, c.args())
                 : e;
-    }
-
-    static SqlExpr equalNullArms(
-            com.legend.compiler.spec.typed.TypedNativeCall n,
-            java.util.List<SqlExpr> ops) {
-        // POSITION-BLIND (engine nullSafeEqualsOperation case 5: both
-        // lower bounds 0 → nullSafeEqual, no position gate — witness
-        // testProjectEqualityOnNullableColumns, where the equality sits
-        // in a PROJECT column); the operands' own multiplicities decide.
-        // A verbatim context (the mapping's own definition) rewrites the
-        // result to plain '=' at the Lowerer ({@link #verbatim}).
-        // A NULL-literal operand (an empty value, as a NULL constant's
-        // column reads once inlined): pure x == [] IS the absence test, and
-        // [] == [] is TRUE -- a bare '=' with a NULL is never TRUE (#SQL's
-        // SELECT NULL INTERSECT SELECT NULL, two NULLs equal, answered no
-        // row). Null-safe, so that a verbatim context and the legacy
-        // null-unsafe mode still write the engine's '='.
-        if (ops.size() == 2
-                && (ops.get(0) instanceof SqlExpr.NullLit || ops.get(1) instanceof SqlExpr.NullLit)) {
-            return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
-        }
-        if (n.args().size() == 2) {
-            // two whole Variants, or a Variant and an Any the plan cannot see, or a Variant among other values: only
-            // identity decides (register S401), refused by name (VariantEquality.between; its DISJOINT pairs the
-            // Lowerer folds before this, InstanceEquality.disjointAnswer)
-            com.legend.compiler.spec.typed.VariantEquality.between(n.args().get(0), n.args().get(1));
-        }
-        if (ops.size() == 2
-                && ops.get(0) instanceof SqlExpr.Column
-                && ops.get(1) instanceof SqlExpr.Column
-                && isOptional(n.args().get(0).info().multiplicity())
-                && isOptional(n.args().get(1).info().multiplicity())) {
-            return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
-        }
-        // an OPTIONAL parameter's equality is null-safe: its absence equals
-        // an empty side (the engine's optionalVarPlaceHolderOperationSelector,
-        // `col is null` when the value is absent, `col = value` when present;
-        // the legacy printer writes the same `is not distinct from`) -- unless an
-        // enumeration is compared: that routes the engine's enum machinery and
-        // never becomes nullSafeEqual (enumInvolved below)
-        if (ops.size() == 2 && !enumInvolved(n)
-                && ops.stream().anyMatch(o -> o instanceof SqlExpr.PlanParam p && p.optional())) {
-            return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
-        }
-        return new SqlExpr.Call(SqlFn.EQUAL, ops);
     }
 
     /** Engine pureToSQLQuery: an enum-referencing comparison routes the
@@ -205,10 +153,19 @@ final class NullSemantics {
         if (!(inner instanceof SqlExpr.Call c)) {
             return null;
         }
+        // an equality answered false for its empty side (Equalities.emptySidesAsPure): negated, the null-safe
+        // not-equal of its two sides, as the unguarded equality's negation is
+        List<SqlExpr> guarded = Equalities.guardedSides(inner);
+        if (guarded != null) {
+            return enumInvolved ? notEqualExpandedArms(guarded) : notEqualNullArms(guarded);
+        }
         return switch (c.fn()) {
             case EQUAL -> enumInvolved
                     ? notEqualExpandedArms(c.args())
                     : notEqualNullArms(c.args());
+            // two side values alone (Equalities.asSameValues with no rows): negated as the plain equality it stands
+            // for was, the null-safe not-equal of the two values; with its rows it is two-valued, and NOT suffices
+            case SAME_IN_ORDER -> c.args().size() == 2 ? notEqualNullArms(c.args()) : null;
             case NULL_SAFE_EQUAL ->
                     new SqlExpr.Call(SqlFn.NULL_SAFE_NOT_EQUAL, c.args());
             case NULL_SAFE_NOT_EQUAL ->

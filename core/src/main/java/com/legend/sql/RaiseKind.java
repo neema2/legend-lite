@@ -19,6 +19,9 @@ public enum RaiseKind {
     INDEX_OUT_OF_BOUNDS,
     INSERT_OUT_OF_BOUNDS,
     SQRT_OF_NEGATIVE,
+    /** acos or asin of a value outside [-1, 1] (the user's ruling of 2026-11-25, register S119 reopened for these two:
+     *  raised, as legend-pure does). */
+    INVERSE_TRIG_OUT_OF_DOMAIN,
     SIZE_NOT_MULTIPLICITY,
     SLICE_BOUNDS_INVERTED,
     DATE_COMPONENT_INVALID,
@@ -29,7 +32,8 @@ public enum RaiseKind {
      *  run-time dispatch read them. */
     MATCH_FAILURE,
     RANGE_STEP_ZERO,
-    CONSTRAINT_UNEVALUABLE,
+    // (CONSTRAINT_UNEVALUABLE: no raise kind since B2b's S7a, 2026-11-25 -- a checked graph's unevaluable constraint is
+    // a defect's text in a successful answer, never raised; ErrorKind keeps its sentence, as CONSTRAINT_VIOLATED's)
     LIST_LENGTHS_DIFFER,
     MAP_KEYS_MISALIGNED,
     MAP_KEY_NULL,

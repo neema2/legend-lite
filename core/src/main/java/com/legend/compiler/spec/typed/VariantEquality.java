@@ -153,6 +153,22 @@ public final class VariantEquality {
                 && (PlatformTypes.isVariant(one) || one instanceof Type.EnumType) ? one : s.info().type();
     }
 
+    /**
+     * {@code side} as a judge reads it: a Variant its author cast to Any ({@code v->cast(@Any)}) is read as the
+     * Variant it is, each value its JSON text, which the side's facts say it is already ({@link #sideType}) and the
+     * database judge's record reads. Read as the Any it is declared, it arrives decoded -- a JSON string as the text
+     * inside it, a JSON array as its elements -- and the host judge's record wrote {@code "abc"} as {@code abc}, the
+     * string {@code "1"} as the number and an array as a list, so a run under both judges stopped on two records of
+     * one failure (probed 2026-11-27 over ten bodies; the verdicts agreed). A side that is no such cast is itself.
+     */
+    public static TypedSpec asItsVariant(TypedSpec side) {
+        TypedSpec at = side;
+        while (at instanceof TypedCast cast && !cast.wire() && PlatformTypes.isAny(cast.target())) {
+            at = cast.source();
+        }
+        return at != side && PlatformTypes.isVariant(at.info().type()) ? at : side;
+    }
+
     /** An equality between {@code a}'s values and {@code b}'s: refused by name where only identity decides, DISJOINT
      *  where a Variant meets values of other types alone, else COMPUTED. */
     public static Verdict between(TypedSpec a, TypedSpec b) {

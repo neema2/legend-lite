@@ -79,6 +79,9 @@ test_suite(
         # The timeseries library (projects/timeseries/model.pure, package timeseries::) on every in-process database: it compiles,
         # and a person's Pure calling it answers as arithmetic (2026-10-28)
         "//core:timeseries_library_test",
+        # the position matrix, pinned (step 6B's slice 2, 2026-11-28): one comparison asked in every place a comparison
+        # can stand, on every in-process database, equal to tools/equality-measure/positions-baseline.tsv
+        "//core:equality_positions_pin_test",
         # the #TS{...}# island (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): its queries answer as the library's calls
         "//core:ts_island_test",
         # the adversarial markets fixture's traps on DuckDB, each case's status held by ts-adversarial/ledger.tsv; the
@@ -263,13 +266,15 @@ test_suite(
     ],
 )
 
-# PCT on H2 (gate 7). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
+# PCT on H2 (gate 7): the five suites since 2026-11-26 (the relation suite alone until then). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
 # standard suites (the essential and standard added by the compatibility program's owner, 2026-11-19), here beside H2's
 # own PCT rather than in pct_duckdb, whose job they would lengthen
 test_suite(
     name = "pct_h2",
     tests = [
         "//pct:engine_lane_h2_test",
+        # the five suites (2026-11-26, the user's question "Should we run full h2 pct like duck?" and the
+        # orchestrator's decision: Essential, Grammar, Standard and Unclassified joined Relation)
         "//pct:pct_h2",
     ],
 )
@@ -424,6 +429,8 @@ test_suite(
     name = "sdlc",
     tests = [
         "//sdlc-server:git_repository_test",
+        # the SDLC's compile check is lite's own (2026-11-26)
+        "//sdlc-server:core_grammar_test",
         "//sdlc-client:tests",
         "//depot-client:tests",
         # a class, an association or a data space made in a project: the library replayed against its cases (B4)

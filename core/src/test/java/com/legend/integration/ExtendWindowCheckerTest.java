@@ -1395,7 +1395,8 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
             var r = executeRelation(TDS10 +
                     "->extend(over(~grp), ~partSum:{p,w,r|$r.id}:y|$y->plus())" +
                     "->extend(~pct: x | $x.id * 100 / $x.partSum)" +
-                    "->filter(x | $x.pct > 40)");
+                    // a division is a Float, compared with a Float (B3 step 5, the one equality)
+                    "->filter(x | $x.pct > 40.0)");
             assertTrue(r.rowCount() > 0);
             assertEquals(5, r.columns().size());
         }

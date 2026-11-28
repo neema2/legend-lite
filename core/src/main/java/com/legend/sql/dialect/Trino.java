@@ -940,6 +940,7 @@ public class Trino extends AnsiSqlRenderer {
             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
                     w -> w.append("regexp_like(").expr(c.args().get(0), 0).append(", '^[+-]?[0-9]+$')"),
                     w -> castAs(w, c.args().get(0), "BIGINT"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -956,6 +957,8 @@ public class Trino extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: Trino's own cast, never re-spelled (always its exponent form, 1.5E0)
+            case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -977,8 +980,8 @@ public class Trino extends AnsiSqlRenderer {
             case VARIANT_GET -> variantGet(writer, c.args());
             // this database's plain spellings: name(args)
             case ABS -> writer.function("abs", c.args());
-            case ACOS -> writer.function("acos", c.args());
-            case ASIN -> writer.function("asin", c.args());
+            case ACOS, ACOS_IN_DOMAIN -> writer.function("acos", c.args());
+            case ASIN, ASIN_IN_DOMAIN -> writer.function("asin", c.args());
             case ATAN -> writer.function("atan", c.args());
             case ATAN2 -> writer.function("atan2", c.args());
             case CBRT -> writer.function("cbrt", c.args());
@@ -1064,6 +1067,8 @@ public class Trino extends AnsiSqlRenderer {
             // DuckDB's split_part: the empty string past the end (Trino's is NULL)
             case SPLIT_PART -> writer.append("coalesce(split_part(").list(a).append("), '')");
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "round", null);
 
             // ---- strings
             case MATCHES -> writer.append("regexp_like(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");

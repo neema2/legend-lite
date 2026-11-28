@@ -49,20 +49,8 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
-        public com.legend.testexecutionplan.JsonGrammar json() {
-            // lite's own runs read strict JSON (register S144)
-            return com.legend.testexecutionplan.JudgeJson.STRICT;
-        }
-
-        @Override
-        public RenderedTexts renderedTexts() {
-            // lite's own runs: the two strings are the verdict
-            return LiteRenderedTexts.STRINGS;
-        }
-
-        @Override
         public HostForms hostForms() {
-            // lite's own runs: two number kinds never equal (S127)
+            // lite's own runs: a Float compared exactly (S15), a caught error in lite's words
             return LiteHostForms.STRICT;
         }
 

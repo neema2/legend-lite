@@ -201,7 +201,8 @@ public final class PlanAllocations {
         com.legend.sql.dialect.SqlDialect dialect = env.dialect() != null ? env.dialect()
                 : env.style().dialect(com.legend.Compiler.executesOn(env.ctx(), env.runtimeFqn()).type());
         List<TypedSpec> body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(raw);
-        body = BodyPlanner.resolver(specs, env).resolve(body, env.runtimeFqn(), mappingFqn, List.of());
+        body = BodyPlanner.resolver(specs, env, com.legend.resolver.StampedCode.NONE)
+                .resolve(body, env.runtimeFqn(), mappingFqn, List.of());
         return dialect.render(BodyPlanner.lowerAndPrepare(body, env, env.ctx(), dialect, false));
     }
 

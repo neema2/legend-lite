@@ -1,0 +1,47 @@
+Picked up JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=JKS -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=37807 -Dhttp.nonProxyHosts=localhost|127.0.0.1|::1|127.*|0.*|::|169.254.*|api.anthropic.com|api-staging.anthropic.com|api-pr-preview.anthropic.com|mcp-proxy.anthropic.com|mcp-proxy-staging.anthropic.com|registry.npmjs.org|jsr.io|npm.jsr.io|pypi.org|files.pythonhosted.org|index.crates.io|proxy.golang.org|host.docker.internal|10.*|172.16.*|172.17.*|172.18.*|172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|172.29.*|172.30.*|172.31.*|192.168.*|100.64.0.0/10|*.svc.cluster.local|*.svc.cluster.local -Djdk.http.auth.tunneling.disabledSchemes= -Djdk.http.auth.proxying.disabledSchemes=
+Picked up _JAVA_OPTIONS: -XX:+UnlockDiagnosticVMOptions -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock
+# H2 2.1.214 (2022-06-13)
+select (1.0 * 5) / 0 as d => ERROR Division by zero: "5.0"; SQL statement: select (1.0 * 5) / 0 as d [22012-214]
+select cast(5 as double) / cast(0 as double) as d => ERROR Division by zero: "CAST(5.0 AS DOUBLE PRECISION)"; SQL statement: select cast(5 as double) / cast(0 as double) as d [22012-214]
+select (1.0 * 1) / 3 as d => 0.333333333333333333333 [NUMERIC] ; 
+select mod(5, 0) as r => ERROR Division by zero: "5"; SQL statement: select mod(5, 0) as r [22012-214]
+select sqrt(-2.0) as s => NaN [DOUBLE PRECISION] ; 
+select sqrt(cast(-2.0 as double)) as s => NaN [DOUBLE PRECISION] ; 
+select bitshiftleft(cast(1 as bigint), 63) as l => ERROR Function "BITSHIFTLEFT" not found; SQL statement: select bitshiftleft(cast(1 as bigint), 63) as l [90022-214]
+select bitshiftleft(cast(1 as bigint), 64) as l => ERROR Function "BITSHIFTLEFT" not found; SQL statement: select bitshiftleft(cast(1 as bigint), 64) as l [90022-214]
+select bitshiftright(cast(1 as bigint), 63) as r => ERROR Function "BITSHIFTRIGHT" not found; SQL statement: select bitshiftright(cast(1 as bigint), 63) as r [90022-214]
+select cast('abc' as integer) as p => ERROR Data conversion error converting "abc"; SQL statement: select cast('abc' as integer) as p [22018-214]
+select cast(' 1 ' as integer) as p => 1 [INTEGER] ; 
+select cast('1.5' as integer) as p => ERROR Data conversion error converting "1.5"; SQL statement: select cast('1.5' as integer) as p [22018-214]
+select cast('+1' as integer) as p => 1 [INTEGER] ; 
+select cast('9999999999999992' as integer) as p => ERROR Data conversion error converting "9999999999999992"; SQL statement: select cast('9999999999999992' as integer) as p [22018-214]
+select cast('9999999999999992' as bigint) as p => 9999999999999992 [BIGINT] ; 
+select cast('abc' as float) as f => ERROR Data conversion error converting "abc"; SQL statement: select cast('abc' as float) as f [22018-214]
+select cast('1.1' as float) as f => 1.1 [DOUBLE PRECISION] ; 
+select cast('123.450021' as decimal(5, 2)) as d => 123.45 [DECIMAL] ; 
+select cast('1234.5' as decimal(5, 2)) as d => ERROR Value too long for column "DECIMAL(5, 2)": "'1234.5' (6)"; SQL statement: select cast('1234.5' as decimal(5, 2)) as d [22001-214]
+select (lower(' 1 ') = upper(' 1 ')) as n => true [BOOLEAN] ; 
+select regexp_like(' 1 ', '^[-]?[0-9]+(\.[0-9]+)?$') as n => false [BOOLEAN] ; 
+select regexp_like('1.5', '^[-]?[0-9]+(\.[0-9]+)?$') as n => true [BOOLEAN] ; 
+select substring('abcdef', 1, 3) as s => abc [CHARACTER VARYING] ; 
+select substring('abcdef', 0, 3) as s => abc [CHARACTER VARYING] ; 
+select substring('ab', 1, 5) as s => ab [CHARACTER VARYING] ; 
+select substring('abcdef', -2, 3) as s => ef [CHARACTER VARYING] ; 
+select locate('b', 'abc') as i => 2 [INTEGER] ; 
+select locate('z', 'abc') as i => 0 [INTEGER] ; 
+select datediff(WEEK, DATE '2015-07-04', DATE '2015-07-05') as w => 1 [BIGINT] ; 
+select datediff(WEEK, DATE '2015-07-05', DATE '2015-07-04') as w => -1 [BIGINT] ; 
+select cast(TIMESTAMP '2014-01-01 00:00:00' as varchar) as t => 2014-01-01 00:00:00 [CHARACTER VARYING] ; 
+select cast(cast(1.3421e-8 as double) as varchar) as t => 1.3421E-8 [CHARACTER VARYING] ; 
+select cast(true as varchar) as t => TRUE [CHARACTER VARYING] ; 
+select round(16.5, 0) as r => 17 [NUMERIC] ; 
+select round(cast(16.5 as double), 0) as r => 17.0 [DOUBLE PRECISION] ; 
+select 1 = 1.0 as e => true [BOOLEAN] ; 
+create table b(active boolean) => (ok)
+insert into b values (true), (false), (null) => (ok)
+select count(*) from b where active = 1 => 1 [BIGINT] ; 
+create table n(v int) => (ok)
+insert into n values (2), (null), (1) => (ok)
+select listagg(cast(v as varchar), ',') within group (order by v) from n => 1,2 [CHARACTER VARYING] ; 
+select array_agg(v order by v) from n => ar0: ARRAY [1, 2, NULL] [INTEGER ARRAY] ; 
+select v from n order by v => 1 [INTEGER] ; 2 [INTEGER] ; NULL [INTEGER] ; 

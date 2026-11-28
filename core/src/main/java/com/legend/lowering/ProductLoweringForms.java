@@ -3,11 +3,9 @@
 
 package com.legend.lowering;
 
-import com.legend.sql.RaiseKind;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
 
-import java.util.function.Supplier;
 
 /**
  * THE PRODUCT'S FORM OF THE LOWERING'S TWO-FORM CHOICES ({@link LoweringForms}; a product class of its own since
@@ -22,20 +20,7 @@ public final class ProductLoweringForms implements LoweringForms {
     private ProductLoweringForms() {
     }
 
-    @Override
-    public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
-        return checked.get();
-    }
 
-    @Override
-    public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
-        return body;
-    }
-
-    @Override
-    public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-        return written.get();
-    }
 
     @Override
     public SqlSelect executeValues(SqlSelect own) {
@@ -48,22 +33,8 @@ public final class ProductLoweringForms implements LoweringForms {
         return "";
     }
 
-    @Override
-    public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
-            Supplier<com.legend.sql.SqlQuery> unshared) {
-        return shared.get();
-    }
 
-    @Override
-    public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
-            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
-        return fold.apply(q);
-    }
 
-    @Override
-    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-        return SubselectPrune.prune(q, true);
-    }
 
     /** An exact decimal at the product's Decimal precision ({@code PureSql.type(DECIMAL)}). */
     @Override
@@ -85,12 +56,6 @@ public final class ProductLoweringForms implements LoweringForms {
         return filtered;
     }
 
-    /** The product's isNumeric: a real numeric check, the same on every database (census J20). */
-    @Override
-    public SqlExpr isNumeric(SqlExpr s) {
-        return SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NUMERIC, s);
-    }
-
     /** THE PRODUCT'S REFUSAL of legend-engine's result envelope (Phase 6's B5, 2026-11-17, the orchestrator's ruling):
      *  by name, pointing to the product's result writers -- at lowering for a relation or class root, at planning for
      *  a serialized root (train 17 item 2, 2026-11-18: the planner's ExecutedValues kind, the product's form). */
@@ -100,11 +65,6 @@ public final class ProductLoweringForms implements LoweringForms {
                         + " writes a query's rows by its result writers (JSON, CSV, Arrow)");
     }
 
-    /** No frame: a union is a subselect like any other (L10). */
-    @Override
-    public @com.legend.base.Nullable String unionFrame() {
-        return null;
-    }
 
 
     /** Each predicate appended, no zones kept (L10): conjunct order is no answer's, and the product's EXISTS is lowered

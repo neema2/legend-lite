@@ -45,7 +45,8 @@ class PlanStyleSurfaceTest {
 
     /** The facet kinds, in order. */
     static final List<String> KINDS = List.of("com.legend.testplan.EngineTestText", "com.legend.planner.UpstreamPlans",
-            "com.legend.lowering.RelationTexts", "com.legend.lowering.PureOnlyTexts", "com.legend.lowering.ResultEnvelopes");
+            // (com.legend.lowering.RelationTexts: gone 2026-11-25 with the facet, stage B's B2b S5c; a shrink)
+            "com.legend.lowering.PureOnlyTexts", "com.legend.lowering.ResultEnvelopes");
 
     /** Members of a TWO_FORMS kind that break criterion (a), each with its reason: found 2026-11-17. */
     static final Map<String, String> TWO_FORM_EXCEPTIONS = Map.of();
@@ -76,10 +77,19 @@ class PlanStyleSurfaceTest {
 
     /** Each implementer of PlanStyle -> the style methods it declares. */
     static final Map<String, Set<String>> OVERRIDERS = Map.ofEntries(
-            // the product's style (PlanStyle.PRODUCT) and the edge's two (PureText.UPSTREAM, PureText.PURE_V1)
+            // the product's style (PlanStyle.PRODUCT) and the edge's (PureText.UPSTREAM, PureText.PURE_V1, and
+            // PureText.ENGINE_TESTS below)
             Map.entry("com.legend.database.PlanStyle$1", ALL),
             Map.entry("com.legend.edge.PureText$1", ALL),
-            Map.entry("com.legend.edge.PureText$2", ALL));
+            Map.entry("com.legend.edge.PureText$2", ALL),
+            // 2026-11-26 (the edition program's step 3): legend-engine's own tests' style (PureText.ENGINE_TESTS, the
+            // relational corpus's door) -- UPSTREAM in every method but twoForm's edition, which is legend-engine's
+            // tests' (the queries a test's execute()s run are legend-engine's, the test's own code Pure's). A third
+            // style because the corpus and PCT are two audiences that shared UPSTREAM until now.
+            // The same day, later: the class is PureText.withEdition's, a base style with another edition -- the
+            // corpus's (UPSTREAM with legend-engine's tests' edition) and PCT's legend-engine run's
+            // (PureText.ENGINE_PCT: PURE_V1 with the edition under which nothing is stamped); one class, two styles
+            Map.entry("com.legend.edge.PureText$3", ALL));
             // (the edge's recorder of one planning call's raise-site words, K10b of 2026-11-17: deleted, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
 
     private static String signature(Method m) {

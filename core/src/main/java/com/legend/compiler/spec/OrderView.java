@@ -15,6 +15,15 @@ import java.util.List;
  * INCIDENTAL (bottoms at a store source or an execution-frame read with no sort —
  * SQL arrival order, engine goldens encode H2's), DEFINED (pure values — the
  * language's own order). Nothing is evaluated.
+ *
+ * <p>WHERE THE RULE DOES NOT KNOW, IT DOES NOT SAY "ORDERED" (the edition program's step 6, its closing batch; the
+ * user, 2026-11-27: "maybe okay if sometimes says \"use hasSameElements\" when it doesn't know"). A function or a
+ * node the rule does not name is as ordered as the least ordered of what it was applied to ({@link #leastOrdered}):
+ * store rows passed through {@code removeDuplicates}, {@code reverse}, {@code tail}, an {@code if} of two reads are
+ * in arrival order still. Until then every unnamed function answered DEFINED without reading its input -- loud
+ * enough for a test (a strict assert over rows whose order varies fails, and the lists below grew that way), but a
+ * query's {@code ==} over such a side was answered quietly, in the order the rows arrived. A function found to be
+ * refused wrongly is NAMED below, with its test.
  */
 public enum OrderView {
     /** A side's order semantics: SORTED (ends in a sort through
@@ -28,7 +37,10 @@ public enum OrderView {
             "meta::pure::functions::collection::sort",
             "meta::pure::functions::collection::sortBy",
             "meta::pure::functions::collection::sortByReversed",
-            "meta::pure::functions::relation::sort");
+            "meta::pure::functions::relation::sort",
+            // the legacy table's sort (named 2026-11-27: until the fallback read its input it answered DEFINED,
+            // which a sorted table is)
+            com.legend.builtin.Pure.SORT__TDS_1__STRING_1__SORT_DIRECTION_1.qualifiedName());
 
     /** Natives after which SQL leaves no order (GROUP BY, joins, UNION,
      * pivots): the chain's order is incidental past them. EXACT identities
@@ -46,8 +58,9 @@ public enum OrderView {
             // that reads them is compared in order, as upstream compares it (2026-11-04, the asserts-as-plan-nodes
             // program: assertEquals([3, 1, 2], [1, 2]->concatenate([3])) passed as a multiset where upstream fails it)
             com.legend.builtin.Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(),
-            com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
-            com.legend.builtin.Pure.AGGREGATE__RELATION_1__AGG_COL_SPEC_1.qualifiedName());
+            com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName());
+    // (a relation's aggregate with no grouping: left ORDER_DESTROYING 2026-11-24, B3 step 4 -- its result is one row,
+    // whose order is defined; PCT's aggregate tests were refused as order-dependent on its strength)
 
     /** A collection's concatenate and union (2026-11-04, the asserts-as-plan-nodes program): the language's order --
      *  the first's elements, then the second's; union's first occurrences -- over its inputs', each read. */
@@ -139,6 +152,14 @@ public enum OrderView {
                         }
                     }
                 }
+                // preval(lambda, ...): the lambda itself, pre-folded at plan time (the review of B3 step 2b's M4,
+                // 2026-11-24: tds::sort::testSimpleSortAscWithPreval's sort was out of sight)
+                if (query instanceof TypedNativeCall pv
+                        && com.legend.builtin.NativeFn.Handle.of(pv.callee().id()).orElse(null)
+                                == com.legend.builtin.NativeFn.Handle.PREVAL
+                        && !pv.args().isEmpty()) {
+                    query = pv.args().get(0);
+                }
                 if (query instanceof com.legend.compiler.spec.typed.TypedLambda lam && !lam.body().isEmpty()) {
                     return of(lam.body().get(lam.body().size() - 1), lets, seen, hook);
                 }
@@ -157,7 +178,8 @@ public enum OrderView {
                 }
                 return OrderView.DEFINED;
             }
-            return OrderView.DEFINED;
+            // a function the rule does not name: as ordered as what it was applied to
+            return leastOrdered(c, c.args(), lets, seen, hook);
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedGetAll
                 || s instanceof com.legend.compiler.spec.typed
@@ -165,7 +187,12 @@ public enum OrderView {
                 || s instanceof com.legend.compiler.spec.typed
                         .TypedRawSqlRelation
                 || s instanceof com.legend.compiler.spec.typed
-                        .TypedCatalogGrid) {
+                        .TypedCatalogGrid
+                // a store's view, a recursion (a UNION ALL of its steps) and a join's slot are rows in arrival order
+                // as a table's are (named 2026-11-27: each had fallen to DEFINED)
+                || s instanceof com.legend.compiler.spec.typed.TypedViewRelation
+                || s instanceof com.legend.compiler.spec.typed.TypedRecurse
+                || s instanceof com.legend.compiler.spec.typed.TypedJoinSlot) {
             return OrderView.INCIDENTAL;
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
@@ -195,6 +222,11 @@ public enum OrderView {
         // a graph fetch / serialize keeps its ROOT query's order (the
         // engine's graph result is the root SQL's arrival order; a nested
         // property's order is the mapping's, not the chain's)
+        // a relation's aggregate with no grouping (TypedAggregate) is one row, whose order is defined (B3 step 4,
+        // 2026-11-24: it left the order-destroying nodes below with its native above)
+        if (s instanceof com.legend.compiler.spec.typed.TypedAggregate) {
+            return OrderView.DEFINED;
+        }
         if (s instanceof com.legend.compiler.spec.typed.TypedGraphFetch gf) {
             return of(gf.source(), lets, seen, hook);
         }
@@ -208,7 +240,6 @@ public enum OrderView {
         // in SQL (a GROUP BY, a join, a UNION have none): the chain's
         // order is incidental past them unless a later sort names it
         if (s instanceof com.legend.compiler.spec.typed.TypedGroupBy
-                || s instanceof com.legend.compiler.spec.typed.TypedAggregate
                 || s instanceof com.legend.compiler.spec.typed.TypedJoin
                 || s instanceof com.legend.compiler.spec.typed.TypedAsOfJoin
                 || s instanceof com.legend.compiler.spec.typed.TypedConcatenate
@@ -241,10 +272,83 @@ public enum OrderView {
                 || s instanceof com.legend.compiler.spec.typed.TypedNavigate
                 || s instanceof com.legend.compiler.spec.typed
                         .TypedMilestonedAccess) {
+            // (a to-many property read of ONE object picked from a sorted read -- $sorted->toOne().addresses -- is
+            // answered by the parents' sort, which does not order the children: recorded, register S431. It cannot
+            // be told here from the rows of a sorted result read through its envelope, $result.values.rows, which
+            // ARE in the sort's order: an attempt to tell them by "many read from one" refused every sorted frame
+            // read, 2026-11-27)
             List<TypedSpec> ch = s.children();
             return ch.isEmpty() ? OrderView.DEFINED
                     : of(ch.get(0), lets, seen, hook);
         }
+        // a node the rule does not name: as ordered as what it was made of
+        return leastOrdered(s, s.children(), lets, seen, hook);
+    }
+
+    /**
+     * The order of a function or node the rule does not name, {@code s}, applied to {@code inputs}: DEFINED where it
+     * is one value (one value has no order to compare); else INCIDENTAL where any many-valued input is -- a lambda
+     * read as its answer (an {@code if}'s branch, a thunk), its parameters values the walk cannot see -- and DEFINED
+     * otherwise. Never SORTED: {@code reverse} of a sorted list is ordered, not in its sort's order.
+     */
+    private static OrderView leastOrdered(TypedSpec s, List<TypedSpec> inputs, List<TypedSpec> lets,
+            java.util.Set<String> seen,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+        if (oneValue(s)) {
+            return OrderView.DEFINED;
+        }
+        // the names the node itself binds are values the walk cannot see (a match's parameter, its extra one): read as
+        // a literal, never as a frame's rows -- a variable no let binds is taken for an execution frame's
+        List<TypedSpec> own = lets;
+        if (s instanceof com.legend.compiler.spec.typed.TypedMatch m) {
+            own = new java.util.ArrayList<>(lets);
+            own.add(unseen(m.param(), s));
+            for (String extra : m.extraParam().stream().toList()) {
+                own.add(unseen(extra, s));
+            }
+        } else if (s instanceof com.legend.compiler.spec.typed.TypedMatchRuntime mr) {
+            own = new java.util.ArrayList<>(lets);
+            for (var arm : mr.arms()) {
+                own.add(unseen(arm.param(), s));
+            }
+            for (String extra : mr.extraParam().stream().toList()) {
+                own.add(unseen(extra, s));
+            }
+        }
+        for (TypedSpec input : inputs) {
+            TypedSpec read = input;
+            List<TypedSpec> scope = own;
+            if (input instanceof com.legend.compiler.spec.typed.TypedLambda lambda) {
+                if (lambda.body().isEmpty()) {
+                    continue;
+                }
+                read = lambda.body().get(lambda.body().size() - 1);
+                scope = new java.util.ArrayList<>(own);
+                for (String p : lambda.parameters()) {
+                    // (the rule OrderedAsserts.rewrite has for a lambda it walks into)
+                    scope.add(unseen(p, lambda));
+                }
+                scope.addAll(lambda.body().subList(0, lambda.body().size() - 1));
+            }
+            if (!oneValue(read) && of(read, scope, new java.util.HashSet<>(seen), hook) == OrderView.INCIDENTAL) {
+                return OrderView.INCIDENTAL;
+            }
+        }
         return OrderView.DEFINED;
+    }
+
+    /** {@code name} bound to a value the walk cannot see (a lambda's or a match's parameter, a query's): read as a
+     *  written value, whose order is the language's. */
+    static TypedSpec unseen(String name, TypedSpec at) {
+        return new com.legend.compiler.spec.typed.TypedLet(name, new com.legend.compiler.spec.typed.TypedCollection(
+                List.of(), at.info(), false, false), at.info());
+    }
+
+    /** Whether {@code s} is one value at most: to-one or zero-to-one, and no relation. */
+    private static boolean oneValue(TypedSpec s) {
+        com.legend.compiler.element.type.ExprType info = s.info();
+        return info.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.upper() != null && b.upper() <= 1
+                && !com.legend.compiler.element.type.Type.isRelation(info.type());
     }
 }

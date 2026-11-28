@@ -47,7 +47,7 @@ class PureAssertsTest {
     /** assertSameElements' failure: the product's decision over both sides sorted (Pure's sort), each side's values
      *  in its own order in the words. */
     private static String sameMsg(List<Object> e, List<Object> a, HostRules rules) {
-        return PureAsserts.holds(sorted(e), sorted(a), rules) ? null
+        return PureAsserts.holds(sorted(e, rules), sorted(a, rules), rules) ? null
                 : AssertRecords.sameElements(e, a, null, null).sentence();
     }
 
@@ -63,9 +63,9 @@ class PureAssertsTest {
 
     /** Pure's sort over Any (numbers by value, then strings, then booleans, temporals by instant): Equality's order
      *  (PureAsserts.sorted until item 3's S2, which went with the edge's legend-pure words, its one caller). */
-    private static List<Object> sorted(List<Object> values) {
+    private static List<Object> sorted(List<Object> values, HostRules rules) {
         List<Object> out = new java.util.ArrayList<>(values.size());
-        for (Equality.Typed t : Equality.sorted(Equality.Typed.all(values, null))) {
+        for (Equality.Typed t : Equality.sorted(Equality.Typed.all(values, null), rules)) {
             out.add(t.value());
         }
         return out;
@@ -95,19 +95,19 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: testFailureAssertEquals — the exact message")
     void specFailureMessage() {
-        assertEquals("expected 1, got 2",
+        assertEquals("expected: 1, actual: 2",
                 eqMsg(List.of(1L), List.of(2L), LITE));
     }
 
     @Test
     @DisplayName("spec: testFailureAssertEqualsWithCollections — exact messages")
     void specFailureCollections() {
-        assertEquals("expected [1, 3, 2], got [2, 4, 1, 5]",
+        assertEquals("expected: [1, 3, 2], actual: [2, 4, 1, 5]",
                 eqMsg(List.of(1L, 3L, 2L),
                         List.of(2L, 4L, 1L, 5L), LITE));
-        assertEquals("expected [1, 2], got [2, 1]",
+        assertEquals("expected: [1, 2], actual: [2, 1]",
                 eqMsg(List.of(1L, 2L), List.of(2L, 1L), LITE));
-        assertEquals("expected [\"aaa\", 2], got [2, \"aaa\"]",
+        assertEquals("expected: [\"aaa\", 2], actual: [2, \"aaa\"]",
                 eqMsg(List.of("aaa", 2L),
                         List.of(2L, "aaa"), LITE));
     }
@@ -121,6 +121,35 @@ class PureAssertsTest {
                 List.of(1L, 2L), List.of(2L, 1L), LITE));
         assertNull(sameMsg(
                 List.of("aaa", 2L), List.of(2L, "aaa"), LITE));
+    }
+
+    @Test
+    @DisplayName("equal numbers of two types written in two orders are the same elements: the sort gives each one"
+            + " place on both sides (slice 6.2; they were paired as written, 3 against 3.0, and failed)")
+    void sameElementsWithEqualNumbersOfTwoTypes() {
+        assertNull(sameMsg(List.of(3L, 3.0d, "a"), List.of(3.0d, 3L, "a"), LITE));
+        assertNull(sameMsg(List.of(3.0d, 3L, new java.math.BigDecimal("3")),
+                List.of(new java.math.BigDecimal("3"), 3L, 3.0d), LITE));
+        // and two types are still two values: an Integer does not stand in for a Float
+        assertEquals("expected the elements [3, 3] in any order, got [3, 3.0]",
+                sameMsg(List.of(3L, 3L), List.of(3L, 3.0d), LITE));
+    }
+
+    /** Rules that keep three number types and a tie as it was written, as a compatibility door's forms do (the
+     *  edge's {@code CompiledPureHostForms}): lite's forms but for the number rule. */
+    private static final HostRules THREE_TYPES = new HostRules((HostForms) java.lang.reflect.Proxy.newProxyInstance(
+            HostForms.class.getClassLoader(), new Class<?>[] {HostForms.class}, (proxy, method, args) ->
+                    method.getName().equals("exactNumbersByValue") ? Boolean.FALSE
+                            : method.invoke(LiteHostForms.STRICT, args)));
+
+    @Test
+    @DisplayName("at a compatibility door a tie stays as each side wrote it: legend-pure's assertSameElements is a"
+            + " stable sort, so [3, 3.0] against [3.0, 3] fails there (the outside audit of 2026-11-27)")
+    void sameElementsAtADoorKeepATieAsWritten() {
+        org.junit.jupiter.api.Assertions.assertNotNull(sameMsg(List.of(3L, 3.0d), List.of(3.0d, 3L), THREE_TYPES));
+        org.junit.jupiter.api.Assertions.assertNotNull(sameMsg(List.of(3L, new java.math.BigDecimal("3")),
+                List.of(new java.math.BigDecimal("3"), 3L), THREE_TYPES));
+        assertNull(sameMsg(List.of(3L, 3.0d, 1L), List.of(1L, 3L, 3.0d), THREE_TYPES));
     }
 
     @Test
@@ -140,7 +169,7 @@ class PureAssertsTest {
     @DisplayName("spec: assertSize message form")
     void sizeMessage() {
         assertNull(sizeMsg(List.of(1L, 2L), 2));
-        assertEquals("expected size 3, got 2",
+        assertEquals("expected size: 3, actual size: 2",
                 sizeMsg(List.of(1L, 2L), 3));
     }
 
@@ -170,16 +199,20 @@ class PureAssertsTest {
     @Test
     @DisplayName("policy: Decimal by value in lite (S139)")
     void numericPolicies() {
-        // register S139 (the user's ruling, 2026-11-05): lite compares a Decimal by value; compatibility mode's
-        // scale-sensitive equals (X2) is the edge's, EqualityCompatEdgeTest
+        // register S139 (the user's ruling, 2026-11-05): a Decimal by value, on every route since B3 step 1a (2026-11-24;
+        // until then the edge's scale-sensitive equals, X2)
         assertTrue(same(
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
         assertTrue(same(
                 new BigDecimal("1.5"), new BigDecimal("1.5")));
-        // X1/X3: NO cross-primitive-kind equality (engine eq requires
-        // the same primitive type name)
-        assertFalse(same(8L, new BigDecimal("8")));
+        // numbers are of two families (the user's ruling of 2026-11-27): an Integer and a Decimal, two exact
+        // numbers, are equal by their value; an exact number never equals a Float (X1/X3 until then: no equality
+        // across any two primitive kinds, as the engine's eq requires the same primitive type name)
+        assertTrue(same(8L, new BigDecimal("8")));
+        assertTrue(same(new BigDecimal("8.00"), 8L));
+        assertFalse(same(8L, new BigDecimal("8.5")));
         assertFalse(same(8.0d, new BigDecimal("8.0")));
+        assertFalse(same(8L, 8.0d));
         double base = 0.1 + 0.2;   // 0.30000000000000004
         assertTrue(same(base, 0.3 + Math.ulp(0.3)),
                 "within 2 ULP compares equal (dialect libm)");
@@ -195,8 +228,8 @@ class PureAssertsTest {
         assertTrue(same(d,
                 com.legend.values.PureDateLiteral.parse("2014-01-01")));
         // register S399 (the user's ruling of 2026-11-22): lite's product compares a date-time by its instant, so one
-        // instant at two written precisions is one value (legend-pure's PureDate.equals is precision-sensitive; the
-        // compatibility routes keep it, CompiledPureHostForms.equalDates); a day is never a date-time
+        // instant at two written precisions is one value (legend-pure's PureDate.equals is precision-sensitive; lite's
+        // rule on every route since B3's one rulebook, 2026-11-24); a day is never a date-time
         assertTrue(same(
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00"),
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00:00")));

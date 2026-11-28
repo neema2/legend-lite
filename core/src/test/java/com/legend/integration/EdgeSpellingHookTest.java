@@ -153,30 +153,33 @@ class EdgeSpellingHookTest {
     }
 
     /** The arms each edge dialect overrides, by class. Each D step adds the arms it moves, dated; an arm that spells no
-     *  upstream text is a defect. {@code raiseMessage} (2026-11-12, D1.1): legend-pure's sentence of a raise
-     *  (edge.PureMessages), where the product writes the raise's kind. */
-    private static final Set<String> D1_1 = Set.of("raiseMessage");
+     *  upstream text is a defect. ({@code raiseMessage}, D1.1's arm of 2026-11-12, gone 2026-11-24 with stage B's B2b
+     *  S3: since B1 a raise is the product's site on every door, and its last use, a checked graph's defect cell, wrote
+     *  the one catalog's sentence byte for byte; no edge dialect overrides it.) */
 
-    /** D1.1's arm, and D1.2's (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of
-     *  a Float ({@code FLOAT_SHORTEST_TEXT}, edge.PurePrintForms) where the product writes its six decimals. */
-    private static final Set<String> D1_2 = Set.of("raiseMessage", "spellingPasses", "floatToText");
+    /** D1.2's arms (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of a Float
+     *  ({@code FLOAT_SHORTEST_TEXT}, edge.PurePrintForms) where the product writes its six decimals. */
+    private static final Set<String> D1_2 = Set.of("spellingPasses", "floatToText");
 
     /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time
      *  in its {@code $dateToString}s, where the product writes ISO with {@code Z}. */
-    private static final Set<String> D1_2_MONGO = Set.of("raiseMessage", "spellingPasses", "floatToText",
+    private static final Set<String> D1_2_MONGO = Set.of("spellingPasses", "floatToText",
             "dateTimeFormat");
 
     /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
      *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */
-    private static final Set<String> D1_2_SCAN_ORDER = Set.of("raiseMessage", "spellingPasses", "floatToText",
+    private static final Set<String> D1_2_SCAN_ORDER = Set.of("spellingPasses", "floatToText",
             "scanOrderPasses");
 
-    /** THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the
-     *  query differently (the edge program's §2.3, kind B), each a listed row of its §6. {@code floatLiteralKind}
-     *  (row 21, the orchestrator's ruling R2 of 2026-11-17, Phase 5b): a Float literal computes as legend-engine's bare
-     *  literal, a DECIMAL, where the product's is the double (register S20); on the databases whose product writes the
-     *  double and legend-engine the bare decimal; the user, 2026-11-17, approved 5b's landing ('Okay'). */
-    static final Set<String> ROW_21 = Set.of("floatLiteralKind");
+    // THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the query
+    // differently (the edge program's §2.3, kind B), each a listed row of its §6.
+    //
+    // (Row 21, floatLiteralKind -- a Float literal computed as legend-engine's bare literal, a DECIMAL, on Databricks,
+    // DuckDb, H2, Postgres and Trino; the orchestrator's ruling R2 of 2026-11-17, Phase 5b: DELETED 2026-11-25, the
+    // user's ruling "yes delete the float decimal thing" (docs/records/edition-homework/v2-amendments-ruled-2026-11-25.md
+    // item 11; measured by M1, m1-float-literal.md; register S20). The edge's dialects write the product's Float
+    // literal, a double; an edge dialect that overrides floatLiteralKind again fails
+    // theEdgesDialectsOverrideSpellingOnly, since the row is no longer allowed. A shrink of this allowlist.)
 
     /** Row 22 (the orchestrator's ruling (c) of 2026-11-17, under the user's 5b approval and the standing
      *  no-silent-approximation rule): SQLite's Decimal arithmetic -- the product refuses it, holding no exact decimal;
@@ -189,23 +192,17 @@ class EdgeSpellingHookTest {
         return out;
     }
 
-    private static Set<String> withRow21(Set<String> arms) {
-        Set<String> out = new TreeSet<>(arms);
-        out.addAll(ROW_21);
-        return out;
-    }
-
     /** DuckDB's and Postgres's raw arm too (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text translated, where the
      *  product runs a raw statement as written. */
-    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("raiseMessage", "spellingPasses", "floatToText",
+    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("spellingPasses", "floatToText",
             "scanOrderPasses", "raw");
-    private static final Set<String> D1_2_RAW = Set.of("raiseMessage", "spellingPasses", "floatToText", "raw");
+    private static final Set<String> D1_2_RAW = Set.of("spellingPasses", "floatToText", "raw");
 
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
-            Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", withRow21(D1_2)),
-            Map.entry("DuckDb", withRow21(D1_2_SCAN_ORDER_RAW)), Map.entry("H2", withRow21(D1_2)), Map.entry("MariaDb", D1_2),
-            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", withRow21(D1_2_RAW)),
-            Map.entry("SQLite", withRow22(D1_2)), Map.entry("Snowflake", D1_2), Map.entry("Trino", withRow21(D1_2))));
+            Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),
+            Map.entry("DuckDb", D1_2_SCAN_ORDER_RAW), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
+            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2_RAW),
+            Map.entry("SQLite", withRow22(D1_2)), Map.entry("Snowflake", D1_2), Map.entry("Trino", D1_2)));
 
     /** The methods {@code c} declares that override a product dialect's method which is not a
      *  {@link com.legend.sql.dialect.SpellingArm}: a decision the edge must not take ({@code EdgeMayOverride}, used
@@ -237,9 +234,8 @@ class EdgeSpellingHookTest {
     void theEdgesDialectsOverrideSpellingOnly() {
         List<String> decisions = new java.util.ArrayList<>();
         for (Class<?> c : PureText.class.getDeclaredClasses()) {
-            // a listed in-query variant (row 21) is the edge's by ruling, not a mode
-            decisionsOverridden(c).stream().filter(d -> !ROW_21.contains(d.substring(d.indexOf('.') + 1))
-                            && !ROW_22.contains(d.substring(d.indexOf('.') + 1)))
+            // a listed in-query variant (row 22) is the edge's by ruling, not a mode
+            decisionsOverridden(c).stream().filter(d -> !ROW_22.contains(d.substring(d.indexOf('.') + 1)))
                     .forEach(decisions::add);
         }
         assertEquals(List.of(), decisions, "an edge dialect overriding a decision: planning would be a mode");

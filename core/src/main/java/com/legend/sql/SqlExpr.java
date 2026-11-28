@@ -151,7 +151,8 @@ public sealed interface SqlExpr
             case Column ignored -> List.of();
             case StoredRead r -> List.of(r.column());
             case RowOrder ignored -> List.of();
-            case Membership m -> List.of(m.needle(), m.collection());
+            case Membership m -> m.rows() == null ? List.of(m.needle(), m.collection())
+                    : List.of(m.needle(), m.collection(), m.rows());
             case ReduceCollection rc -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
                 out.add(rc.collection());
@@ -279,7 +280,7 @@ public sealed interface SqlExpr
             case RowOrder ignored -> this;
             case ReduceCollection rc -> new ReduceCollection(rc.reducer(),
                     cs.get(0), cs.subList(1, cs.size()));
-            case Membership m -> new Membership(cs.get(0), cs.get(1));
+            case Membership m -> new Membership(cs.get(0), cs.get(1), cs.size() > 2 ? cs.get(2) : null);
             case Star ignored -> this;
             case StarExcept ignored -> this;
             case StringLit ignored -> this;
@@ -294,7 +295,7 @@ public sealed interface SqlExpr
             case FormatLit ignored -> this;
             case DatePartLit ignored -> this;
             case JsonKindLit ignored -> this;
-            case RaiseText r -> new RaiseText(r.kind(), cs, r.asData());
+            case RaiseText r -> new RaiseText(r.kind(), cs);
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
             case KeyCell ignored -> this;
@@ -494,14 +495,22 @@ public sealed interface SqlExpr
      * (NULL, not FALSE) — indistinguishable in filter position; the
      * portable rule CASE-wraps in the NULL-element-literal case. The
      * collection may be a PlanParam at bind time (§2). */
-    record Membership(SqlExpr needle, SqlExpr collection,
+    record Membership(SqlExpr needle, SqlExpr collection, @com.legend.base.Nullable SqlExpr rows,
             TypeFact type) implements SqlExpr {
         public Membership {
             type = SqlTyping.membershipType(needle, collection);
         }
 
         public Membership(SqlExpr needle, SqlExpr collection) {
-            this(needle, collection, SqlTyping.UNKNOWN);
+            this(needle, collection, null, SqlTyping.UNKNOWN);
+        }
+
+        /** The membership with the collection's ROWS riding beside its value ({@code rows}, a
+         *  {@link ScalarSubquery} of them: its first column the values, no empty slot among them), as the "same
+         *  values" instruction's third and fourth arguments ride (step 6B, slice 6): a database with no list
+         *  membership reads the rows; one that has writes the list and never the rows. */
+        public Membership(SqlExpr needle, SqlExpr collection, @com.legend.base.Nullable SqlExpr rows) {
+            this(needle, collection, rows, SqlTyping.UNKNOWN);
         }
     }
 
@@ -684,8 +693,9 @@ public sealed interface SqlExpr
         public enum Kind {
             /** The double: the product's literal (S20, "IEEE everywhere"). */
             DOUBLE,
-            /** The DECIMAL of its digits (the numeric charter's Rule 1): legend-engine's bare literal at the edge, and
-             *  the databases whose DOUBLE literal their lanes have not measured yet. */
+            /** The DECIMAL of its digits (the numeric charter's Rule 1): the databases whose DOUBLE literal their
+             *  lanes have not measured yet (ClickHouse, BigQuery, Snowflake). Until 2026-11-25 the compatibility edge
+             *  wrote it too, as legend-engine's bare literal (register S20). */
             DECIMAL
         }
 
@@ -1263,31 +1273,25 @@ public sealed interface SqlExpr
     /**
      * A RAISE'S MESSAGE (phase D's D1.1, 2026-11-12): the kind of what a guard refuses ({@link RaiseKind}) and its
      * operands -- the values the refusal is about, typed SQL. The product's dialects write the kind's name alone, never
-     * an operand (a product error is its kind and where, never the value: no text built in SQL); the compatibility
-     * edge's dialects write legend-pure's sentence of the kind from its operands. Only {@link RaiseKind#USER_FAIL}'s one
+     * an operand (a product error is its kind and where, never the value: no text built in SQL); every door words a raise
+     * after the run from its site's record (stage B's B1, 2026-11-20). Only {@link RaiseKind#USER_FAIL}'s one
      * operand, the user's own message, is the product's to write. The message argument of {@code Call(ERROR, ...)}.
-     * {@code asData}: where the kind's text is DATA in an answer rather than raised -- a checked graph's defect row --
-     * the product's words for it, a fixed text known at planning (the error layer's {@code ErrorKind} sentence and
-     * where, worded by the lowering: the D part 1 audit's S3, 2026-11-15); null for a raise, which exec words.
-     * No {@code where}: a raise is its kind and its operands, the facts, and its position in the query (the user's
+     * (Its {@code asData}, a checked graph's defect text carried beside an unread kind and operands: gone 2026-11-25,
+     * B2b's S7a, the user's ruling "go with A" -- the defect's sentence is a plain literal, as a violated constraint's
+     * is since S3b.) No {@code where}: a raise is its kind and its operands, the facts, and its position in the query (the user's
      * ruling of 2026-11-15, "its kind and where it happened in the query", held by the operands and the position;
      * stage B's BE, 2026-11-21: until then a fixed text beside the operands, which repeated them or was prose).
      */
-    record RaiseText(RaiseKind kind, List<SqlExpr> operands, @com.legend.base.Nullable String asData)
-            implements SqlExpr {
+    record RaiseText(RaiseKind kind, List<SqlExpr> operands) implements SqlExpr {
         public RaiseText {
             java.util.Objects.requireNonNull(kind, "a raise's kind");
             operands = List.copyOf(operands);
         }
 
-        public RaiseText(RaiseKind kind, List<SqlExpr> operands) {
-            this(kind, operands, null);
-        }
-
         /** A raise of {@code kind} placed by one fixed fact composed at planning, its one operand -- a bound, a
          *  native's name; never a computed value (the D part 1 audit's S4, 2026-11-15). */
         public static RaiseText placed(RaiseKind kind, String fact) {
-            return new RaiseText(kind, List.of(new StringLit(fact)), null);
+            return new RaiseText(kind, List.of(new StringLit(fact)));
         }
 
         @Override
@@ -1373,7 +1377,12 @@ public sealed interface SqlExpr
          *  (a list as built, kept by a dedup or a filter), by comparable (a sort; ties by position, a stable sort's),
          *  each either way (a reverse). */
         public enum Order {
-            POSITION, POSITION_DESC, COMPARABLE, COMPARABLE_DESC;
+            POSITION, POSITION_DESC, COMPARABLE, COMPARABLE_DESC,
+            /** By comparable, then by the number's TYPE where two equal numbers are of two types (Integer, Float,
+             *  Decimal), then by position: lite's own order of a mixed list (the equality rule's run-time reading;
+             *  the edition program's step 6, slice 6.2). {@link #COMPARABLE} keeps equal numbers in the written
+             *  order, as a stable sort does. */
+            COMPARABLE_THEN_TYPE, COMPARABLE_THEN_TYPE_DESC;
 
             /** The order of the list reversed. */
             public Order reversed() {
@@ -1382,6 +1391,8 @@ public sealed interface SqlExpr
                     case POSITION_DESC -> POSITION;
                     case COMPARABLE -> COMPARABLE_DESC;
                     case COMPARABLE_DESC -> COMPARABLE;
+                    case COMPARABLE_THEN_TYPE -> COMPARABLE_THEN_TYPE_DESC;
+                    case COMPARABLE_THEN_TYPE_DESC -> COMPARABLE_THEN_TYPE;
                 };
             }
         }

@@ -71,7 +71,7 @@ class TestPlanJsonRoundTripTest {
         org.junit.jupiter.api.Assertions.assertTrue(e instanceof com.legend.error.AssertFailed, e.getClass().getName());
         org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE.record(),
                 ((com.legend.error.AssertFailed) e).record());
-        org.junit.jupiter.api.Assertions.assertEquals("expected 1, got 2 at index 0", e.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals("expected: 1, actual: 2 at index 0", e.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE, com.legend.testexecutionplan.Failures.of(
                 (com.legend.error.AssertFailed) e, "the test"));
     }
@@ -180,7 +180,7 @@ class TestPlanJsonRoundTripTest {
                         java.util.Map.of("expected", "a::A", "actual", "a::B"))),
                 new HostJudgment.SameElements(e, new HostJudgment.SideFacts("my::F", new KindClass.Element("my::F"),
                         false, false, false, "F", "F"), true, keys),
-                new HostJudgment.Equals("equals", true, false, true, e, a, keys,
+                new HostJudgment.Equals("equals", true, true, e, a, keys,
                         new HostJudgment.FlatFacts(true, false, false, true)),
                 new HostJudgment.Json(true),
                 new HostJudgment.Rendered("rendered", false, "form", null, "aForm", true, true),

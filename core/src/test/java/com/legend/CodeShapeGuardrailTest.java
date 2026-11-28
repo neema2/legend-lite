@@ -50,16 +50,27 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-25 (B3 step 5, the one equality), renamed 2026-11-26 with the edition program's step 2b (until
+            // then the boolean Typer.marking): whose code the typer is typing, as the door's comparison setting reads
+            // it -- the query a door receives (SpecCompiler.typeQueryBodyMarked), a body the query reaches, or code the
+            // setting never reads (an island) -- set and restored around each by Typer.comparing, one instance per
+            // query's typing
+            "Typer.compared",
+            // 2026-11-27 (the edition program's step 6; the user's ruling "the split with compile error when we know"):
+            // the function whose body is being typed, set and restored with Typer.compared by the same Typer.comparing,
+            // so a comparison kept for its call can name the function in its refusal
+            "Typer.comparedIn",
             // 2026-11-11 (B4, the audit's finding 2): one program's decision of its model's registration on the
             // process's catalog, a latch set once by the program's planning (ProgramState.registerOnTheCatalog), and the
             // load it decided, placed ahead of every step that reads the catalog -- one instance per program pass
             "ProgramState.catalogRegistered", "ProgramState.registration",
             // (2026-11-11, the JSON pass: "DataSources.home", the one body's data: tables' home database, left with the
             // tables themselves -- a payload is its statement's own, bound or inline, and the rewrite holds no state)
-            // 2026-11-09 (the user's question "why do we have any callbacks?"): the service test's answer is a receiver
-            // told the answer's shape before its columns (Output.Rows), where the run called a factory of the runner's
-            // until then; it holds the writer it made for that shape, set once, read by each row after
-            "ServiceTestRunner.writer",
+            // GONE DOWN (2026-11-26, the edition program's step 9, slice 1: test machinery moved unchanged out of core/src/main to
+            // the testonly //core:edge_harness and //core:edge_service_tests, core/src/edge_harness, so out of this
+            // scan): the eight rows ServiceTestRunner.writer, ServiceTestRunner.execution, Appeals.deciding,
+            // Appeals.wrote, Appeals.wroteAfterHold, TdsObjectsWriter.columns, TdsObjectsWriter.toOne and
+            // TdsObjectsWriter.rows
             // 2026-11-01, the test-is-the-product plan's M5 audit: until then a field whose TYPE carried an annotation
             // (@Nullable, Outer.@Nullable Inner, Object @Nullable []) was outside this scan; the scan learned them and
             // found these, each listed with what it is. LAZY, set once from the instance's own inputs and read back
@@ -109,14 +120,8 @@ class CodeShapeGuardrailTest {
             // (RootLoops.rejected, a segment's run holding the database's rejection of one of its fused statements,
             // 2026-11-19: removed 2026-11-20, the user's "Yes remove mutable next" -- the rejection is handed to the
             // judging step as its argument, RootLoops.Run.judgeRejected; a down move)
-            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run): one body's
-            // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
-            // reports straight to the caller's listener
-            "Appeals.deciding",
-            // 2026-11-07, the P1 milestone audit's 2: whether a write of the body's ran (wrote) and ran after the first
-            // held appeal (wroteAfterHold) -- told by the runner's sink at each writing step, read when the appeals are
-            // decided: an appeal whose rows a write moved, or a failed run's rollback undid, is refused by name
-            "Appeals.wrote", "Appeals.wroteAfterHold",
+            // (Appeals.deciding of 2026-11-07, P1.2, and Appeals.wrote, Appeals.wroteAfterHold of the P1 milestone
+            // audit's 2: gone with their file to the edge's test harness, 2026-11-26, the edition program's step 9, slice 1)
             // 2026-11-08, the plan-as-data design's step 0: a body's verdict ids -- one counter per body, the last id
             // given; planning state, never read at run
             "VerdictIds.last",
@@ -234,17 +239,18 @@ class CodeShapeGuardrailTest {
             "PureV1Writer.order", "PureV1Writer.rows",
             // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the execution the run names
             // before its columns (ResultSink.execution) -- the sink protocol's state, scoped to one result's stream as
-            // the columns are; the service runner's receiver holds it until its shape makes the writer it hands it to.
-            // The same day (the exec-id item, C4): the engine's writers are MADE for their execution (the door's id,
-            // Output.writerFor), PureV1Writer's final and ArrowWriter's gone, so they left this list
-            "ServiceTestRunner.execution",
+            // the columns are. The same day (the exec-id item, C4): the engine's writers are MADE for their execution
+            // (the door's id, Output.writerFor), PureV1Writer's final and ArrowWriter's gone, so they left this list
+            // (ServiceTestRunner.execution, the service runner's receiver holding it until its shape makes its writer:
+            // gone with its file to the edge's test harness, 2026-11-26, the edition program's step 9, slice 1)
             // the collector's, the same day (C4: PCT's plan route writes a collected relation later, through a writer
             // whose activity names the execution the run named to the collector)
             "Collector.execution",
-            // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
-            // columns as announced, whether the one value column is to-one, the row count for the comma and the
-            // to-one refusal
-            "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
+            // (TdsObjectsWriter.columns, .toOne, .rows -- legend-engine's PURE_TDSOBJECT writer's cursor, the doors'
+            // door 1, 2026-10-29: gone with its file to the edge's test harness, 2026-11-26, the edition program's step 9, slice 1)
+            // legend-pure's text of a relation, a run's receiver (stage B's B2, B2b S1, 2026-11-24): the columns as
+            // announced and whether the result has ended -- the same one-answer cursor shape, scoped to one run
+            "PureRelationTextWriter.columns", "PureRelationTextWriter.ended",
             // the streamed answer's cardinality sink (com.legend.testexec.SideShapes.Cardinality, the doors, door 1, 2026-10-29): the rows
             // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
             "SideShapes.rows",
@@ -326,10 +332,8 @@ class CodeShapeGuardrailTest {
             // the shared minimal JSON reader's walk position — a parser
             // cursor, same family as Lexer.pos
             "Json.i",
-            // 2026-11-07, register S144: json-simple 1.1.1's grammar (the compatibility rules' JSON; moved to the edge
-            // as JsonSimpleGrammar's parser, census C1, 2026-11-17) -- a parser cursor and the token it last read (its
-            // kind and value), one instance per text, never shared
-            "JsonSimpleGrammar.at", "JsonSimpleGrammar.kind", "JsonSimpleGrammar.value",
+            // (JsonSimpleGrammar.at, .kind, .value, json-simple 1.1.1's parser cursor, register S144: deleted with the
+            // grammar 2026-11-24, B3 step 2 -- the judges read strict JSON on every route; a guard moving down)
             // ';'-ownership context for unbraced lambda code blocks: where the
             // enclosing sequence's statement that owes the next ';' began (or
             // -1) -- a cursor-adjacent mark, saved and restored around each
@@ -365,6 +369,17 @@ class CodeShapeGuardrailTest {
             // 2026-11-17; Lowerer.plainRaises, B7's of the same day, folded into it). Made visible 2026-11-17:
             // declared over two lines since B17/B8, unseen by the line-based guard; not new state
             "Lowerer.styled",
+            // the planner's answer for a comparison of two whole sides met inside an expression (2026-11-27, the
+            // edition program's step 6; the user: "why cant we do the work we promised to get to one equality?"):
+            // builder-style, set by the planner's lowerer factories (withWholeComparisons) before lower(); and, since
+            // 2026-11-28 (step 6B's slice 6), swapped for the one call that lowers an assert's comparison over its
+            // bound sides and put back in its finally (Lowerer.overSides)
+            "Lowerer.wholeComparisons",
+            // the sides an assert has bound once to a statement's columns (2026-11-28, step 6B's slice 6: an assert is
+            // the product's own comparison over them). Set for the one call that lowers that comparison
+            // (Lowerer.overSides) and put back in its finally; null at every other time. A frame object would have to
+            // be threaded through every scalar() call for the one reader that asks
+            "Lowerer.boundSides",
             // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
             // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set
@@ -574,6 +589,29 @@ class CodeShapeGuardrailTest {
         }
         assertTrue(strays.isEmpty(), () -> "the set-id default spelling is SetIds.of /"
                 + " SetIds.defaultFor — never spelled in place; strays: " + strays);
+    }
+
+    /** A SCALAR NATIVE'S RULE IS PICKED IN ONE PLACE ({@code lowering.Lowerer.written}; the edition program's step 6,
+     *  its closing batch, 2026-11-27). What an equality answers for a side that holds no value is decided where the
+     *  equality is written, so every path that writes one must pass there. Until then six sites of the Lowerer each
+     *  called {@code Scalars.lower}, and a rule applied at one of them (a column's value) missed the others (a
+     *  window's column, a reducer's input): measured, a comparison there answered "no value" where Pure says false. */
+    @Test
+    void aScalarNativesRuleIsPickedInOnePlace() throws IOException {
+        Pattern pick = Pattern.compile("\\bScalars\\s*\\.\\s*lower\\s*\\(");
+        List<String> sites = new ArrayList<>();
+        for (Path p : mainSources()) {
+            if (p.getFileName().toString().equals("Scalars.java")) {
+                continue;
+            }
+            Matcher m = pick.matcher(blankNonCode(Files.readString(p)));
+            while (m.find()) {
+                sites.add(p.getFileName().toString());
+            }
+        }
+        assertTrue(sites.equals(List.of("Lowerer.java")), () -> "Scalars.lower is called from Lowerer.written alone: a"
+                + " second caller writes a native without the rules applied there (an equality's empty side); found "
+                + sites);
     }
 
     @Test

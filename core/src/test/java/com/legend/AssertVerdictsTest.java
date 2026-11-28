@@ -83,7 +83,7 @@ class AssertVerdictsTest {
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertEquals('a', ['a','b']->last())}"));
         // lite's own sentence (the user's judge model, 2026-11-17)
-        assertEquals("expected \"a\", got \"b\"", e.getMessage());
+        assertEquals("expected: \"a\", actual: \"b\"", e.getMessage());
     }
 
     @Test
@@ -94,7 +94,7 @@ class AssertVerdictsTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assert((1 + 1) == 3)}"));
-        assertEquals("expected true, got false", e.getMessage());
+        assertEquals("Assert failed", e.getMessage());
     }
 
     @Test

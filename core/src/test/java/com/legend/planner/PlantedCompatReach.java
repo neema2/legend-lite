@@ -14,7 +14,7 @@ public final class PlantedCompatReach {
     }
 
     static Object reach() {
-        return java.util.List.of(com.legend.edge.Presenter.legendPure(1L, "Integer"),
+        return java.util.List.of(com.legend.edge.Presenter.presentedName("x"),
                 com.legend.edge.CompiledPureHostForms.INSTANCE);
     }
 }

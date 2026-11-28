@@ -302,7 +302,8 @@ interface Sql {
 // plan's `raises` is the list of the kinds its statements can send -- the tab words a raise itself (raised.ts)
 // 60 since 2026-11-21 (stage B's BE, the one error model): a site carries no `where` (its facts are its operands), and
 // the raise kinds whose operand was prose are replaced by kinds whose operands are facts
-const PLAN_VERSION = 60;
+// 61 since 2026-11-25 (B2b S7a): no raise record carries words as data; CONSTRAINT_UNEVALUABLE went
+const PLAN_VERSION = 61;
 // the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
 // declaration above stays one line, as PlanVersionsAgreeTest reads it
 export { PLAN_VERSION };

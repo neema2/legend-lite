@@ -1,0 +1,82 @@
+import json, collections, sys
+r = json.load(open(sys.argv[1]))
+out = []
+P = out.append
+S = list(r["suites"])
+def esc(s):
+    return (s or "").replace("|", "\\|").replace("\n", "\\n")
+# per-scope buckets
+B = ["1", "2", "2b", "3", "4", "5"]
+P("| scope | tests lite ran | upstream manifest rows | (1) both pass | (2) same wrong value | (2b) same failure, not a value | (3) upstream fails, lite passes | (4) both fail, differently | (5) upstream passes, lite fails |")
+P("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+tot = collections.Counter(); tl = 0; tm = 0
+for s in S:
+    v = r["suites"][s]
+    c = collections.Counter(x["bucket"] for x in v["rows"])
+    tot.update(c); tl += v["lite_ran"]; tm += v["manifest_rows"]
+    P(f"| {s} | {v['lite_ran']} | {v['manifest_rows']} | " + " | ".join(str(c.get(b, 0)) for b in B) + " |")
+P(f"| **total** | **{tl}** | **{tm}** | " + " | ".join(f"**{tot.get(b, 0)}**" for b in B) + " |")
+P("")
+P("UPSTREAM_CLASS_TABLE")
+cls = collections.Counter(); per = collections.defaultdict(collections.Counter); ex = collections.defaultdict(list)
+b3 = collections.defaultdict(collections.Counter); b4 = collections.defaultdict(collections.Counter)
+for s in S:
+    for x in r["suites"][s]["rows"]:
+        if x["upstream"] == "FAIL":
+            cls[x["upstream_class"]] += 1; per[s][x["upstream_class"]] += 1
+            ex[x["upstream_class"]].append((s, x["test"], x["expectedError"]))
+            if x["bucket"] == "3": b3[s][x["upstream_class"]] += 1
+            if x["bucket"] == "4": b4[s][x["upstream_class"]] += 1
+C = ["wrong value", "legend-engine refusal", "database error", "other"]
+P("| scope | " + " | ".join(C) + " | total |")
+P("|---|" + "---:|" * (len(C) + 1))
+for s in S:
+    P(f"| {s} | " + " | ".join(str(per[s].get(c, 0)) for c in C) + f" | {sum(per[s].values())} |")
+P("| **total** | " + " | ".join(f"**{cls.get(c, 0)}**" for c in C) + f" | **{sum(cls.values())}** |")
+P("")
+P("EXAMPLES")
+picks = {"wrong value": [0, 3], "legend-engine refusal": [0, 5], "database error": [0, 2], "other": [1, 4]}
+for c in C:
+    P(f"- **{c}**:")
+    for i in picks[c]:
+        s, t, e = ex[c][i]
+        P(f"  - {s} `{t}`: `{esc(e)[:300]}`")
+P("")
+P("BUCKET3")
+P("| scope | " + " | ".join(C) + " | total |")
+P("|---|" + "---:|" * (len(C) + 1))
+for s in S:
+    P(f"| {s} | " + " | ".join(str(b3[s].get(c, 0)) for c in C) + f" | {sum(b3[s].values())} |")
+t3 = collections.Counter()
+for s in S: t3.update(b3[s])
+P("| **total** | " + " | ".join(f"**{t3.get(c, 0)}**" for c in C) + f" | **{sum(t3.values())}** |")
+P("")
+P("BUCKET2")
+for s in S:
+    for x in r["suites"][s]["rows"]:
+        if x["bucket"] in ("2", "2b"):
+            P(f"- ({x['bucket']}) {s} `{x['test']}` -- exact: {x['exact']}, upstream's own rule (lite's message contains the expectedError): {x['contains']}, normalized: {x['normalized']}")
+            P(f"  - upstream: `{esc(x['expectedError'])}`")
+            P(f"  - lite: `{esc(x['lite_message'])}`")
+P("")
+P("BUCKET4")
+t4 = collections.Counter()
+for s in S: t4.update(b4[s])
+P("upstream class of the bucket-4 tests: " + ", ".join(f"{c} {t4.get(c,0)}" for c in C))
+P("")
+n = 0
+for s in S:
+    for x in r["suites"][s]["rows"]:
+        if x["bucket"] == "4":
+            n += 1
+            note = " -- the same DuckDB error; only legend-engine's `java.sql.SQLException: ` prefix differs" if x.get("same_db_error_but_prefix") else ""
+            P(f"{n}. {s} `{x['test']}` (upstream: {x['upstream_class']}){note}")
+            P(f"   - upstream: `{esc(x['expectedError'])}`")
+            P(f"   - lite: `{esc(x['lite_message'])}`")
+P("")
+P("BUCKET5")
+for s in S:
+    for x in r["suites"][s]["rows"]:
+        if x["bucket"] == "5":
+            P(f"- {s} `{x['test']}`: `{esc(x['lite_message'])}`")
+print("\n".join(out))

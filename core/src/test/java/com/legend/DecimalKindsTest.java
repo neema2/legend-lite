@@ -32,9 +32,10 @@ import org.junit.jupiter.api.Test;
  *   <li>{@code Float} is an IEEE double: compiled Pure carries it as {@code double}, and a DOUBLE column computes
  *       {@code 0.1 + 0.2} as {@code 0.30000000000000004}.</li>
  * </ul>
- * Equality: lite's own rules compare two Decimals by value, as the database's {@code ==} does (S139, the user's
- * ruling of 2026-11-05); compatibility mode compares them by value AND scale, as both Pure runtimes do
- * ({@code BigDecimal.equals}); a Float never equals a Decimal. The model's declarations are refused as the
+ * Equality: two Decimals compare by value, as the database's {@code ==} does (S139, the user's ruling of 2026-11-05),
+ * on every route since B3 step 1a of the compatibility program (2026-11-24: one rulebook, lite's; until then the
+ * compatibility routes compared value AND scale, as both Pure runtimes do, {@code BigDecimal.equals}); a Float never
+ * equals a Decimal. The model's declarations are refused as the
  * engine's compiler refuses them (CompileContext.newGenericType, its messages): a primitive takes exactly the type
  * variable values it declares, each of its variable's type. Each case runs on the platform's engine
  * (a lane's floor re-spells the connection for its database), under the lane's judge.
@@ -138,37 +139,41 @@ class DecimalKindsTest {
         try (Connection c = seeded()) {
             assertTrue(judged(c, "|assertEquals(0.30D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)").passed());
             assertTrue(judged(c, "|assertEquals(1.00D, m::Price.all()->map(p|$p.a)->sum())").passed());
-            assertTrue(judged(c, "|assertEquals([1], m::Price.all()->filter(p|$p.b == 0.2D)->map(p|$p.id))")
+            assertTrue(judged(c, "|assertEquals([1], m::Price.all()->filter(p|$p.b == 0.2D)->map(p|$p.id)->sort())")
                     .passed());
         }
     }
 
     @Test
-    @DisplayName("lite compares a Decimal by value (0.3D is the column's 0.30, S139); compatibility mode by value and scale, as Pure; a Float never equals a Decimal")
+    @DisplayName("a Decimal compares by value on every route (0.3D is the column's 0.30, S139); a Float never equals a Decimal")
     void decimalEqualityByRules() throws Exception {
         String scaled = "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)";
         try (Connection c = seeded()) {
             assertTrue(judged(c, scaled).passed());
-            AssertFailed scale = assertThrows(AssertFailed.class, () -> com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c));
-            // (item 3, 2026-11-21: the catalog's words on every route (Q15 = A); the verdict compatibility's, scale and all)
-            assertEquals("expected 0.3, got 0.30", scale.getMessage());
+            // the edge's door by lite's rule too since B3 step 1a (2026-11-24; until then by value and scale there)
+            assertTrue(com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c).passed());
+            // a written number literal reads as the type of the value it is written against, in an assert as in any
+            // comparison (the edition program's step 6: 0.3 against a Decimal is the Decimal 0.3); a Float VALUE never
+            // equals a Decimal
+            assertTrue(judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)").passed());
             AssertFailed kind = assertThrows(AssertFailed.class,
-                    () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
+                    () -> judged(c, "|assertEquals(0.3->cast(@Number), " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             // lite's own sentence, each value its product text (the user's judge model, 2026-11-17)
-            assertEquals("expected 0.3, got 0.30", kind.getMessage());
+            assertEquals("expected: 0.3, actual: 0.30", kind.getMessage());
             assertThrows(AssertFailed.class, () -> judged(c, "|assertEquals(0.4D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
         }
     }
 
     @Test
-    @DisplayName("clean mode compares a Float exactly (0.1 + 0.2 is not 0.3); compatibility mode holds it within 2 ULP")
-    void floatEqualityIsExactInCleanMode() throws Exception {
+    @DisplayName("a Float compares exactly on every route (0.1 + 0.2 is not 0.3; the compatibility route's 2-ULP tolerance went 2026-11-24)")
+    void floatEqualityIsExactOnEveryRoute() throws Exception {
         String body = "|assertEquals(0.3, " + ROW_ONE + ".fa + " + ROW_ONE + ".fb)";
         try (Connection c = seeded()) {
             AssertFailed exact = assertThrows(AssertFailed.class, () -> judged(c, body));
             // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17)
-            assertEquals("expected 0.3, got 0.30000000000000004", exact.getMessage());
-            assertTrue(com.legend.testing.EdgeProgram.run(model(), body, "m::RT", c).passed());
+            assertEquals("expected: 0.3, actual: 0.30000000000000004", exact.getMessage());
+            // the edge's door exactly too since B3 step 1b (2026-11-24: legend-engine compares exactly)
+            assertThrows(AssertFailed.class, () -> com.legend.testing.EdgeProgram.run(model(), body, "m::RT", c));
         }
     }
 
@@ -176,7 +181,7 @@ class DecimalKindsTest {
     @DisplayName("a cast to Numeric(10, 2) is a type assertion: the value as it is, scale and all (S140)")
     void castKeepsTheValue() throws Exception {
         try (Connection c = seeded()) {
-            // judged under the compatibility rules, which compare a Decimal's scale too: 1.25D stays 1.25D
+            // judged under the compatibility rules (a Decimal by value since B3 step 1a, 2026-11-24): 1.25D stays 1.25D
             assertTrue(com.legend.testing.EdgeProgram.run(model(), "|assertEquals(1.25D, 1.25D->cast(@Numeric(10, 2)))",
                     "m::RT", c).passed());
         }
@@ -186,7 +191,7 @@ class DecimalKindsTest {
     @DisplayName("a list of Decimals compares by value in lite (the column's 0.10s are 0.1D, S139)")
     void decimalListByValue() throws Exception {
         try (Connection c = seeded()) {
-            assertTrue(judged(c, "|assertEquals([0.1D, 0.1D], m::Price.all()->filter(p|$p.id <= 2)->map(p|$p.a))")
+            assertTrue(judged(c, "|assertEquals([0.1D, 0.1D], m::Price.all()->filter(p|$p.id <= 2)->map(p|$p.a)->sort())")
                     .passed());
         }
     }

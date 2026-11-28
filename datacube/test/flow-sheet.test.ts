@@ -955,7 +955,7 @@ describe("Sample's other ways (row-sample.ts): a row number and a filter, as Uni
       fn('equal', property(variable('x'), 'region'), lit.string('EMEA'))), lambda([], lit.integer(1)), lambda([], lit.integer(0)))));
     assert.deepEqual(rank!.window, { fn: 'rowNumber', partition: ['SampleInterest'], order: [{ column: 'SampleChance', direction: 'asc' }, { column: 'SampleRow', direction: 'asc' }] });
     assert.deepEqual(count!.window, { fn: 'sum', column: 'SampleInterest', partition: [], order: [], frame: 'partition' });
-    assert.match(JSON.stringify(keep!.lambda?.body[0]), /"function":"or".*"function":"lessThanEqual".*"function":"divide".*"function":"times"/);
+    assert.match(JSON.stringify(keep!.lambda?.body[0]), /"function":"or".*"function":"lessThanEqual".*"function":"times".*"function":"times"/);
     const filter = (commands.find((c) => c.kind === 'addFilter') as { condition: FilterNode }).condition;
     assert.deepEqual(filter, { kind: 'condition', column: 'SampleKeep', operator: 'equal', value: true });
     assert.deepEqual(rowSampleOf({ derived: made, filter }), { ...t, columns: made.map((d) => d.name) });

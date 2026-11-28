@@ -1,0 +1,58 @@
+###Pure
+Class t::Person { name: String[1]; }
+Class t::Person2 { name: String[1]; age: Integer[0..1]; }
+Class p::K { <<equality.Key>> id: Integer[1]; <<equality.Key>> at: DateTime[1]; note: String[1]; }
+Class p::KS extends p::K { extra: String[1]; }
+Class p::KN { <<equality.Key>> k: p::K[1]; <<equality.Key>> f: Float[1]; note: String[0..1]; }
+Class p::KO { <<equality.Key>> id: Integer[0..1]; note: String[1]; }
+Class p::KD { <<equality.Key>> d: Decimal[1]; <<equality.Key>> b: Boolean[1]; <<equality.Key>> e: t::E[1]; <<equality.Key>> sd: StrictDate[1]; }
+Class p::KF { <<equality.Key>> f: Float[1]; }
+Class p::KM { <<equality.Key>> ids: Integer[*]; }
+Class p::KP { <<equality.Key>> p: t::Person[1]; }
+Class p::KNO { <<equality.Key>> k: p::K[0..1]; <<equality.Key>> n: Integer[1]; }
+Class p::KI { <<equality.Key>> i: Integer[1]; <<equality.Key>> s: String[1]; }
+Class p::KDT { <<equality.Key>> t: DateTime[1]; }
+Class p::KY { <<equality.Key>> d: Date[1]; }
+Class p::KNum { <<equality.Key>> n: Number[1]; }
+Class p::KNO2 { <<equality.Key>> k: p::KO[0..1]; <<equality.Key>> n: Integer[1]; }
+Class p::KA { <<equality.Key>> a: Any[1]; }
+Class p::KE { <<equality.Key>> e: t::E[1]; }
+Class p::KSD { <<equality.Key>> d: StrictDate[1]; }
+Class p::DL { ds: Decimal[*]; }
+Class p::AN { a: Any[*]; }
+Class p::Q { id: Integer[1]; e: Decimal[1]; f: Float[1]; s: String[1]; d: StrictDate[1]; t: DateTime[1]; }
+Class p::QK { <<equality.Key>> id: Integer[1]; s: String[1]; }
+Class p::R { id: Integer[1]; t: DateTime[1]; }
+Class p::N { id: Integer[1]; t: DateTime[1]; }
+Class p::Y { id: Integer[1]; t: DateTime[1]; }
+Enum t::E { A, B }
+Enum p::E { A, B }
+Enum p::EE { A, B }
+Class p::QE { id: Integer[1]; e: p::EE[1]; }
+Class t::Employee extends t::Person {}
+function t::check(x: Integer[1]): Boolean[1] { assertEquals(2, $x) }
+function t::check2(x: Integer[1]): Boolean[1] { assertEquals(2, $x); true; }
+Class p::KV { <<equality.Key>> v: Variant[1]; }
+Class p::VV { v: Variant[1]; n: Integer[1]; }
+Class p::AV { a: Any[1]; }
+Class p::KAV { <<equality.Key>> a: Any[1]; }
+Class p::VL { vs: Variant[*]; }
+Class p::P { id: Integer[1]; d: Decimal[1]; }
+Class p::NN { name: String[1]; }
+###Relational
+Database p::DB ( Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2), F DOUBLE, S VARCHAR(20), D DATE, T TIMESTAMP) Table N (ID INTEGER PRIMARY KEY, T TIMESTAMP_NS) Table Y (ID INTEGER PRIMARY KEY, T TIMESTAMP) Table T (ID INTEGER PRIMARY KEY, D INTEGER) )
+###Mapping
+Mapping p::M ( p::Q: Relational { ~mainTable [p::DB] U id: U.ID, e: U.E, f: U.F, s: U.S, d: U.D, t: U.T }
+    p::QK: Relational { ~mainTable [p::DB] U id: U.ID, s: U.S }
+    p::R: Relational { ~mainTable [p::DB] U id: U.ID, t: U.D }
+    p::N: Relational { ~mainTable [p::DB] N id: N.ID, t: N.T }
+    p::Y: Relational { ~mainTable [p::DB] Y id: Y.ID, t: Y.T }
+    p::P: Relational { ~mainTable [p::DB] T id: T.ID, d: T.D }
+    p::EE: EnumerationMapping EEM { A: 'a', B: 'b' }
+    p::QE: Relational { ~mainTable [p::DB] U id: U.ID, e: EnumerationMapping EEM : U.S } )
+###Connection
+RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+    specification: LocalH2 { testDataSetupCSV: 'default\nU\nID,E,F,S,D,T\n1,1.50,2.5,a,2020-01-01,2020-01-01 10:00:00\n2,-2.00,3.0,b,2020-01-02,2020-01-02 10:00:00\n3,1.5,2.5,a,2020-01-01,2020-01-01 10:00:00\n-----\ndefault\nN\nID,T\n1,2020-01-01 10:00:00.123456789\n2,2020-01-01 10:00:00.123456\n3,2020-01-01 10:00:00.1234567\n-----\ndefault\nY\nID,T\n1,2407-01-01 10:00:00\n2,1624-01-01 10:00:00\n3,2020-01-01 10:00:00.5\n-----\ndefault\nT\nID,D\n1,1\n'; };
+    auth: DefaultH2; }
+###Runtime
+Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }

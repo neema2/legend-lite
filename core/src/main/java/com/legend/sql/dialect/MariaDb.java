@@ -1966,6 +1966,9 @@ public class MariaDb extends AnsiSqlRenderer {
             // outside [-1, 1] MariaDB answers NULL (measured), DuckDB raises
             case ACOS -> domainGuarded(writer, c, "ACOS");
             case ASIN -> domainGuarded(writer, c, "ASIN");
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("ACOS", a);
+            case ASIN_IN_DOMAIN -> writer.function("ASIN", a);
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
@@ -1979,10 +1982,13 @@ public class MariaDb extends AnsiSqlRenderer {
             // DuckDB's // truncates toward zero, NULL for a zero divisor: DIV
             case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", null);
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -POW(-(").expr(a.get(0), 0)
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
@@ -1990,6 +1996,8 @@ public class MariaDb extends AnsiSqlRenderer {
             // mixed list, measured 2026-10-11)
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: the database's own CAST AS CHAR (its shortest digits), never laid out
+            case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "CHAR");
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
@@ -2130,6 +2138,7 @@ public class MariaDb extends AnsiSqlRenderer {
     private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            SameValuesForm.refuseExactNumbersOfTwoScales(a);
             return writer.append("(").piece(compact(w -> w.expr(a.get(0), 0)))
                     .append(c.fn() == SqlFn.EQUAL ? " = " : " <> ").piece(compact(w -> w.expr(a.get(1), 0)))
                     .append(")");
@@ -2422,7 +2431,7 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /**
      * DuckDB's regexp_extract_all: each non-overlapping match's group, left to right; NULL for NULL. The k-th match is
-     * the one after k - 1 matches, each a lazy prefix and a match: {@code ^(?:[\s\S]*?(?:p)){k-1}[\s\S]*?(p)}, a
+     * the one after k - 1 matches, each a lazy prefix and a match, taken once: {@code ^(?>[\s\S]*?(?:p)){k-1}[\s\S]*?(p)}, a
      * pattern built per row (a dynamic pattern is compiled per row here); k runs over a correlated row generator, as
      * far as the text has matches. The k-th's groups follow the repeated ones (the last repeat's): group g is
      * {@code \(m + 1 + g)} for a pattern of m groups.
@@ -2435,7 +2444,12 @@ public class MariaDb extends AnsiSqlRenderer {
             throw new DialectCapability("regexp_extract_all of group " + g + " of a pattern of " + captureGroups(p)
                     + " groups reached " + product() + " (a replacement names groups 1-9)");
         }
-        String repeat = stringLit("^(?:[\\s\\S]*?(?:" + p + ")){");
+        // each earlier match is an ATOMIC group ((?>...), PCRE's and ICU's alike): once the scan has taken a match it
+        // is not split again to make room for another. With a plain group the filter below asked whether SOME split of
+        // the text into k matches exists, which overcounts where a match can be cut into shorter ones:
+        // 'abc'->chunk(5), pattern .{1,5}, answered ['abc', 'c', 'c'] (the independent audit of 2026-11-26; chunk
+        // reached here since its written size became a literal pattern that day, refused until then)
+        String repeat = stringLit("^(?>[\\s\\S]*?(?:" + p + ")){");
         SqlWriter.Piece k = w -> w.append("__k.\"__n\"");
         SqlWriter.Piece kth = w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", CONCAT(" + repeat + ", ")
                 .piece(k).append(" - 1, " + stringLit("}[\\s\\S]*?(" + p + ")[\\s\\S]*\\z") + "), "

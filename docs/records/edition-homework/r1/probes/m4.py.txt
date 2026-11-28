@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""M4: lite's channel A on DuckDB as legend-engine's audience (the engine lane's outcomes) against legend-engine's
+relational-duckdb PCT manifests. Usage: m4.py <engine-src root> <outcomes dir: duckdb_<suite>/outcomes.tsv> <out json>"""
+import glob, json, os, re, sys, collections
+
+eng, outdir, outjson = sys.argv[1], sys.argv[2], sys.argv[3]
+SUITES = ["Essential", "Grammar", "Relation", "Standard", "Unclassified"]
+SIGNED = re.compile(r"^(.*)_Function_1__Boolean_1_$")
+FRAME = re.compile(r"^Assert failure at \(resource:[^)]*\),\s*")
+
+def manifest(runtime, suite):
+    fs = glob.glob(os.path.join(eng, "**", "pct-manifests", runtime, suite + "Functions_manifest.json"), recursive=True)
+    if not fs:
+        return None
+    d = json.load(open(fs[0]))
+    out = collections.OrderedDict()
+    for e in d["exclusions"]:
+        m = SIGNED.match(e["test"])
+        out.setdefault(m.group(1) if m else e["test"], e["expectedError"])
+    return out, len(d["exclusions"])
+
+def unescape(s):
+    # JUnitMain's full outcomes: '\\' -> '\\\\', '\n' -> '\\n'
+    out, i = [], 0
+    while i < len(s):
+        c = s[i]
+        if c == "\\" and i + 1 < len(s):
+            n = s[i + 1]
+            out.append("\n" if n == "n" else n)
+            i += 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+def outcomes(suite):
+    rows = {}
+    for line in open(os.path.join(outdir, "duckdb_" + suite.lower(), "outcomes.tsv"), encoding="utf-8"):
+        line = line.rstrip("\n")
+        if not line:
+            continue
+        f = line.split("\t", 2)
+        if f[0].endswith("everyCaseWasPlannedAsLegendEnginesAudience"):
+            continue
+        rows[f[0]] = (f[1], unescape(f[2]) if len(f) > 2 else "")
+    return rows
+
+REFUSAL = ["no sql translation exists", "not supported", "does not support", "doesn't support", "unsupported",
+           "not managed yet", "couldn't find dynafunction", "is supported only", "are only supported", "only supports",
+           "isn't supported", "not implemented", "isn't a literal", "no relational processor matched",
+           "ensure the target system understands", "no matched function in function registry"]
+DB = ["SQLException", "Binder Error", "Conversion Error", "Catalog Error", "Invalid Input Error", "Out of Range Error",
+      "Parser Error", "Data conversion error", "JdbcSQL", "SQL statement", "duckdb", "DuckDB", "Not implemented Error",
+      "Constraint Error", "Execution Error"]
+ERRMISMATCH = ["No error was thrown", "The actual message was", "message mismatch", "column mismatch", "line mismatch"]
+
+def upstream_class(m):
+    s = m.strip()
+    lower = s.lower()
+    if any(w in s for w in ERRMISMATCH):
+        return "other"
+    if ("expected:" in s and "actual:" in s) or "Assert failed" in s or s.startswith("Assert failure"):
+        return "wrong value"
+    if any(w in s for w in DB):
+        return "database error"
+    if any(w in lower for w in REFUSAL):
+        return "legend-engine refusal"
+    return "other"
+
+def norm(m):
+    s = FRAME.sub("", m.strip())
+    s = s.replace('\\"', '"')
+    return re.sub(r"\s+", " ", s).strip().strip('"').strip()
+
+def ev(m):
+    """expected and actual of a PCT assert message, normalized; None when not that shape"""
+    s = FRAME.sub("", m.strip())
+    i, j = s.find("expected:"), s.find("actual:")
+    if i < 0 or j < 0:
+        return None
+    return (re.sub(r"\s+", " ", s[i + 9:j]).strip(), re.sub(r"\s+", " ", s[j + 7:]).strip().rstrip('"').strip())
+
+result = {"suites": {}, "out_of_scope": {}}
+for suite in ["Variant", "ScenarioQuant"]:
+    mf = manifest("relational-duckdb", suite)
+    result["out_of_scope"][suite] = mf[1] if mf else None
+for suite in SUITES:
+    mf, nraw = manifest("relational-duckdb", suite)
+    oc = outcomes(suite)
+    rows = []
+    for test in sorted(set(oc) | set(mf)):
+        up = mf.get(test)
+        lite = oc.get(test)
+        r = {"test": test, "upstream": "FAIL" if up is not None else "PASS", "expectedError": up,
+             "upstream_class": upstream_class(up) if up is not None else None,
+             "lite": None if lite is None else ("PASS" if lite[0] == "SUCCESSFUL" else "FAIL"),
+             "lite_status": None if lite is None else lite[0], "lite_message": None if lite is None else lite[1]}
+        if lite is None:
+            r["bucket"] = "not run by lite"
+        elif up is None:
+            r["bucket"] = "1" if r["lite"] == "PASS" else "5"
+        elif r["lite"] == "PASS":
+            r["bucket"] = "3"
+        else:
+            lm = lite[1]
+            r["exact"] = lm == up
+            r["contains"] = up in lm
+            e1, e2 = ev(up), ev(lm)
+            r["normalized"] = (e1 is not None and e1 == e2) or (e1 is None and norm(up) == norm(lm))
+            same_wrong_value = r["upstream_class"] == "wrong value" and (r["exact"] or r["contains"] or r["normalized"])
+            if r["upstream_class"] != "wrong value" and (r["exact"] or r["contains"] or r["normalized"]):
+                r["bucket"] = "2b"
+            elif r["upstream_class"] == "database error" and up.startswith("java.sql.SQLException: ") and up[len("java.sql.SQLException: "):] == lm:
+                r["bucket"] = "4"
+                r["same_db_error_but_prefix"] = True
+            else:
+                r["bucket"] = "2" if same_wrong_value else "4"
+        rows.append(r)
+    result["suites"][suite] = {"manifest_rows": nraw, "manifest_tests": len(mf), "lite_ran": len(oc), "rows": rows}
+json.dump(result, open(outjson, "w"), indent=1)

@@ -41,7 +41,7 @@ public sealed interface ModelInput {
 
         @Override
         public List<String> compileErrors(java.util.function.Function<Throwable, String> words) {
-            return com.legend.Compiler.compileErrors(code, words);
+            return com.legend.Compiler.compileErrors(code, words, EngineComparisons.RULE);
         }
     }
 
@@ -64,7 +64,7 @@ public sealed interface ModelInput {
 
         @Override
         public List<String> compileErrors(java.util.function.Function<Throwable, String> words) {
-            return com.legend.Compiler.compileErrors(model, words);
+            return com.legend.Compiler.compileErrors(model, words, EngineComparisons.RULE);
         }
     }
 

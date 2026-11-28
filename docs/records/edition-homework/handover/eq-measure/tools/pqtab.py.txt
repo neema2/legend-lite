@@ -1,0 +1,39 @@
+import json, re, collections, sys
+rows = [l.rstrip('\n').split('\t') for l in open('pq.tsv')]
+res = {}
+for db in ('DuckDB', 'H2', 'SQLite'):
+    cur = None; out = {}
+    for l in open('pq.%s.out' % db).read().split('\n'):
+        m = re.match(r'== \w+ product (.*)', l)
+        if m: cur = m.group(1); continue
+        if cur and l.startswith('   ') and cur not in out: out[cur] = l.strip()
+    res[db] = out
+def val(s):
+    if s is None: return 'MISSING'
+    if s.startswith('OK '):
+        j = json.loads(s[3:]); v = [r.get('value') for r in j]
+        return json.dumps(v[0] if len(v) == 1 and not isinstance(v[0], list) else v, separators=(',', ':'))
+    return 'ERR:' + s.split(':', 1)[0] + ':' + s.split(':', 1)[1][:70].strip()
+def norm(want):
+    return want
+tab = collections.defaultdict(collections.Counter); lines = []
+for cls, want, q in rows:
+    vs = {db: val(res[db].get(q)) for db in res}
+    mark = []
+    for db, v in vs.items():
+        w = want
+        if v.startswith('ERR'): st = 'err'
+        else:
+            got = json.loads(v)
+            exp = json.loads(w)
+            if isinstance(exp, list) and not isinstance(got, list): got = [got]
+            if isinstance(exp, list) and isinstance(got, list) and all(isinstance(e, (int, float)) and not isinstance(e, bool) for e in exp + got):
+                got = sorted(got); exp = sorted(exp)
+            st = 'same' if got == exp else 'MOVES'
+        tab[cls][(db, st)] += 1; mark.append(st)
+    lines.append('%-9s %-24s %-48s | %s' % (cls, 'want=' + want, q[:48], '  '.join('%s=%s%s' % (db[:2], vs[db][:40], '' if m == 'same' else ' <' + m) for db, m in zip(vs, mark))))
+open('pq.table.txt', 'w').write('\n'.join(lines) + '\n')
+print('\n'.join(lines))
+print()
+for cls in tab:
+    print('%-9s' % cls, '  '.join('%s: moves %d, same %d, err %d' % (db, tab[cls][(db, 'MOVES')], tab[cls][(db, 'same')], tab[cls][(db, 'err')]) for db in ('DuckDB', 'H2', 'SQLite')))

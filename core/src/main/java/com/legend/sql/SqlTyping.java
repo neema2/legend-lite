@@ -404,12 +404,12 @@ public final class SqlTyping {
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,
                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
-                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_SHORTEST_TEXT, FLOAT_TO_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT,
+                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_SHORTEST_TEXT, FLOAT_TO_TEXT, FLOAT_FULL_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT,
                     FORMAT,
                     JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR, BINARY_COLLATE -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
-                    EPOCH_MS, EPOCH_NS, PARSE_INT,
+                    EPOCH_MS, EPOCH_NS, PARSE_INT, CAST_INT,
                     // HASH types as OUR EMISSION: the DuckDB renderer
                     // reinterprets hash()'s UBIGINT into signed BIGINT
                     // (DuckDb.hashSigned — exact two's-complement, the
@@ -418,8 +418,8 @@ public final class SqlTyping {
                     // describe what WE deliver, not the raw builtin.
                     HASH -> T_BIGINT;
             case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, RANDOM,
-                    ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
-                    DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
+                    ACOS, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
+                    DEGREES, DIVIDE, JARO_WINKLER, CAST_FLOAT -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,
                     FROM_EPOCH_MS, FROM_EPOCH_NS, TIMEZONE, DATE_AT_TIME -> T_TIMESTAMP;
@@ -477,13 +477,22 @@ public final class SqlTyping {
             // written from the 1.5.0 JDBC probe, the executing backend.)
             // The NULL value propagates; H2's DATE delivery rides the
             // TIMESTAMP<-DATE subsumption arm at the wire.
+            // (A truncation to the year, the quarter, the month or the week is a DAY: every dialect delivers a DATE
+            // there, its own contract -- AnsiSqlRenderer.dateTruncDateGrained and each dialect's dateTrunc cast the
+            // database's TIMESTAMP back -- and it is Pure's answer: firstDayOfMonth, firstDayOfQuarter and
+            // firstDayOfYear are date(y, m, 1), firstDayOfWeek the most recent Monday of the date (dateExtension.pure,
+            // read 2026-11-27). Recorded as a TIMESTAMP at every part until that day, the fact contradicted what
+            // the database holds: a comparison of such a day with a day was read as a date-time against a day.)
             case DATE_TRUNC -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
-                yield a.stream().anyMatch(
-                        x -> x.type() instanceof TypeFact.Bottom)
-                        ? BOTTOM : T_TIMESTAMP;
+                if (a.stream().anyMatch(x -> x.type() instanceof TypeFact.Bottom)) {
+                    yield BOTTOM;
+                }
+                yield a.get(0) instanceof SqlExpr.DatePartLit p && (p.part() == DatePart.YEAR
+                        || p.part() == DatePart.QUARTER || p.part() == DatePart.MONTH || p.part() == DatePart.WEEK)
+                        ? T_DATE : T_TIMESTAMP;
             }
             // the day's date (datePart; the day comparisons): a DATE, as DuckDb renders it (CAST(x AS DATE)) and
             // the legacy route reads it; a value root's TDS text prints it date-only (the MongoDB line's burn-down,
@@ -598,7 +607,7 @@ public final class SqlTyping {
             // ARITHMETIC family — probed rules split to arithType
             // (method-size guard; receipts on each arm there)
             case PLUS, MINUS, TIMES, REM, MOD, NEGATE, ABS,
-                    INT_DIVIDE, ROUND, CEILING, FLOOR, SIGN ->
+                    INT_DIVIDE, ROUND, ROUND_RAW, CEILING, FLOOR, SIGN ->
                     arithType(fn, a);
             // error() RAISES — it yields no value and conforms to every
             // slot (§4bZ-U leg 3: the fourth TypeFact variant, replacing
@@ -897,6 +906,18 @@ public final class SqlTyping {
                 // falls out of numericPromotion for DOUBLE; a decimal
                 // operand stays UNKNOWN (unprobed corners)
                 yield UNKNOWN;
+            }
+            // the database's own ROUND of a DOUBLE is a DOUBLE (probed where a table names it: DuckDB and H2); of any
+            // other operand it is that database's own kind: no fact
+            case ROUND_RAW -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                TypeFact f = a.get(0).type();
+                if (f instanceof TypeFact.Bottom) {
+                    yield BOTTOM;
+                }
+                yield f instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.DOUBLE ? T_DOUBLE : UNKNOWN;
             }
             case ROUND -> {
                 if (a.isEmpty()) {

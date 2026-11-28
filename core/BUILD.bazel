@@ -341,15 +341,23 @@ legend_java_library(
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
+# the service tests' three files in the edge's harness root (2026-11-26, the edition program's step 9, slice 1)
+_EDGE_SERVICE_TEST_SRCS = [
+    "src/edge_harness/java/com/legend/edge/EqualToJson.java",
+    "src/edge_harness/java/com/legend/edge/ServiceTestRunner.java",
+    "src/edge_harness/java/com/legend/edge/TdsObjectsWriter.java",
+]
+
 # legend-engine's service tests at the compatibility edge (phase D's D1.4, 2026-11-15): the service test runner and its
 # writer of legend-engine's PURE_TDSOBJECT, moved from //core:test and //core:result -- a run of a Legend service's
 # test, so its own library beside the edge's planning half (as edge_server is), reaching exec as //core:test does.
+# 2026-11-26 (the edition program's step 9, slice 1): TEST MACHINERY, out of the product's sources -- testonly, its
+# sources under src/edge_harness (the package name kept), the service-test comparator EqualToJson with it (from :edge,
+# whose one caller is the runner). No shipped artifact held it before; none can now.
 legend_java_library(
     name = "edge_service_tests",
-    srcs = [
-        "src/main/java/com/legend/edge/ServiceTestRunner.java",
-        "src/main/java/com/legend/edge/TdsObjectsWriter.java",
-    ],
+    testonly = True,
+    srcs = _EDGE_SERVICE_TEST_SRCS,
     deps = ["//base", "//json", ":compiler", ":edge", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test", ":test_plan", ":values"],
 )
 legend_java_library(
@@ -482,14 +490,12 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = [
         "src/main/java/com/legend/edge/EdgeServer.java",
         "src/main/java/com/legend/edge/EngineMount.java",
-        "src/main/java/com/legend/edge/ServiceTestRunner.java",
-        "src/main/java/com/legend/edge/TdsObjectsWriter.java",
         "src/main/java/com/legend/edge/StoreWords.java",
     ]),
     # //wasm (D1.0b, 2026-11-12): the compiler's boundary answers legend-engine's routes in the tab and Python
     visibility = ["//parser-equivalence:__pkg__", "//spec:__pkg__", "//pct:__pkg__", "//tools/census:__pkg__", "//wasm:__pkg__"],
-    resources = glob(["src/main/edge/META-INF/**"]),
-    resource_strip_prefix = "core/src/main/edge",
+    # (no resources: the plan's extension codec and its META-INF/services file went to :edge_harness with the appeals'
+    # run side, 2026-11-26, the edition program's step 9, slice 1)
     # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec;
     # the dialect source and the declared database type (D1.0, 2026-11-12): the edge's dialects, PureText
     # pure/v1's upstream routes (D1.0b, 2026-11-12): legend-engine's API, planned through the edge's dialects over the
@@ -499,10 +505,28 @@ legend_java_library(
     # values (W8, 2026-11-16): legend-engine's and legend-pure's cell text (Presenter) reads a date's own value
     deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
             ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":lite_v1", ":result", ":sql",
-            ":sql_dialect", ":test_plan", ":testdatagen", ":testplan", ":values", ":setup", ":resolver", ":platform", ":lowering", ":lineage", ":builtin",
-            # the compatibility appeals' run and their referee (census C2, 2026-11-17): the run's hook EdgeRun and
-            # the rows they read after the body's run
-            ":testexec", ":exec", ":diagnostics"],
+            ":sql_dialect", ":test_plan", ":testdatagen", ":testplan", ":values", ":setup", ":resolver", ":platform", ":lowering", ":lineage", ":builtin"],
+    # (no :testexec, :exec, :diagnostics: the compatibility appeals' run and their referee, census C2's of 2026-11-17,
+    # went to :edge_harness, 2026-11-26, the edition program's step 9, slice 1 -- the shipped edge library reaches no
+    # runtime library)
+)
+
+# THE EDGE'S TEST HARNESS (2026-11-26, the edition program's step 9, slice 1; the brief
+# docs/records/edition-homework/r3/research-step9-inventory.md, section E item 1): TEST MACHINERY, out of the product's
+# sources -- the compatibility appeals' run side (the run's hook AppealRun, the appeals it hears, their decision after
+# the run, the referee's SPI and its raw-SQL ledger), the recorder a harness hands the test planner (CompatEdge) and its
+# records, and the plan's codec for all of them, registered through META-INF/services. Testonly, its sources under
+# src/edge_harness with the package name kept (com.legend.edge), as :test_backends is the tests' databases: only the
+# harnesses that run under the compatibility rules take it (core's edge tests, the corpus, the PCT lanes), and no
+# shipped artifact can. A lane that decodes a plan holding the edge's records needs this jar on its classpath.
+legend_java_library(
+    name = "edge_harness",
+    testonly = True,
+    srcs = glob(["src/edge_harness/java/com/legend/edge/*.java"], exclude = _EDGE_SERVICE_TEST_SRCS),
+    resources = glob(["src/edge_harness/resources/META-INF/**"]),
+    resource_strip_prefix = "core/src/edge_harness/resources",
+    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    deps = ["//base", "//json", ":diagnostics", ":edge", ":error", ":exec", ":execution_plan", ":test_plan", ":testexec"],
 )
 
 # THE SHIPPED SERVER'S ROOT (phase D's D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside
@@ -624,6 +648,9 @@ legend_java_library(
             # docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17)
             "src/test/java/com/legend/planner/LiteApiConformanceTest.java",
             "src/test/java/com/legend/server/PostgresArmTest.java",
+            # the equality measurement is :equality_measure's and :equality_positions_pin_test's alone
+            # (tools/equality-measure, step 6.0 of the edition program; the pin, step 6B's slice 2)
+            "src/test/java/com/legend/equalitymeasure/*.java",
             # isNumeric's one rule run on four databases, Postgres among them: :is_numeric_probe_test's alone (J20)
             "src/test/java/com/legend/planner/IsNumericProbeTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
@@ -789,6 +816,9 @@ legend_java_library(
         ":edge",
         # the shipped server's root (D1.0b, 2026-11-12): the HTTP tests start the server legend-engine's clients call
         ":edge_server",
+        # the edge's test harness: the appeals' run side, the recorder and the plan's codec (2026-11-26, the edition
+        # program's step 9, slice 1: out of :edge)
+        ":edge_harness",
         # legend-engine's service tests (D1.4, 2026-11-15: ServiceTestRunner moved to the edge)
         ":edge_service_tests",
         ":core",
@@ -2793,8 +2823,11 @@ java_jars(
     # core's own edge targets, every one (2026-11-18, the review of 11de9ae229, MUST-FIX 2: the edge rules read
     # libedge.jar alone, so a rule naming TdsObjectsWriter -- :edge_service_tests' -- read nothing for it); the
     # hosts' edge entries (//native:edge_entry, //query-store's page) come with C.11's one list, after the host train
+    # + the edge's test harness (2026-11-26, the edition program's step 9, slice 1): the classes that left :edge for
+    # :edge_harness are still the edge's (com.legend.edge), so every jar-reading guard reads the same classes
     deps = [
         ":edge",
+        ":edge_harness",
         ":edge_server",
         ":edge_service_tests",
         ":edge_store_words",
@@ -2816,8 +2849,10 @@ java_jars(
 # the native library's upstream entry is the edge's too (A2, 2026-11-17); the query-store page's was (A3) until it
 # answered lite's own /api/lite/v1/queries in lite's words (lite's API v1, H6, 2026-11-17): a product root below
 # the embedded hosts' engine routes and the tab's module entry are the edge's too (A1, 2026-11-17)
-_EDGE_TARGETS = ("//core:edge + //core:edge_server + //core:edge_service_tests + //core:edge_store_words + " +
-                 "//native:edge_entry + //wasm:edge_boundary + //wasm:edge_tab")
+# + //core:edge_harness (2026-11-26, the edition program's step 9, slice 1): the edge's test harness is an edge target
+# too -- testonly, so no product library can depend on it at all; named here so the list is every edge target
+_EDGE_TARGETS = ("//core:edge + //core:edge_harness + //core:edge_server + //core:edge_service_tests + " +
+                 "//core:edge_store_words + //native:edge_entry + //wasm:edge_boundary + //wasm:edge_tab")
 
 _EDGE_SEPARATION_ROOTS = [
     "//core:core",
@@ -2843,7 +2878,7 @@ genquery(
     # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
     # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
     # roots left: they had brought //core:edge_server into the scope)
-    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//core:edge",
+    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//core:edge", "//core:edge_harness",
                                       "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
 )
@@ -2866,7 +2901,7 @@ genquery(
     # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
     # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
     # roots left: they had brought //core:edge_server into the scope)
-    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//core:edge",
+    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//core:edge", "//core:edge_harness",
                                       "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
 )
@@ -2900,7 +2935,8 @@ _EDGE_OPT_IN = ["//core:edge_server", "//native:engine", "//wasm:edge_tab"]
 
 # (//query-store:edge_page_entry: gone with H6, 2026-11-17 -- the queries page answers lite's own route from
 # :page_entry; dropped here 2026-11-18 at the host train's merge of train 18, as _EDGE_TARGETS above)
-_EDGE_TARGET_LIST = ["//core:edge", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+# (+ //core:edge_harness, 2026-11-26, the edition program's step 9, slice 1: as _EDGE_TARGETS above)
+_EDGE_TARGET_LIST = ["//core:edge", "//core:edge_harness", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                      "//native:edge_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
 
 # the declared opt-in modules the edge's list does not name, in every query's scope: //native:engine, a shipped opt-in
@@ -3631,6 +3667,10 @@ core_layer_queries(not_layers = {
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
     "core_edge_tests_lib": "the edge's tests' library (core/edge_tests.bzl; F's census lines A5/A6, 2026-11-17), not product code",
+    # 2026-11-26 (the edition program's step 9, slice 1): the edge's test machinery, testonly -- :edge_harness new, and
+    # :edge_service_tests no layer any more (its line left tools/deps/core-layers.txt: an entry moved, not added)
+    "edge_harness": "the edge's test harness (the appeals' run side, the recorder, the plan's codec), testonly, not product code",
+    "edge_service_tests": "legend-engine's service tests' runner at the edge, testonly since 2026-11-26, not product code",
     "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
@@ -3818,4 +3858,77 @@ write_source_files(
 product_tests_closure(
     name = "product_test_targets_closure",
     extra = ["//core:core_tests_lib", "//core:test_cases"],
+)
+
+# THE EQUALITY MEASUREMENT (step 6.0 of the edition program, tools/equality-measure/README.md): every collected assert
+# body as written and as its plain comparison, under the host and database judges on DuckDB, H2 and SQLite. Manual:
+# bazel run //core:equality_measure -- <bodies.tsv> <out dir> [<id regex>]
+legend_java_binary(
+    name = "equality_measure",
+    testonly = True,
+    srcs = [
+        "src/test/java/com/legend/equalitymeasure/EqualityMeasure.java",
+        "src/test/java/com/legend/equalitymeasure/PositionReport.java",
+    ],
+    jvm_flags = ["-Xmx3g"],
+    main_class = "com.legend.equalitymeasure.EqualityMeasure",
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+    ],
+)
+
+# THE POSITION MATRIX, PINNED (step 6B's slice 2, 2026-11-28; tools/equality-measure/README.md): one comparison asked
+# in every place a comparison can stand, on every in-process database, its result required to EQUAL
+# tools/equality-measure/positions-baseline.tsv line for line -- a comparison that gets worse fails, and one that gets
+# better fails until the baseline is regenerated in the same commit. About 5,800 runs, a minute on Linux.
+junit_test(
+    name = "equality_positions_pin_test",
+    memory_mb = 3072,
+    size = "large",
+    srcs = [
+        "src/test/java/com/legend/equalitymeasure/EqualityMeasure.java",
+        "src/test/java/com/legend/equalitymeasure/EqualityPositionsPinTest.java",
+        "src/test/java/com/legend/equalitymeasure/PositionReport.java",
+    ],
+    data = [
+        "//tools/equality-measure:positions-baseline.tsv",
+        "//tools/equality-measure:positions-model.txt",
+        "//tools/equality-measure:positions-store-model.txt",
+    ],
+    jvm_flags = [
+        "-Dequality.positions.baseline=$(rlocationpath //tools/equality-measure:positions-baseline.tsv)",
+        "-Dequality.positions.model=$(rlocationpath //tools/equality-measure:positions-model.txt)",
+        "-Dequality.positions.store_model=$(rlocationpath //tools/equality-measure:positions-store-model.txt)",
+    ],
+    select = ["--select-class=com.legend.equalitymeasure.EqualityPositionsPinTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE PRODUCT'S SQL, DUMPED (the equality program, tools/equality-measure/README.md): every query of the lean-SQL sets
+# planned by the product's one planning entry, its SQL text or its refusal, for tools/equality-measure/sql-changes.sh.
+# Manual: bazel run //core:sql_dump -- <lean-sql dir> <out dir>
+legend_java_binary(
+    name = "sql_dump",
+    testonly = True,
+    srcs = ["src/test/java/com/legend/equalitymeasure/SqlDump.java"],
+    jvm_flags = ["-Xmx3g"],
+    main_class = "com.legend.equalitymeasure.SqlDump",
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        ":test_backends",
+        "//json",
+    ],
 )

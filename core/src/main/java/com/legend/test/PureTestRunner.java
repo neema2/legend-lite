@@ -225,15 +225,15 @@ public final class PureTestRunner implements AutoCloseable {
      *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
      *  where a thread-scoped SEED mark around the program counted them until then). */
     private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options,
-            com.legend.testexec.EdgeRun edgeRun) {
+            com.legend.testexec.EdgeRun edgeRun, Audience audience) {
         // a setup asserts nothing, so it hears no appeal; it is heard by the body's own hook, which goes with the run's
         // style (census C1, the orchestrator's ruling of 2026-11-17: one choice per run)
-        TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
-                edgeRun, options);
+        TestExecution.runFixture(TestExecution.planBody(audience.admitted(Compiler.queryResolved(ctx, call)), runtimeFqn,
+                options), target, edgeRun, options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
-            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun, Audience audience) {
         List<String> failures = new ArrayList<>();
         for (String fqn : setupCandidates(t.pkg())) {
             if (shared && setupsDone.contains(fqn)) {
@@ -247,7 +247,7 @@ public final class PureTestRunner implements AutoCloseable {
             try {
                 // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's
                 // origin); a package-start fixture keeps the engine's own rule -- the later one wins the name
-                runSetup(call, conn, options, edgeRun);
+                runSetup(call, conn, options, edgeRun, audience);
                 if (shared) {
                     setupsDone.add(fqn);
                 }
@@ -272,6 +272,8 @@ public final class PureTestRunner implements AutoCloseable {
      *  its body through the platform, one result. */
     public Result run(PureTests.TestCase t) {
         observer.testStarted(t);
+        // the test's audience: its options, its run hook and its door together (B3 step 2b, 2026-11-24)
+        Audience audience = observer.audience(t);
         if (!t.pkg().equals(sessionPkg)) {
             beginSession(t.pkg());
         }
@@ -288,7 +290,8 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             // the body's facts as the test planner states them, data: the record its plan carries (C5-J item 2,
             // 2026-11-15: until then the planner's ProgramFacts, read here)
-            facts = TestExecution.facts(Compiler.queryResolved(ctx, resolved));
+            // (the body as the observer's audience reads it: B3 step 2, 2026-11-24, the edge's test-body door)
+            facts = TestExecution.facts(audience.admitted(Compiler.queryResolved(ctx, resolved)));
         } catch (RuntimeException e) {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
                 e.printStackTrace();   // the typing phase, under the same flag as execution
@@ -299,19 +302,19 @@ public final class PureTestRunner implements AutoCloseable {
         boolean shared = !facts.seedsInlineCsv();
         observer.privateWorkspace(!shared);
         com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
-        ExecuteOptions options = observer.options(t, shared).judgedAs(judging);
-        com.legend.testexec.EdgeRun referee = observer.edgeRun(t);
+        ExecuteOptions options = audience.options(shared).judgedAs(judging);
+        com.legend.testexec.EdgeRun referee = audience.edgeRun();
         try {
             // a setup that fails FAILS every test depending on it: the engine's
             // suite scores each BeforePackage function as a test case of its own,
             // so a failure there is scored, never tolerated; a body judged on a
             // half-seeded session is no verdict
-            List<String> setupFailures = runSetups(t, conn, shared, options, referee);
+            List<String> setupFailures = runSetups(t, conn, shared, options, referee, audience);
             if (!setupFailures.isEmpty()) {
                 return new Result(t.fqn(), Status.FAIL, List.of(),
                         "setup failed: " + String.join("; ", setupFailures));
             }
-            return judge(t, resolved, facts, conn, options, referee);
+            return judge(t, resolved, facts, conn, options, referee, audience);
         } finally {
             observer.privateWorkspace(false);
             observer.bodyFinished(t, shared, options);
@@ -327,7 +330,8 @@ public final class PureTestRunner implements AutoCloseable {
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved,
             com.legend.testexecutionplan.BodyFacts facts,
-            com.legend.exec.Sessions.Session conn, ExecuteOptions options, com.legend.testexec.EdgeRun referee) {
+            com.legend.exec.Sessions.Session conn, ExecuteOptions options, com.legend.testexec.EdgeRun referee,
+            Audience audience) {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();
@@ -346,7 +350,13 @@ public final class PureTestRunner implements AutoCloseable {
                 // the body planned whole, nothing told to anyone; then run, its listener told each verdict at its
                 // turn (2026-11-10: no fixture is provided between the halves -- the corpus's and the stress lanes'
                 // verdicts measured unmoved without one, census M9)
-                planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved), runtimeFqn, options);
+                // the audience's reads first (B3 step 2b: a compatibility audience reads a printed side's relation on
+                // this session, its setups run, and substitutes the text), each a query planned and run through the
+                // public test door
+                Audience.Reads reads = (query, answer) -> TestExecution.runBody(
+                        TestExecution.planBody(query, runtimeFqn, options), conn, null, referee, options, answer);
+                planned = TestExecution.planBody(audience.read(audience.admitted(Compiler.queryResolved(ctx, resolved)),
+                        facts, reads), runtimeFqn, options);
                 TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override

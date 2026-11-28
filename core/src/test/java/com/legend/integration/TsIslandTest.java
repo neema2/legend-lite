@@ -2667,7 +2667,7 @@ class TsIslandTest {
                 + " x|$x.instrument.ticker, day: x|$x.day, px: x|$x.close])->extend(~[line: x|$x.sym->toOne() + '-x',"
                 + " scaled: x|$x.px->toOne() * (3 / 2), sign: x|if($x.px > 100.5, |1.0, |-1.0)])->extend(~[twice: x|"
                 + "$x.scaled->toOne() * 2, gap: x|if($x.px < 99.0, |[], |$x.px->toOne() - 99.0)])->filter(x|$x.scaled"
-                + " > 150); #TS{SELECT avg(twice, 3) AS m, sign AS s, gap AS g FROM $q ON day BY line}#;");
+                + " > 150.0); #TS{SELECT avg(twice, 3) AS m, sign AS s, gap AS g FROM $q ON day BY line}#;");
         com.legend.protocol.ts.TsShow.Types types = com.legend.server.LiteV1Api.tsTypes(model);
         Map<String, String> statements = new LinkedHashMap<>();
         for (Map.Entry<String, String> q : queries.entrySet()) {
@@ -2692,7 +2692,7 @@ class TsIslandTest {
                 + " close * (CAST(3 AS DOUBLE PRECISION) / 2) AS scaled, CASE WHEN close > 100.5 THEN CAST(1.0 AS"
                 + " DOUBLE PRECISION) ELSE -CAST(1.0 AS DOUBLE PRECISION) END AS sign, close * (CAST(3 AS DOUBLE"
                 + " PRECISION) / 2) * 2 AS twice, CASE WHEN close < 99.0 THEN NULL ELSE close - CAST(99.0 AS DOUBLE"
-                + " PRECISION) END AS gap FROM ts::Quote WHERE close * (CAST(3 AS DOUBLE PRECISION) / 2) > 150) SELECT"
+                + " PRECISION) END AS gap FROM ts::Quote WHERE close * (CAST(3 AS DOUBLE PRECISION) / 2) > 150.0) SELECT"
                 + " avg(twice, 3) AS m, sign AS s, gap AS g FROM q ON day BY line",
                 statements.get("a class's calculated columns, filtered by one"), "each over the paths it reads");
         // what the flat form does not say yet is refused by name, never approximated: a window's column, a function

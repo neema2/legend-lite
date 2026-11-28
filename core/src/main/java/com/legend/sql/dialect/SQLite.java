@@ -1711,6 +1711,9 @@ public class SQLite extends AnsiSqlRenderer {
             case PI -> writer.append("pi()");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            // a Float's full-precision text: SQLite's own printf at seventeen significant digits (its cast writes
+            // fifteen), the NULL kept
+            case FLOAT_FULL_TEXT -> writer.piece(exactText(w -> w.expr(c.args().get(0), 0)));
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -1765,6 +1768,9 @@ public class SQLite extends AnsiSqlRenderer {
             // outside [-1, 1] SQLite answers NULL (measured), DuckDB raises
             case ACOS -> domainGuarded(writer, c, "acos");
             case ASIN -> domainGuarded(writer, c, "asin");
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("acos", a);
+            case ASIN_IN_DOMAIN -> writer.function("asin", a);
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
@@ -1778,10 +1784,13 @@ public class SQLite extends AnsiSqlRenderer {
             // DuckDB's // truncates toward zero, NULL for a zero divisor: SQLite's integer division
             case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a, c);
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "round", null);
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -pow(-(").expr(a.get(0), 0)
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // NULL-skipping, as DuckDB's (SQLite's max/min of several are NULL for any NULL argument)
@@ -1907,6 +1916,7 @@ public class SQLite extends AnsiSqlRenderer {
     private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            SameValuesForm.refuseExactNumbersOfTwoScales(a);
             return writer.append("(json(").expr(a.get(0), 0).append(c.fn() == SqlFn.EQUAL ? ") = json(" : ") <> json(")
                     .expr(a.get(1), 0).append("))");
         }

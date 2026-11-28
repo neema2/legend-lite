@@ -1423,6 +1423,8 @@ public class Snowflake extends AnsiSqlRenderer {
             case FLOAT_SHORTEST_TEXT -> isDouble(a.get(0)) ? floatShortestText(writer, a.get(0))
                     : floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+            // a Float's full-precision text: Snowflake's own casts, never laid out (floatFullText)
+            case FLOAT_FULL_TEXT -> floatFullText(writer, a.get(0));
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -1513,10 +1515,15 @@ public class Snowflake extends AnsiSqlRenderer {
                     .append("), ").expr(a.get(0), 0).append(")");
             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
             case ACOS, ASIN -> acosArm(writer, c);
+            // within the domain by the statement's own guard: the function alone
+            case ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
+            case ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
             // Pure's divide-with-scale is HALF_UP: ROUND over a NUMBER (half away from zero, measured); over a FLOAT
             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            // the database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN)
+            case ROUND_RAW, DECIMAL_RAW -> asGiven(writer, c, "ROUND", null);
             // DuckDB's // truncates toward zero; x // 0 is NULL (DIV0NULL answers 0, measured)
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");
@@ -1526,6 +1533,7 @@ public class Snowflake extends AnsiSqlRenderer {
                     w -> w.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(stringLit("^[+-]?[0-9]+$"))
                             .append(")"),
                     w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)"));
+            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
             // an ISO text with an offset is its UTC instant (a TIMESTAMP_NTZ cast drops the offset, measured)
             case PARSE_DATE -> writer.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(a.get(0), 0)
                     .append(")) AS TIMESTAMP_NTZ)");
@@ -1640,7 +1648,8 @@ public class Snowflake extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         String f = c.fn() == SqlFn.ACOS ? "ACOS" : "ASIN";
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN " + f + "(")
-                .expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE) END)");
+                .expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0)
+                .append(") IS NOT NULL THEN CAST('NaN' AS DOUBLE) END)");
     }
 
     /** The {@code ROUND_HALF_UP} arm of {@link #call}. */
@@ -2000,6 +2009,24 @@ public class Snowflake extends AnsiSqlRenderer {
                 + "SPLIT_PART(" + text + ", 'e', 1), '.', 1)) - 1 WHEN SPLIT_PART(" + text + ", '.', 1) <> '0' THEN LENGTH("
                 + "SPLIT_PART(" + text + ", '.', 1)) - 1 ELSE -1 - LENGTH(REGEXP_SUBSTR(SPLIT_PART(" + text
                 + ", '.', 2), '^0*')) END";
+    }
+
+    /**
+     * A Float's full-precision text ({@link SqlFn#FLOAT_FULL_TEXT}, toCSV's Float cell), the database's own casts and no
+     * text composed: every format model over a FLOAT caps it at sixteen significant digits (measured on the lane
+     * 2026-10-24, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5: 566 of 1,946 doubles did not read back), and its DECFLOAT
+     * cast writes seventeen, which read back (1,438 of 1,438 that parsed), always in exponent form ({@code 0.1} as
+     * {@code 1.0000000000000001E-01}), double-rounding the seventeenth digit of 80 of the 1,946 (pre-rounded to
+     * eighteen at run time) though each still reads back; that cast raises on NaN and the infinities, which take the
+     * plain cast. The DECFLOAT cast reads a non-finite value as NULL ({@code IFF}), since a CASE's branches may all be
+     * evaluated here ({@link #floatShortestText}'s rule; the review of the slice, 2026-11-25). NULL stays NULL.
+     * Unmeasured as this node until the Snowflake lane runs (B3's (B), agreed 2026-11-25).
+     */
+    private SqlWriter floatFullText(SqlWriter writer, SqlExpr x) {
+        SqlWriter.Piece nonFinite = w -> w.append("(").expr(x, 0).append(") IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT)");
+        return writer.append("(CASE WHEN ").piece(nonFinite).append(" THEN CAST(").expr(x, 0)
+                .append(" AS VARCHAR) ELSE CAST(CAST(IFF(").piece(nonFinite).append(", NULL, ").expr(x, 0)
+                .append(") AS DECFLOAT) AS VARCHAR) END)");
     }
 
     private static String nonFinite(String x) {
@@ -3548,7 +3575,9 @@ public class Snowflake extends AnsiSqlRenderer {
         writer.append("WHEN ABS(").expr(x, 0).append(") >= 1E32 THEN CAST(CAST(").expr(x, 0)
                 .append(" / POWER(10, FLOOR(LOG(10, ABS(").expr(x, 0)
                 .append("))) - 20) AS NUMBER(38, 0)) AS VARCHAR) || REPEAT('0', FLOOR(LOG(10, ABS(").expr(x, 0)
-                .append("))) - 20) ELSE ");
+                // a whole value keeps one fraction digit (S311 amended, the user's rulings of 2026-11-19 ~18:05 and
+                // 2026-11-23): every value from 1e32 is whole
+                .append("))) - 20) || '.0' ELSE ");
         trimmedSix(writer, "RTRIM", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS NUMBER(38, 6)) AS VARCHAR)"));
         return writer.append(" END");
     }

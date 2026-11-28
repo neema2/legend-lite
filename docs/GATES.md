@@ -19,10 +19,10 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `product` (a `bazel build`, not a suite) | 2 | `//:java //:web //:wasm //:native //:sites //datacube:app`; then `bazel build --nobuild --config=bazel10 //...`; then A25; then the lane guard | the product compiles and nothing else (`//tools/guards:compile_only_test` holds the four compile targets to compiles and file plumbing); NullAway is a compile error; the jar pools are one version each by construction; everything still analyzes under Bazel 10's incompatible flags (G14, since 2026-10-04); every test of the repository is in some lane or in `heavy` (`bazel query 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)'` is empty). Until 2026-10-07 this lane was `bazel build //...`, which also computed the six corpus passes and the 2 GB `//pct:ratchets` |
 | `core` | 1, 3 | `//core:core_tests`, `//core:duckdb_load_test`, `//core:section_grammar_registry_test`, `//core:corpus_differential_test`, `//core:planner_on_java_base_test`, `//core:postgres_arm_test`, `//spec:spec_tests`, `//json:tests`, `//pure-protocol:twins_test`, `//tools/engine-runner:smoke_test` | the compiler suite (NullAway runs on every compile); with `//core:corpus_differential_test`, legend-lite's SQL over the stress seed against the corpus oracle (wired 2026-10-05, P3-18); spec parity: generators, census, manifest; the JSON and protocol libraries; the engine-runner binaries through their launchers (P3-26); the server's Postgres arm, one query against the embedded Postgres 16 |
 | `checks` | — | `//:generated`, `//projects:tests`, `//tools/deps:all`, the five `//tools/guards:*_test` plus `workflows_test`, `//tools/junit:pins_test`, `//tools/junit:runner_test`, `//tools/java_run:pins_test`, `//tools/python:lock_matches_requirements`, `//tools/browser:revision_test`, `//tools/browser:proxy_args_test`, `//tools/bump:bump_test`, `//tools/js:lock_matches_package_json_test`, the five `//scripts/corpus:*_gate`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline` | the guards (since 2026-10-04, Bazel workplan Phase 6): every file inventoried and in some package's `all_files`, every jar pool locked and strict, no Markdown test input, no classpath with one Maven coordinate at two versions; the build targets perform only compiles and file plumbing, and the guard's fixture tier proves it still catches a genrule, a java_run, one calling itself Javac, and a validation (since 2026-10-06); the workflows linted by the pinned actionlint (since 2026-10-07; it ran by `curl` before); Bump's rewrites against the real pins; every pnpm lock equal to its package.json; the pinned Chromium equal to every locked Playwright's revision (since 2026-10-04, P1-14); the proxy a test's environment names given to Chromium as its own flags (since 2026-10-25, the timeseries review's G6); the Python lock holding every pin of tools/python/requirements.in with hashes (offline; since 2026-10-04, P1-07); every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the model projects, each compiled alone with its declared closure, the graph, the contract (P3-23); the dependency guards; the corpus ratchets (P2-04); PCT's discipline guard (no comparison machinery in the module); the source checks |
-| `corpus_duckdb` | 4, 11 | `//spec:corpus_duckdb`, `//spec:update_edge_corpus_duckdb_tests` | the relational corpus on DuckDB: the host judge (the build action `:judge_host_duckdb`) and the database judge (`:judge_database_duckdb`), joined per assert to the host pass's ledger (one lane since 2026-09-23; both passes cached build actions since 2026-10-05, Bazel workplan P3-01, P2-15); the lane, a suite, is its verdict and the diff tests of what it measures (spec/corpus.bzl); and the edge golden net's DuckDB corpus ledgers (since 2026-11-19, slice 0.2), diffed beside the host pass they read |
-| `corpus_h2` | 5 | `//spec:corpus_h2`, `//spec:update_edge_corpus_h2_tests` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained); and the edge golden net's H2 corpus ledgers (since 2026-11-19, slice 0.2) |
+| `corpus_duckdb` | 4, 11 | `//spec:corpus_duckdb`, `//spec:update_edge_corpus_duckdb_tests` | the relational corpus on DuckDB: the host judge (the build action `:judge_host_duckdb`) and the database judge (`:judge_database_duckdb`), joined per assert to the host pass's ledger (one lane since 2026-09-23; both passes cached build actions since 2026-10-05, Bazel workplan P3-01, P2-15); the lane, a suite, is its verdict and the diff tests of what it measures (spec/corpus.bzl); and the edge golden net's DuckDB corpus ledgers (since 2026-11-19, slice 0.2), diffed beside the host pass they read. On macOS, five tests fail on the last digit of DuckDB's `acos`, `asin`, `atan2` and `tan`. The corpus's platform overlay (`spec/src/test/resources/rcorpus/overlay_macos.tsv`, applied by `tools/edgenet`'s `CorpusOverlay` before the diff tests of the ledger, the fail roster and the unordered register; since 2026-11-26, the user's word) names each one. A row applies only when the recording shows exactly that failure, and on every other OS its test must pass, so a stale row fails |
+| `corpus_h2` | 5 | `//spec:corpus_h2`, `//spec:update_edge_corpus_h2_tests` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained); and the edge golden net's H2 corpus ledgers (since 2026-11-19, slice 0.2). The corpus's platform overlay is wired here too, and has no H2 row: H2 computes in Java |
 | `pct_duckdb` | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, a suite of one target per PCT suite (`//pct:pct_duckdb_<suite>`, each judged on its own census traffic; Bazel workplan P3-09) |
-| `pct_h2` | 7 | `//pct:pct_h2` | PCT relation on H2 (2.4.240 until 2026-11-05, lite's one H2 2.5.252 since): 469 tests, H2's 26 expected failures (27 -> 26, 2026-10-02: the self-referencing exists) each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
+| `pct_h2` | 7 | `//pct:pct_h2` (since 2026-11-26 a suite of the five, `//pct:pct_h2_<suite>`: the user's question "Should we run full h2 pct like duck?" and the orchestrator's decision) | PCT on H2 (lite's one H2 2.5.252), each suite with H2's own expected failures pinned by message (`Test_LegendLite_H2_<Suite>Functions_PCT`): Essential 345 tests / 82 pinned (84 as measured, less the two Float `toString` tests that pass since step 8's second slice prints a Float's text at the edge), Grammar 137 / 18, Relation 469 / 17, Standard 205 / 90, Unclassified 93 / 20 (measured 2026-11-26) |
 | `pct_postgres` | 7P | `//pct:pct_postgres` | PCT, all five suites, on Postgres 16.15 (one target per suite, `//pct:pct_postgres_<suite>`; P3-09) started by the test JVM from pinned binaries (`@embedded_postgres`, no Docker): 1,249 tests, Postgres's expected failures each pinned by message (`Test_LegendLite_Postgres_*Functions_PCT`), grouped as wrong answers, Postgres's own errors, leg P4's collections and Variant, and named refusals: 267 first measured, 242 after tier 1 (multi-column pivots, the self-referencing exists, half-even rounding to a scale, calendar buckets, whole-partition median/mode/quantile, maxBy/minBy, pow, ordered removeDuplicates), 230 after tier 2 (Variant over jsonb: key and index access, toVariant, parse, typed reads), 145 after tier 3 (lists of scalars as native arrays), 129 after tier 4 (structs and non-scalar lists as jsonb, held flat); its census divergence ceilings measured per suite (Essential 13, Grammar 5, the others 0; P3-09; 12 and 4 until 2026-10-11, when two more tests reached the wire with a struct as jsonb, the by-design class: `PctCensusGate.maxWireDiverge`) |
 | `pct_channel_b` | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
 | `edge_net` | — | `//pct:edge_net` | the edge golden net (the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19: per-push compatibility checks): every edge recording -- PCT channels A and B on DuckDB, H2 and SQLite, pure/v1's answers and plan text, the missing cases (`EdgeCasesGoldenTest`) -- diffed against its golden, and the net's planted-change proofs (`//pct:pct_edge_net_planted_test`, `//tools/guards:edge_normalize_test`); a regression unless a ruled move re-records it. The corpus's ledgers, the net's fourth part, run in `corpus_duckdb` and `corpus_h2` beside the host passes they read (the owner's call on the per-push cost, 2026-11-19); `//pct:edge_contract_test` is the whole net, for a hand run |
@@ -22566,3 +22566,305 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
   static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
+
+## 2026-11-24 — B3 step 2b: the lift; the rendered-text tolerances deleted (S131's printed half, S132); the rosters
+
+The user's option (B), substitution before planning ("Great let's do it!"), on B2's printer (`edge/PureRelationTextWriter`,
+merged from claude/compat-b2-nufdlk). A compatibility test body's printed relation side is read before the body through
+the public test door and printed as legend-pure prints it (`edge/UpstreamPrints`); the compatibility rules' tolerant
+comparison of rendered texts is deleted (`edge/UpstreamRenderedTexts`, the run hook's `renderedTexts`): the two texts
+are the verdict on every route. An unordered printed table and an unordered join compared with a golden become an
+explicit `assertSameElements` at the door (`UpstreamPrints.unordered`, `UpstreamTestBodies.joinsOrderFree`). Record:
+docs/records/compat-b3-progress.md, step 2b. Every roster and register change below carries its reason here:
+
+- **`duckdb-fail-roster.txt` +14:** `calendarAggregations::testAnnualizedValue`, `testCmeValue`, `testP12MtdValue`,
+  `testP12WtdValue`, `testP4WaValue`, `testP4WtdValue`, `testP52WtdValue`, `testPmaValue`, `testPrioryearValue`,
+  `testPymtdValue`, `testPyqtdValue`, `testPytdValue`, `testQtdValue`, `testYtdValue`. Their goldens are H2's decimal
+  arithmetic; DuckDB computes doubles (`5.590000000000001`). legend-engine 4.145.0 fails each of them on DuckDB 1.3.0
+  and 1.5.6 with the digits lite gets (B3 step 1b's oracle, docs/records/compat-b3-homework/oracle-1b/; brought to the
+  user with step 1b). Until today S132's 2-ULP tolerance on a printed text held them.
+- **`h2-fail-roster.txt` +1 / -3:** + `calendarAggregations::testCmeValue` (its Lateral cell: lite's IEEE division,
+  the user's ruling of 2026-09-19, legend-engine's H2 golden 2 ULP apart; held by S132 until today); - `testMtdValue`,
+  `testSubclassValue`, `groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath` (gains: their printed texts are
+  legend-pure's own now, where the edge's SQL text differed).
+- **`h2-unordered-register.txt` +1:** `testGroupByWithFilterFunction_noDatePath` (now passing, its rows compared as a
+  multiset: an unordered chain, generated).
+- **`duckdb-engine-order-register.txt` -45 / +1 (976 -> 932 rows; corrected by step 2b's review, L2):** the register
+  names a test whose statements the test lane's scan-order emulation changed for an assert that needs the order; in the
+  de-registered tests the asserts became explicit `assertSameElements` (the door's order-free rewrites), so nothing needs
+  the order; + `inheritance::cross::testProjectAssociationTdsV2` (generated). The h2-unordered row's reason: an
+  unordered chain other than its first assert, whose query is sorted and still an exact `assertEquals`.
+- **PCT channel B's ledger -4 (h2 Relation):** `project::testSimpleProject`, `testSimpleProjectList`,
+  `testSimpleProjectWithEmpty`, `composition::testFilterPostProject` pass: printed in Java, where the edge's SQL text
+  needed a list function H2 has no encoding for.
+
+## 2026-11-24 — B3 step 4: an order-dependent assert of unordered rows refused by the product, explicit at the door
+
+The user's ruling (2026-11-24: "we don't let platform devs or users write tests that do not have a sort ... But we
+still need multi-set compare for backwards compatibility"). The test planner refuses an `assertEquals` or
+`assertNotEquals` of rows whose order the program does not define (`compiler/spec/OrderedAsserts`); the compatibility
+door rewrites upstream's to `assertSameElements` (`edge/UpstreamTestBodies.rowsOrderFree`); the host judge's incidental
+row multiset is deleted. Record: docs/records/compat-b3-progress.md, step 4. Every roster and golden change below:
+
+- **The edge corpus goldens (DuckDB, H2):** the asserts the door rewrote are recorded under their new kind,
+  `assertSameElements` where `assertEquals` stood; every verdict unmoved (PASS before and after).
+- **`duckdb-engine-order-register.txt` +1:** `tds::sort::testSimpleSortAscWithPreval` -- the order view reads
+  `preval`'s lambda now (step 2b's review, M4), so its sort is in sight (generated).
+- **PCT channel B's ledger +1 (duckdb-lite Standard):** `math::hashCode::tests::testHashCodeAggregate`, refused by the
+  rule on lite's own lane (its `assertEquals` of a map over a grouped relation); the compatibility lanes unmoved.
+- **The lean SQL ladder, r08 and r09:** the list compare is in order (`e.__l IS NOT DISTINCT FROM a.__l`), the
+  incidental multiset's `list_sort` gone with the judge's flag (regenerated).
+
+## 2026-11-25 — B3 step 5a: a comparison across known types refused by the product, answered by each door
+
+The user's ruling of 2026-11-24 ("Love it"; option A of 2026-11-25, "keep A": any mix of known types is an error, no
+exceptions): two values are equal only when they have the same type and the same value, so a comparison whose two
+sides' types are known and differ (`1 == 1.0`, an enumeration against a String, a day against a date-time, two classes
+no value can be of) is typed as a marker in the body a door receives (`compiler/spec/EqualityClasses`,
+`TypedCrossTypeComparison`); lite's planner refuses it by name; legend-engine's door answers it with the database's
+comparison (`edge/EngineComparisons`), legend-pure's with Pure's answer by the types (`edge/PureComparisons`). Record:
+docs/records/compat-b3-progress.md, step 5. Every roster, golden and pin change below:
+
+- **The edge corpus goldens (DuckDB 140 rows, H2 126):** step 4's review M2 -- one value on either side is no order --
+  so the asserts the door had rewritten to `assertSameElements` are `assertEquals` again; every verdict unmoved (PASS
+  before and after).
+- **PCT channel B's ledger (duckdb-lite) +16:** the comparisons across known types PCT's lite lane writes, each refused
+  by name (Grammar 10, Standard 5, Essential 1); the compatibility lanes unmoved (legend-pure's door answers each).
+  Of the 18 first measured, eq's and equal's `testEqNonPrimitive`/`testEqualNonPrimitive` pass since the review's M4
+  (LeftClass and RightClass share a subclass in legend-pure's model, BottomClass, so one value can be of both and they
+  are no crossing) and left the ledger.
+- **The LiteRules ledgers (channel A's lite lanes):** Grammar 12, Standard 5, Essential 1 -- the same refusals, and the
+  two NonPrimitive tests kept: channel A's route hands lite the classes the query names, without BottomClass, so lite
+  refuses them by name there (dated in the file).
+- **The native claims (`native-claims.tsv`):** regenerated for the new comparison classes' reads.
+- **PCT ratchets (channel B lite, `ratchets.tsv`), DOWN:** the refused bodies plan no judge -- judge statements
+  Grammar 179 -> 169, Standard 166 -> 160, Essential 476 -> 475; judge characters Grammar 389,012 -> 373,350, Standard
+  721,186 -> 680,832, Essential 919,010 -> 904,191, Relation 631,211 -> 627,627 (and their plan-JSON totals).
+- **Lean SQL (`lean-sql/baseline.tsv`), refused UP as the ruled change's direct cost:** on DuckDB 40 more queries
+  refused (14 -> 54: channel A's and core's queries that compare across known types, each refused by name),
+  statements 5,226 -> 5,179, characters 1,186,176 -> 1,175,504; the other databases alike; the two-argument `max` and
+  `min` families gone from the planned set (each case they held compares two number types). G3's refused count is
+  shrink-only: this move is dated here, the measured cost of the user's ruling of 2026-11-24.
+- **The cast and case census (`lean-sql/cast-case-census.tsv`), DOWN:** the refused queries' casts and cases leave
+  it (DuckDB carrier casts 358 -> 324, carrier cases 152 -> 120, operator cases 75 -> 67; the other databases alike).
+- **The query capture:** the marker is a family of channel A's DuckDB plans (0 statements: each refused).
+- **IdentityGuardrailTest NAME_COMPARE 206 -> 207:** `PlatformTypes.isEnumClass` (an enumeration against the `Enum`
+  class is no crossing; the review's M4), dated in its file.
+- **parser-equivalence `own_corpus.matched` 3345 -> 3346:** CrossTypeComparisonsTest's model (UP, the standing word
+  "parser bumps are always okay"), dated in PeRatchets.
+- **The corpus rosters (DuckDB, H2) and PCT's compatibility lanes:** unmoved. Measured and reverted: refusing
+  legend-pure's orderings of two non-numbers (the review's M3) failed four PCT tests the database's comparison passes
+  (`testCompareMixedTypes`, `testDateCompare`, `testMax_Date`, `testMin_Date`); the door keeps the database's ordering,
+  a day against a date-time at one instant the recorded difference.
+
+## 2026-11-25 — The edition program's step 1: the edge's DECIMAL Float literal deleted
+
+The user's ruling of 2026-11-25 ("yes delete the float decimal thing"; amendment 11 of
+docs/records/edition-homework/v2-amendments-ruled-2026-11-25.md): the compatibility edge's dialects no longer write a
+Float literal as legend-engine's bare DECIMAL on DuckDB, H2, Postgres, Databricks and Trino (`edge/PureText`'s five
+`floatLiteralKind()` overrides); a compatibility plan writes the product's literal, a double. The one recorded
+difference is register S20 (legend-engine on DuckDB computes Float literal arithmetic as DECIMAL; lite answers IEEE,
+Pure's way; on H2 legend-engine's own literal processor writes `CAST(x AS FLOAT)`, as lite does). Measured before it
+was ruled: docs/records/edition-homework/m1-float-literal.md (M1). Every roster, golden and pin change below:
+
+- **`EdgeSpellingHookTest`'s allowlist, a shrink:** row 21 (`floatLiteralKind`, the one in-query decision an edge
+  dialect was allowed to override) is removed, so an edge dialect that overrides it again fails
+  `theEdgesDialectsOverrideSpellingOnly`. Dated in the file.
+- **The H2 fail roster (`rcorpus/h2-fail-roster.txt`), -2:**
+  `meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier` and
+  `meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping` newly pass, the
+  two M1 predicted: the edge's DECIMAL on H2 was never legend-engine's own. The DuckDB rosters are unmoved.
+- **The corpus's lean-SQL pins (`rcorpus/lean-sql-baseline.tsv`), 46 rows, the compatibility doors' plans:** no
+  statement count, subselect count or refusal moves. H2: 23 families grow, 26 characters a literal
+  (`CAST(<digits> AS DOUBLE PRECISION)`; `query::function::cos` +52, `groupBy` +234, `tds::tdsWindow` +78). DuckDB: 19
+  families grow, 2 or 4 characters a literal (`1.0` written `1.0E0`; `cos` +4, `groupBy` +32, `tdsWindow` +20), and
+  four shrink (`mapping::embedded` -12, `::advanced` -60, `::advanced::inline::nested` -24,
+  `::advanced::inline::targetid` -24: a DECIMAL literal's longer spelling gone; M1's record names two of the four).
+  Growth of the compatibility doors' SQL, ruled with the deletion; the product's own pins
+  (`//core:lean_sql_baseline_test`) do not move.
+- **The corpus edge goldens (`edge/corpus_{duckdb,h2}_host_judge-host.tsv`):**
+  - H2: the two tests above read PASS; `meta::relational::tests::groupBy::testUsingSameAggFunctionTwice` and
+    `...UsingQualifier` fail as before (H2's syntax error), their recorded statement's Float literals re-spelled
+    (`34.0` to `CAST(34.0 AS DOUBLE PRECISION)`), nothing else in the line.
+  - DuckDB and H2, **not this step's:** `meta::relational::tests::mapping::enumeration::testEnumInRelation`'s verdict
+    reads `assertSameElements` where the golden said `assertEquals`, PASS before and after. The golden was stale on
+    the branch: the test run alone on the base code, with `edge/PureText` as at 296732e2
+    (`bazel run //spec:corpus_one -- duckdb host <the test>`), already adjudicates `assertSameElements`. No commit
+    after b0df6ea8 (step 5a, which last regenerated these goldens) touched the door's rewrite
+    (`edge/UpstreamTestBodies`, `compiler/spec/OrderedAsserts`); which later change moved it is not traced.
+- **pure/v1's plan text (`edge/pure_v1_plan_text.tsv`), three requests on H2:** `raise.sqrtOfNegative`, `cell.float`
+  and `cell.floatWhole` write each Float literal as `CAST(x AS DOUBLE PRECISION)`. No answer moves
+  (`edge/pure_v1_answers.tsv` is unchanged).
+- **PCT's edge contract on DuckDB (`pct/.../edge/duckdb_grammar_answers.tsv`), two answers:** `testFloatPlus`
+  1.7 to 1.7000000000000002 and `testFloatTimes` 2.1 to 2.0999999999999996, the double's arithmetic, toward compiled
+  Pure (M1's two); within the test's tolerance, so no outcome moves.
+- **`EqualityCompatEdgeTest`:** `0.1 + 0.2` at the edge's DuckDB door is `0.30000000000000004` (legend-engine's
+  DuckDB answers `0.3`, a DECIMAL): the recorded difference, S20.
+
+## 2026-11-26 — The edition program's steps 2 and 3: the table and the stamp in the old rewrite's place at pure/v1
+
+legend-engine's door no longer rewrites the typed query for `substring`, `substr`, the two-argument `indexOf` and
+`toOne` of an always-empty operand (A3: `edge/PureMeaningRewrite`, `edge/PureMeaningCheck`, most of
+`edge/EngineSubstitutes`, deleted). The lowering asks the door's table for each call (`lowering/EditionTable`;
+legend-engine's `edge/EngineTable`), by the planner's stamp of the code that is outside any store query
+(`TypedNativeCall.outsideStore`), and the planner makes the table for the statement's database (`planner/Edition`).
+The design and what changed for a caller: docs/records/edition-plan-to-finish-stage-b-2026-11-25.md sections 2 and 6a.
+The independent audit and its fixes: docs/records/edition-homework/r3/audit-step2-3.md. Every guard, pin and generated
+file that moved:
+
+- **`JavaEvalLedgerTest`'s edge register, a shrink:** `PureMeaningCheck.java` and `PureMeaningRewrite.java` leave;
+  `EngineSubstitutes.java`'s reason is reworded (it builds one call for the test-body door now). The planner's register
+  gains `Edition.java` and `LiteEdition.java`, dated.
+- **`native-claims.tsv`, regenerated (12 rows):** `EngineTable` names `substringAsGiven`, `substrAsGiven`, `sqlPosition`
+  and `trustOne` where `EngineSubstitutes` did, and `PureMeaningCheck` leaves the rows of `substring`, `substr`,
+  `indexOf` and `toOne`. `ClaimRegistryTest`'s two pins on the as-given natives name `EngineTable`: one edge claimer
+  before and after, no product claimer joins.
+- **`ArchitectureTest.PLANNER_ENTRIES`, two entries re-keyed, none added:** the seed's entry takes the door's plan
+  style as a third parameter and is reached from `edge.PureV1Routes` (until then `edge.TestDataRoutes`, in the
+  product's style); the statement resolver's factory takes the code it stamps (`resolver.StampedCode`). The
+  `SubselectPrune` row left with the dead two-form choices (step 3a).
+- **The two-form kinds (`testplan/PlanStyleFacets.TWO_FORMS`, `HookRulingTest`, `HookLambdasTest`), one kind added:**
+  `planner.Edition`, the door's edition. Its product form is `planner.LiteEdition`; `PlanEnv#edition()` is its one
+  caller. `PlanEnv#styled()` reaches three kinds, as before the step.
+- **`EdgeOnlyMembersTest`, one pin down:** `PlanEnv#withFeatures(Set)` is used by the product's statement road again.
+- **`EdgeSpellingHookTest`, `PureOnlyTextsRefusalTest`, `PlanStyleSurfaceTest`:** unmoved by these steps.
+- **A new guard, `NativeCallStampGuardTest`:** every construction of a `TypedNativeCall` in core's main sources carries
+  a stamp or is a pinned new call (93 across 35 files, measured that day).
+- **The dead two-form choices deleted (step 3a):** six `LoweringForms` methods whose two forms were the same, their
+  call sites inlined; `HookLambdasTest`'s and `HookRulingTest`'s rows for them leave.
+- **The tests:** `PureMeaningCheckTest` and `PureMeaningRewriteTest` are deleted with what they tested;
+  `EngineTablePlacementTest` pins where the table lands (each case read against the same query planned with the
+  product's edition); `PureMeaningEngineTest` keeps every route's answers; `EngineSubstitutesTest` keeps the natives'
+  dialect, answer and internal-name tests. The parser-equivalence count (`own_corpus.matched` 3347) does not move.
+- **Three tests of the hosts' plan halves** (`PureV1ApiTest`, `UpstreamProtocolFieldsTest`, `TextPlanSourceTest`) hand
+  pure/v1's style, as production does; one of them read a division by zero's raise, which pure/v1 has written plain
+  since B7, and reads a date's absent part now.
+- **No golden regenerated:** pure/v1's answers and plan text (`edge/pure_v1_answers.tsv`, `pure_v1_plan_text.tsv`,
+  `pure_v1_sql_text.tsv`), the corpus goldens and the product's SQL size pins (`//core:lean_sql_baseline_test`) are
+  unmoved.
+
+Checked: `//core:core_edge_tests`, `//core:guardrails`, `//core:guardrails_edge`, `//core:census`,
+`//core:census_edge`, `//spec:spec_tests`, `//core:lean_sql_baseline_test`, the eight `//core:core_tests_*` suites,
+the generated-file tests and the parser ratchet; PCT on the six database lanes, both channels, test by test against
+each lane's baseline, no answer moved (docs/records/edition-homework/lanes/baselines-c06ebbab.md, round 2).
+
+**Added the same day, two more pieces of the program (the plan record's section 6a has each in full):**
+
+- **Step 3, which checks a door's audience writes is its edition's table's.** `LoweringForms.raise` (a two-form
+  method) and the edge's set of plain raise kinds leave; the lowering asks `EditionTable.checks(kind, call)`, so the
+  planner's stamp decides it: at legend-engine's door a host-side `let` writes the check legend-engine's own Java
+  makes, and a store query writes the plain operation, as before. `HookRulingTest`'s reading of the plain kinds asks
+  the table; `EdgeLoweringForms` is one instance (its two per-door instances leave). `CastNoReWrapTest` hands the
+  product's table. Postgres's `testFloatStdDev` row (register S421) is written in channel A's own spelling.
+  Checked on `f87a8751`: the guards, the census, core's edge, compiler, lowering, planner, resolver, root and sql
+  suites, `//spec:spec_tests` and `//core:lean_sql_baseline_test` (13 targets).
+- **Step 2b, the comparison setting in the type-checker.** A door hands the query its setting
+  (`TypedQuery.comparing`, `compiler/spec/CrossTypeRule`); the typer asks it where it types a comparison across types,
+  in the query and in every body the query reaches. The doors' rewrites of the typed query after typing leave
+  (`edge/EngineComparisons` and `edge/PureComparisons` are the settings). No answer changes. Guard rows moved, each
+  dated: `PlannerSurfaceTest` (the root doors: `TypedQuery#comparing(CrossTypeRule)`, an option, plans nothing),
+  `EdgeOnlyMembersTest` (the same member, read by the compatibility doors alone), `CodeShapeGuardrailTest` (the
+  typer's one mutable field renamed, `Typer.marking` to `Typer.compared`), `JavaEvalLedgerTest` (the two edge files'
+  reason reworded, no row added). A new test, `CrossTypeRuleTest`.
+
+## 2026-11-26 — The edition program's step 3: the corpus plans as legend-engine's own tests (six tests gained a lane)
+
+The relational corpus plans under its own style, `PureText.ENGINE_TESTS` (until now `PureText.UPSTREAM`, shared with
+PCT): the queries a test hands legend-engine get legend-engine's meaning, the test's own code keeps Pure's (the
+planner's stamp on a test body; the plan record's section 6a has the design, the measurement and the limits).
+
+**The rosters, re-blessed (`bazel run //spec:update_rcorpus_duckdb`, `//spec:update_rcorpus_h2`), each lane the same:**
+- **`<lane>-fail-roster.txt` loses six tests, which pass now.** Three run a query whose `substring` is the database's
+  own, as legend-engine sends it, where lite's raised Pure's range error ("Range [1, 5) out of bounds"):
+  `meta::relational::tests::query::function::testFilterUsingSubstringFunction`,
+  `...::testFilterUsingParseIntegerFunction`, `...::testFilterUsingParseDecimalFunction`. Three compare the SQL text
+  of such a query, which has no range check now, as legend-engine's has none:
+  `meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes`,
+  `...::testToSQLStringSubstrWithComputedIndex`, `...::testToSQLStringSubstringIsUncorrectedByDefault`.
+- **`<lane>-unordered-register.txt` gains five `unordered-chain` rows,** for five of the six (their queries have no
+  sort; the rows are compared as a multiset, as the register records for every such test).
+- **Nothing else moves:** no test lost; the skipped rosters, the accepted rosters and the engine-order registers are
+  unchanged. Totals: DuckDB 2281 pass, 276 fail, 7 skipped of 2613 (before: 2275, 282); H2 2140 pass, 422 fail, 7
+  skipped (before: 2134, 428).
+- **Three tests that would pass for the wrong reason stay failing** (`testPlanForDateTimeConstantParameterGMTTimeZone`
+  and its EST and no-time-zone siblings): with legend-engine's table and no stamp, the test's own
+  `indexOf(...) != -1` was the database's position function (0 on a miss) and could not fail. Their real failure is
+  lite's plan text, which writes a timestamp literal differently from legend-engine's (SQL text is never promised).
+
+**Guards and pins moved, each dated:**
+- `PlanStyleSurfaceTest` and `PlanStyleFacetsTest.STYLES`: a third plan style, legend-engine's own tests'.
+- `JavaEvalLedgerTest`, two size pins DOWN: `planner/BodyPlanner.java` 318 to 316, `testplan/BodyDriver.java` 547 to
+  544 (the driver's own copy of a side's inlining left for the planner's).
+- `EdgeOnlyMembersTest`: `CrossTypeComparisons#in(List)`, read by legend-pure's door (the audit of step 2b).
+- `PlannerSurfaceTest`: `TypedQuery#comparing(CrossTypeRule)` is filed as a callback (the same audit).
+- **The corpus's product-SQL size pins, DOWN** (`rcorpus/lean-sql-baseline.tsv`, re-pinned with
+  `bazel run //spec:update_lean_sql_corpus_<lane>`): the corpus plans under its own style, so the queries it hands
+  legend-engine write no check where legend-engine's SQL writes none. Every pin that moved shrank, none grew:
+  on DuckDB the `sqrt` and `rem` families and their parent (`query::function` 8088 to 7761 characters,
+  `mapping::sqlFunction::sqrt` 395 to 122); on H2 nine pins.
+- **The parser-equivalence ledgers** (the lane was red on the branch since B3 step 5a's review, whose
+  `CrossTypeComparisonsTest` holds a function generic over relations and was never declared; found by the full round
+  on `d9c16617`): three hosts declared in `OwnDialectCensusTest` (`CrossTypeComparisonsTest`, `CrossTypeRuleTest`,
+  `PureComparisonsTest`, one model each), `PURE-DIALECT-generics` 12 to 15 in `OwnCorpusConformanceTest` (register
+  S112: only lite's dialect admits a user function's type parameters), and the matched-elements ratchet 3347 to 3352
+  (`bazel run //parser-equivalence:update_ratchets`): `EngineTestsStyleTest`'s model joined and matched, five
+  elements (a class, a database, a mapping, a connection, a runtime).
+- New tests: `EngineTestsStyleTest` (the query is legend-engine's, written in place or bound by a `let`; the test's
+  own code Pure's; a test's `let` read inside a query Pure's; a query's own store-free `let` Pure's);
+  `PureComparisonsTest` and `CrossTypeRuleTest` gain the audit's cases; `EngineTablePlacementTest` gains the stamped
+  checks.
+- **The independent audit of the step** (`docs/records/edition-homework/r3/audit-step3-tests-door.md`) found three
+  faults at the tests' door before anything was pushed, each fixed with a test; the plan record's section 6a lists
+  them and the limits that remain.
+
+Checked on the commit that holds it: the guards (`//core:guardrails`, `//core:guardrails_edge`, `//core:census`,
+`//core:census_edge`), `//core:core_edge_tests`, core's compiler, lowering, planner, root and testplan suites,
+`//spec:spec_tests`, the generated-file tests, `//parser-equivalence:parser_parity`, the corpus's SQL size pins
+(`//spec:lean_sql_corpus_duckdb`, `//spec:lean_sql_corpus_h2`) and both corpus lanes (`//spec:corpus_duckdb`,
+`//spec:corpus_h2`); PCT on DuckDB, both channels, on the step before it (`d585e5b8`, 25 targets).
+
+**Added the same day: SQLite's `chunk` (the user's ruling of 2026-11-25 on the Pure-mode gaps).** `chunk` with a
+written size writes a literal pattern. Ledgers moved: channel B's `ledger.tsv` loses ten SQLite Relation rows (the
+tests pass); the edge golden `edge/channel_b_sqlite_relation_outcomes.tsv` is re-recorded, the same ten rows from
+ERROR to PASS (`bazel run //pct:update_edge_contract`), no other golden row. Checked: the guards and census, core's
+sql and lowering suites and edge tests, `//core:lean_sql_baseline_test` (no pin moved), PCT's Relation suite on
+DuckDB and SQLite on both channels, the ledger test and every edge golden.
+
+**Added the same day: the lanes' ledger rows, and H2's lateral join.** Round 4 of the server and cloud lanes found
+the ten `chunk` tests pass on BigQuery, MariaDB and MySQL too: channel B's `ledger.tsv` loses those thirty rows, and
+28 older rows the MariaDB/MySQL/ClickHouse lane saw pass in each of its five rounds (MySQL 21, ClickHouse 5, MariaDB
+2). H2's dialect writes a lateral that only filters its source as a join on that filter (`CorrelatedFiltersAsJoins`;
+the user's ruling of 2026-11-25 on the Pure-mode gaps). Ledgers moved: `Test_LegendLite_H2_RelationFunctions_PCT`
+loses its four lateral expected failures; `ledger.tsv` loses the four H2 lateral rows; the edge goldens
+`edge/channel_b_h2_relation_outcomes.tsv` and `edge/h2_relation_answers.tsv` are re-recorded, those four tests from
+ERROR to PASS and to their RELATION answers (`bazel run //pct:update_edge_contract`), no other golden line;
+`SqlFnSortedTest`'s pinned writers of `AND` gain the pass (it joins again, by `AND`, the conjuncts it split a
+lateral's filter into: a shape rearranged, nothing computed).
+
+**Added the same day: three recorded sets the pull request's CI found stale.** (1) The edge golden net's corpus files
+(`spec/src/test/resources/edge/corpus_duckdb_host_judge-host.tsv`, `corpus_h2_host_judge-host.tsv`), re-recorded for
+the corpus as legend-engine's own tests (`bazel run //spec:update_edge_corpus`): 13 assert lines a lane, the six gained
+tests' asserts to PASS and three plan-text failures' messages. (2) The legend-engine lane's pins (`pct/engine_lane/`,
+`bazel run //pct:update_engine_lane`): nine error tests and H2's four lateral tests from BOTH_FAIL to LITE_FIXES (the
+nine because a PCT case is planned as host-side code since the stamp; the lane's own edition is next). (3)
+`Test_LegendLite_Postgres_StandardFunctions_PCT`'s `testFloatStdDev` row holds on x86-64 alone: Postgres built for
+arm64 (the macOS lane) answers `3.14`.
+
+**Added the same day: step 5's start (a row names a rule; `round`; PCT's legend-engine edition).** Ledgers moved,
+each down or re-recorded with its rows read:
+- `NativeCatalogGovernanceTest`: `INTERNAL_DESUGAR` 42 to 40; `CatalogUpstreamDiffTest`: `NOT_UPSTREAM_MAX` 80 to 76;
+  spec's ratchets: `implementation.kinds.Intrinsic` 742 to 738; `native-claims.tsv` regenerated (`bazel run
+  //:update_generated`): `substringAsGiven` and `substrAsGiven` are rules of the lowering's (`lowering/NamedRule`),
+  no natives.
+- `ClaimRegistryTest`'s two claim pins for those natives (the user's rulings of 2026-11-19 and 2026-11-20) are
+  replaced by `ArchitectureTest.anEditionsTableAloneNamesARule`, with its planted violation
+  (`lowering/PlantedNamedRule`); put to the user.
+- `PlanStyleFacetsTest.STYLES` gains `PureText.ENGINE_PCT`; `PlanStyleSurfaceTest`'s `PureText$3` is the class of
+  both `ENGINE_TESTS` and `ENGINE_PCT` (one helper, two styles).
+- The legend-engine lane's pins (`pct/engine_lane/`, `bazel run //pct:update_engine_lane`): 24 rows to BOTH_FAIL
+  under PCT's own edition and `round`'s row, each named in the commit; none to LITE_BEHIND.
+- The corpus's SQL size pins (`spec/src/test/resources/rcorpus/lean-sql-baseline.tsv`): the two `round` families on
+  DuckDB and H2, down (the database's own ROUND inside a test's `execute()` in the place of lite's half-to-even form).
+- channel B's ratchets (`relation.judge.chars`, `relation.judge.plan`): down, measured.
+- New SQL function `SqlFn.ROUND_RAW` (the database's own ROUND): an arm in every dialect, MongoDB's a refusal by
+  name; `Postgres.call` and `BigQuery.call` stay within the 250-line limit (the arm shares `ROUND_HALF_UP`'s).

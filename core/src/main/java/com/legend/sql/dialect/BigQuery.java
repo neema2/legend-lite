@@ -941,7 +941,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case SqlExpr.ArrayLit a -> arrayLiteral(writer, a);
             // DuckDB's list(v ORDER BY k): ascending, NULLs last
             case SqlExpr.OrderedListAgg ola -> writer.append("ARRAY_AGG(").expr(ola.value(), 0).append(" ORDER BY ")
-                    .piece(orderKey(w -> w.expr(ola.orderBy(), 0), true, false)).append(")");
+                    .piece(listOrderKey(ola.orderBy())).append(")");
             case SqlExpr.Membership m when m.collection() instanceof SqlExpr.PlanParam p -> throw listParameter(p);
             case SqlExpr.Quantified q -> writer.piece(quantified(q));
             case SqlExpr.Column c when explodedColumn(c) != null ->
@@ -1589,6 +1589,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "STRING");   // its own cast: SqlFn's javadoc
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
@@ -1606,8 +1607,8 @@ public class BigQuery extends AnsiSqlRenderer {
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
             // this database's plain spellings: name(args)
             case ABS -> writer.function("ABS", c.args());
-            case ACOS -> writer.function("ACOS", c.args());
-            case ASIN -> writer.function("ASIN", c.args());
+            case ACOS, ACOS_IN_DOMAIN -> writer.function("ACOS", c.args());
+            case ASIN, ASIN_IN_DOMAIN -> writer.function("ASIN", c.args());
             case ATAN -> writer.function("ATAN", c.args());
             case ATAN2 -> writer.function("ATAN2", c.args());
             case CBRT -> writer.function("CBRT", c.args());
@@ -1658,7 +1659,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case SIGN -> writer.append("CAST(SIGN(").expr(a.get(0), 0).append(") AS INT64)");
             // Pure's divide-with-scale is HALF_UP: ROUND rounds half away from zero, a Float through BIGNUMERIC (its
             // shortest decimal, as DuckDB rounds 2.675 to 2.68, measured)
-            case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            case ROUND_HALF_UP, ROUND_RAW, DECIMAL_RAW -> rounds(writer, c);
             // a Float, as DuckDB's answers: each has a NUMERIC overload here that a BIGNUMERIC literal would pick
             case SQRT -> writer.append("SQRT(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
             case EXP -> writer.append("EXP(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
@@ -1672,7 +1673,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
-            case PARSE_INT -> parseInt(writer, a.get(0));
+            case PARSE_INT, CAST_INT, CAST_FLOAT -> parses(writer, c, parentPrec);
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
@@ -1878,6 +1879,11 @@ public class BigQuery extends AnsiSqlRenderer {
     /** The null-safe arms of {@link #call}: a NULL composite's JSON text is 'null', no composite value's is. */
     private SqlWriter nullSafeArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
+        if (c.fn() == SqlFn.SAME_IN_ORDER || c.fn() == SqlFn.SAME_IN_ANY_ORDER) {
+            // (its two-value form is this database's own = of the two values, written by the equality's arm; read
+            // here as a null-safe comparison it was written as "not equal": the review of step 6B's slice 1, B1)
+            return nullSafe(writer, c);
+        }
         boolean equal = c.fn() == SqlFn.NULL_SAFE_EQUAL;
         if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
             return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0).append(equal ? ") = " : ") <> ")
@@ -2010,6 +2016,18 @@ public class BigQuery extends AnsiSqlRenderer {
     }
 
     // ---- call arms too long to stay inline (CodeShapeGuardrailTest: call under 250 lines)
+
+    /** The {@code PARSE_INT}, {@code CAST_INT} and {@code CAST_FLOAT} arm of {@link #call}: the checked parse, or the
+     *  database's own cast of a text as given. */
+    private SqlWriter parses(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return c.fn() == SqlFn.PARSE_INT ? parseInt(writer, c.args().get(0)) : rawCast(writer, c, parentPrec);
+    }
+
+    /** The {@code ROUND_HALF_UP}, {@code ROUND_RAW} and {@code DECIMAL_RAW} arm of {@link #call}: Pure's HALF_UP
+     *  rounding, or the database's own function as given (an edition's table's rules; the base's {@code asGiven}). */
+    private SqlWriter rounds(SqlWriter writer, SqlExpr.Call c) {
+        return c.fn() == SqlFn.ROUND_HALF_UP ? roundHalfUp(writer, c.args()) : asGiven(writer, c, "ROUND", null);
+    }
 
     /** DuckDB's round: a decimal half away from zero; a double by DuckDB's own algorithm, {@code round(x * 10^n) /
      *  10^n} in double (31.415's double is 31.41499..., which an exact ROUND takes to 31.41 and DuckDB to 31.42,
@@ -2392,7 +2410,7 @@ public class BigQuery extends AnsiSqlRenderer {
      *  bare ERROR('...') outside it, which exec could not tell for a raise: the brief's defect). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
         // a map construction's raise, its kind alone (the D part 1 audit's S4, 2026-11-15; its where went with BE's item 2)
-        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null)), "ERROR");
+        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of())), "ERROR");
     }
 
     /** A map cast to another map's key and value types, entry by entry; the empty map {@code MAP_EMPTY} typed. */
@@ -2749,6 +2767,18 @@ public class BigQuery extends AnsiSqlRenderer {
     private static SqlWriter.Piece orderKey(SqlWriter.Piece key, boolean ascending, boolean nullsFirst) {
         return w -> w.append("(").piece(key).append(") IS NULL").append(nullsFirst ? " DESC, " : " ASC, ").piece(key)
                 .append(ascending ? " ASC" : " DESC");
+    }
+
+    /** An ordered list's key, ascending, NULLs last. BigQuery orders no STRUCT ("ORDER BY does not support expressions
+     *  of type STRUCT", measured on the account, 2026-11-26: a mixed list's sort, whose key is the rank across kinds),
+     *  so a struct key is written as its fields in order, each with its NULLs last: the order a database that
+     *  compares structs gives, field by field (the edition program's step 6, slice 6.2). */
+    private SqlWriter.Piece listOrderKey(SqlExpr key) {
+        if (!(typeOf(key) instanceof SqlType.Struct struct)) {
+            return orderKey(w -> w.expr(key, 0), true, false);
+        }
+        return w -> w.join(struct.fields(), ", ", (x, f) -> x.piece(orderKey(
+                y -> y.append("(").expr(key, 0).append(").").append(ident(f.name())), true, false)));
     }
 
     /** An aggregate's own order key: its declared null placement, else DuckDB's default (NULLs last). */

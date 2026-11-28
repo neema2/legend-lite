@@ -1604,12 +1604,17 @@ class UserFunctionIntegrationTest {
                                     col(r:TDSRow[1]|[test::Stat.total, test::Stat.mean]->indexOf(test::Stat.mean), 'at')])
                     }
                     """);
+            // written in the query: a compile error (B3 step 5, the one equality; the user's ruling of 2026-11-24 -- an
+            // enumeration against a String or another enumeration is two types); in a function's body (test::said,
+            // below) the comparison stays the fold's, until the compile-route slice
             for (String q : List.of("test::Stat.mean == 'mean'", "test::Stat.mean == test::Other.mean",
                     "test::Stat.mean->in(['mean'])", "['mean']->contains(test::Stat.mean)",
-                    "[test::Stat.mean]->contains('mean')")) {
-                assertEquals(List.of("ne"), column(exec(model, "|if(" + q + ", |'eq', |'ne')"), 0), q);
+                    "[test::Stat.mean]->contains('mean')", "test::Stat.mean != 'mean'")) {
+                com.legend.error.ModelException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                        com.legend.error.ModelException.class, () -> exec(model, "|if(" + q + ", |'eq', |'ne')"), q);
+                org.junit.jupiter.api.Assertions.assertTrue(refused.getMessage().contains("two values are equal only"),
+                        refused.getMessage());
             }
-            assertEquals(List.of("eq"), column(exec(model, "|if(test::Stat.mean != 'mean', |'eq', |'ne')"), 0));
             assertEquals(List.of("eq"), column(exec(model, "|if([test::Stat.total, test::Stat.mean]"
                     + "->contains(test::Stat.mean), |'eq', |'ne')"), 0), "one enumeration's values compare");
             var result = exec(model, PEOPLE + "->test::said()->sort('first')");
@@ -1832,6 +1837,37 @@ class UserFunctionIntegrationTest {
             assertEquals(List.of("FIRST_NAME", "LAST_NAME", "AGE_VAL", "gap"), result.columns().stream().map(c -> c.name()).toList());
             // Smith: Jane 28 and John 30 about 29; Jones: Bob 45 alone
             assertEquals(List.of(0.0, -1.0, 1.0), result.rows().stream().map(r -> ((Number) r.get(3)).doubleValue()).toList());
+        }
+
+        /** A function generic over any table that compares two of the caller's columns. */
+        private static final String SAME_COLS = """
+                function test::sameCols<T,A,B>(r: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1]): Relation<T>[1]
+                {
+                    $r->filter(x|$x->read($a)->toOne() == $x->read($b)->toOne())
+                }
+                """;
+
+        @Test
+        @DisplayName("a body compares two of the caller's columns: one type compares, two types are that call's mistake")
+        void comparesTheCallersColumns() throws SQLException {
+            // the user's ruling of 2026-11-27 ("the split with compile error when we know"): the function's author
+            // cannot know the columns' types, each call fixes them, so two different types are refused where the
+            // function is used, naming it -- as the same comparison written in the query is -- never answered by an
+            // empty table
+            var same = exec(modelWith(SAME_COLS), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                    + "->test::sameCols(~FIRST_NAME, ~LAST_NAME)");
+            assertEquals(0, same.rows().size());
+            for (String[] c : new String[][] {
+                    {"->test::sameCols(~FIRST_NAME, ~AGE_VAL)", "== compares String with Integer in test::sameCols"},
+                    {"->extend(~half:x|$x.AGE_VAL->toOne() / 2.0)->test::sameCols(~AGE_VAL, ~half)",
+                            "== compares Integer with Float in test::sameCols"}}) {
+                RuntimeException refused = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                        () -> exec(modelWith(SAME_COLS), "|" + PEOPLE + "->select(~[FIRST_NAME, LAST_NAME, AGE_VAL])"
+                                + c[0]), c[0]);
+                assertTrue(String.valueOf(refused.getMessage()).contains(c[1])
+                        && refused.getMessage().contains("between values whose types this call gives"),
+                        c[0] + ": " + refused.getMessage());
+            }
         }
 
         @Test

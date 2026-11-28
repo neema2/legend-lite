@@ -56,10 +56,8 @@ class ProductFormsUseTheirArgumentsTest {
     /** Each function a product form never calls that is no finding (the orchestrator's ruling of 2026-11-18, 06:40: a
      *  hook's own input from the product's generic code, not upstream's alternative), with the reason. Not counted. */
     static final Map<String, String> RULED = Map.of(
-            "ProductLoweringForms#relations(Supplier, Supplier) arg 1", "2026-11-18: () -> lower(root), the product's"
-                    + " own plain lowering, which it runs itself when sharing is off; only the choice is upstream's",
-            "ProductLoweringForms#view(SqlSelect, Supplier, String) arg 1", "2026-11-18: this::nextAlias, the product's"
-                    + " alias counter, handed in so the edge can name its frame",
+            // (ProductLoweringForms#relations and #view: GONE 2026-11-25 with the edition's E0c -- both forms were
+            // identical in both implementations and were deleted, docs/records/edition-census-2026-11-25.md)
             // (executeValues' arg 1: GONE 2026-11-18 -- E-SQL's executeValues(SqlSelect own), the product's own
             // serialization alone, no function handed)
             // the functions inside ExistsSites (seen since the GUARD stream's widening of 2026-11-18, train 18, on E-SQL's

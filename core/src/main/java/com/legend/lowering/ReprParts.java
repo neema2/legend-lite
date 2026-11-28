@@ -12,7 +12,8 @@ import com.legend.sql.SqlExpr;
  * the one explicit facade through which the compatibility edge's legend-pure representation ({@code toRepresentation},
  * the judges' {@code %r}; {@link PureOnlyTexts#representationOf}, {@link PureOnlyTexts#formatR}) reaches the lowering's
  * own semantics -- each member the product's rule as it is, nothing upstream's. Listed by name in
- * {@code ArchitectureTest}'s entries (no wildcard).
+ * {@code ArchitectureTest}'s entries (no wildcard). The edge's list text ({@code edge.PureListTexts}) reads
+ * {@link #pureToString} too (stage B's B2b S5c, 2026-11-25, when the RelationTexts facet it read it through went).
  */
 public final class ReprParts {
 
@@ -28,11 +29,6 @@ public final class ReprParts {
      *  {@code Scalars.pureToString}). */
     public static SqlExpr pureToString(Styled styled, Type t, SqlExpr x) {
         return Scalars.pureToString(styled, t, x);
-    }
-
-    /** Whether the store holds the Float {@code x} as an integer ({@code LiteralSpelling.heldAsInteger}). */
-    public static boolean heldAsInteger(SqlExpr x) {
-        return LiteralSpelling.heldAsInteger(x);
     }
 
     /** A date literal's text as written, or null where {@code spec} is none ({@code Scalars.dateLiteralText}). */

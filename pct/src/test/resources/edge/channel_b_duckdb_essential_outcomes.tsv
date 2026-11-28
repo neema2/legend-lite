@@ -251,9 +251,9 @@ meta::pure::functions::math::tests::toFloat::testDecimalToFloat	PASS
 meta::pure::functions::math::tests::toFloat::testDoubleToFloat	PASS	
 meta::pure::functions::math::tests::toFloat::testIntToFloat	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcCosine	PASS	
-meta::pure::functions::math::tests::trigonometry::testArcCosineError	ERROR	AssertFailed: expected the error "Unable to compute acos of 2.0", got none
+meta::pure::functions::math::tests::trigonometry::testArcCosineError	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcSine	PASS	
-meta::pure::functions::math::tests::trigonometry::testArcSineError	ERROR	AssertFailed: expected the error "Unable to compute asin of 2.0", got none
+meta::pure::functions::math::tests::trigonometry::testArcSineError	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcTangent	PASS	
 meta::pure::functions::math::tests::trigonometry::testArcTangent2	PASS	
 meta::pure::functions::math::tests::trigonometry::testCoTangent	PASS	

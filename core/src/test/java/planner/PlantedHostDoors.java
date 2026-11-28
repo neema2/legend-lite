@@ -48,9 +48,7 @@ public final class PlantedHostDoors {
     public abstract static class TestText implements com.legend.testplan.EngineTestText {
     }
 
-    /** A host implementing the lowering's relation-text facet. */
-    public abstract static class RelationText implements com.legend.lowering.RelationTexts {
-    }
+    // (RelationText: gone 2026-11-25 with the lowering's relation-text facet, stage B's B2b S5c; a shrink)
 
     /** A host implementing the lowering's Pure-only-text facet. */
     public abstract static class PureOnlyText implements com.legend.lowering.PureOnlyTexts {

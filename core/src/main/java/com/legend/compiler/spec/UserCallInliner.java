@@ -159,15 +159,65 @@ public final class UserCallInliner {
      */
     public UserCallInliner(SpecCompiler specs,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
-        this(specs, hook, false);
+        this(specs, hook, false, false);
     }
 
     private UserCallInliner(SpecCompiler specs,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
-            boolean verdictSource) {
+            boolean verdictSource, boolean testBody) {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.hook = hook;
         this.verdictSource = verdictSource;
+        this.testBody = testBody;
+    }
+
+    /** An inliner for a TEST BODY's own code (the edition program's step 3, 2026-11-26): where the door's edition
+     *  stamps its test bodies ({@code stamped}; {@code planner.Edition.stampsTestBodies}), every statement it reduces
+     *  is stamped as outside any store query, all but the queries the test hands legend-engine
+     *  ({@link #stampAroundFrames}). With {@code stamped} false, an ordinary inliner with {@code hook}. */
+    public static UserCallInliner ofTestBody(SpecCompiler specs,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
+            boolean stamped) {
+        return new UserCallInliner(specs, hook, false, stamped);
+    }
+
+    /** Whether every statement this inliner reduces is a test body's own code, stamped ({@link #ofTestBody}). */
+    private final boolean testBody;
+
+    /** {@code n}, a test body's reduced statement, with every call of the test's own code stamped as outside any
+     *  store query. Left alone, by shape (never by a node's identity: an untouched subtree and a compiled function's
+     *  body are shared between a query and the test's own code -- the independent audit of 2026-11-26, finding 2):
+     *  <ul>
+     *    <li>a query under its execution context (a {@code from}: a frame's query is wrapped in one, and a test's own
+     *        {@code ->from(...)} is one), and a reference to a frame's CTE;</li>
+     *    <li>a call that hands legend-engine a query and still stands (one that runs a frame, or asks for the query's
+     *        SQL text or its plan), with its arguments;</li>
+     *    <li>a value an earlier {@code let} bound, which was stamped where it was bound. A function value an earlier
+     *        {@code let} holds was NOT ({@link #stampedTestCode}); standing in the test's own code it is stamped
+     *        here, a copy of its own, because its code runs where it is applied.</li>
+     *  </ul>
+     *  A node the walk leaves alone keeps its identity, so a frame's query pasted twice is still one query. */
+    private TypedSpec stampAroundFrames(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedFrom
+                || n instanceof com.legend.compiler.spec.typed.TypedFrameRef
+                || n instanceof TypedNativeCall ec
+                        && com.legend.builtin.NativeFn.Handle.handsEngineAQuery(ec.callee().id())) {
+            return n;
+        }
+        if (reducedTerms.containsKey(n) && !holdsCode(n.info().type())) {
+            return n;
+        }
+        TypedSpec kids = n.mapChildren(this::stampAroundFrames);
+        return kids instanceof TypedNativeCall c ? c.stampedOutsideStore(true) : kids;
+    }
+
+    /** {@code reduced}, the inlined form of a test body's statement {@code written}, stamped as the test's own code
+     *  ({@link #stampAroundFrames}) -- but a FUNCTION VALUE a {@code let} binds is left as it is: its code runs where
+     *  it is applied, and a test writes the query it hands legend-engine this way more often than not
+     *  ({@code let q = {|...}; execute($q, ...)}; the independent audit of 2026-11-26, finding 1). Handed to
+     *  legend-engine it stays the query's; applied by the test's own code it is stamped there. */
+    private TypedSpec stampedTestCode(TypedSpec written, TypedSpec reduced) {
+        return written instanceof TypedLet && holdsCode(reduced.info().type()) ? reduced : stampAroundFrames(reduced);
     }
 
     /** Inline every user call in a query body (statements = lets + result). */
@@ -183,7 +233,7 @@ public final class UserCallInliner {
     public static UserCallInliner forVerdictSource(SpecCompiler specs,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        return new UserCallInliner(specs, hook, true);
+        return new UserCallInliner(specs, hook, true, false);
     }
 
     public TypedSpec reduceVerdictSource(TypedSpec source, List<TypedSpec> letPrefix) {
@@ -191,6 +241,121 @@ public final class UserCallInliner {
         seq.add(source);
         List<TypedSpec> reduced = inlineBody(seq);
         return reduced.get(reduced.size() - 1);
+    }
+
+    /** What a statement's reach of a store was found to be, per function it calls ({@link StatementEffects#reaches}). */
+    private final Map<com.legend.model.FunctionId, Boolean> storeReach = new java.util.HashMap<>();
+
+    /** What reads a store: an extent, a table, a from-envelope, a milestoned access, a view. */
+    private static boolean isAStoreRead(TypedSpec n) {
+        return n instanceof com.legend.compiler.spec.typed.TypedGetAll
+                || n instanceof com.legend.compiler.spec.typed.TypedTableReference
+                || n instanceof com.legend.compiler.spec.typed.TypedFrom
+                || n instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess
+                || n instanceof com.legend.compiler.spec.typed.TypedViewRelation;
+    }
+
+    /** {@code reduced}, the inlined form of the statement {@code written}, with its calls stamped as outside any store
+     *  query where the statement is no part of one; as it is otherwise. A statement is part of a store query where:
+     *  <ul>
+     *    <li>it reads a store, itself or through the functions it calls ({@link StatementEffects#reaches}), or its
+     *        reduced form does in code of its own (a function value an earlier {@code let} holds, applied here, is
+     *        this statement's code);</li>
+     *    <li>it reads a FRAGMENT: an earlier {@code let} bound to a relation that reads a store and was not executed
+     *        (no {@code from}). Such a relation is built on by its readers and executed by one of them, so they are
+     *        one query; {@code fragments} names them, and this statement joins them where it is one itself. A
+     *        {@code let} that was executed holds a value, and its reader is no part of its query.</li>
+     *  </ul>
+     *  CODE AS A VALUE is never stamped where it is bound: a lambda's body runs where the lambda is applied, which may
+     *  be inside a store query, so it is stamped there ({@link #stampOutside}). A function value that is computed
+     *  some other way than by writing the lambda (or a collection of lambdas) is refused by name: the calls that make
+     *  the value run here, the code it holds runs where it is applied, and the two cannot be told apart in one term. */
+    private TypedSpec stampedIfStoreFree(boolean stamp, TypedSpec written, TypedSpec reduced,
+            java.util.Set<String> fragments) {
+        if (testBody) {
+            // a test body's statement: stamped around its frames, whatever the query rule would say of it
+            return stampedTestCode(written, reduced);
+        }
+        if (!stamp) {
+            return reduced;
+        }
+        TypedLet let = written instanceof TypedLet l ? l : null;
+        TypedSpec value = let != null ? let.value() : written;
+        if (StatementEffects.reaches(written, UserCallInliner::isAStoreRead, specs, storeReach)
+                || !java.util.Collections.disjoint(FreeVars.of(value), fragments) || readsAStoreItself(reduced)) {
+            if (let != null && com.legend.compiler.element.type.Type.isRelation(value.info().type())
+                    && !holds(value, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom)) {
+                fragments.add(let.name());
+            }
+            return reduced;
+        }
+        if (holdsCode(reduced.info().type())) {
+            if (isCodeAlone(reduced)) {
+                return reduced;
+            }
+            throw new NotImplementedException("a function value that is computed"
+                    + (let != null ? " (the let '" + let.name() + "')" : "") + ": the calls that make it run where it"
+                    + " is made and the code it holds runs where it is applied, and the planner cannot place the two"
+                    + " apart; write the lambda itself as the let's value");
+        }
+        return stampOutside(reduced);
+    }
+
+    /** Whether {@code t} is a function's type, or holds one (a collection or a pair of functions). */
+    private static boolean holdsCode(com.legend.compiler.element.type.Type t) {
+        return t instanceof com.legend.compiler.element.type.Type.FunctionType
+                || t instanceof com.legend.compiler.element.type.Type.GenericType g
+                        && g.arguments().stream().anyMatch(UserCallInliner::holdsCode);
+    }
+
+    /** Whether {@code n} is a lambda as written, or a collection of them: code and nothing else. */
+    private static boolean isCodeAlone(TypedSpec n) {
+        return n instanceof TypedLambda
+                || n instanceof com.legend.compiler.spec.typed.TypedCollection c && !c.children().isEmpty()
+                        && c.children().stream().allMatch(UserCallInliner::isCodeAlone);
+    }
+
+    private static boolean holds(TypedSpec n, java.util.function.Predicate<TypedSpec> what) {
+        if (what.test(n)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (holds(c, what)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code n}, a reduced statement, reads a store in code of its own: a store read standing in it, or
+     *  reached through a function it still calls. A value an earlier {@code let} bound stands by reference and is not
+     *  this statement's code (it was read, or its {@code let} is a fragment, named); a function value is, where it
+     *  stands here. */
+    private boolean readsAStoreItself(TypedSpec n) {
+        if (reducedTerms.containsKey(n) && !holdsCode(n.info().type())) {
+            return false;
+        }
+        if (isAStoreRead(n) || n instanceof com.legend.compiler.spec.typed.TypedUserCall
+                && StatementEffects.reaches(n, UserCallInliner::isAStoreRead, specs, storeReach)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsAStoreItself(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code n} with every call in it stamped. A value an earlier {@code let} bound is left as it was stamped when it
+     *  was bound (it stands here by reference, and may read a store); a function value an earlier {@code let} holds is
+     *  stamped here, a copy of its own, because its code runs where it is applied. */
+    private TypedSpec stampOutside(TypedSpec n) {
+        if (reducedTerms.containsKey(n) && !holdsCode(n.info().type())) {
+            return n;
+        }
+        TypedSpec kids = n.mapChildren(this::stampOutside);
+        return kids instanceof TypedNativeCall c ? c.stampedOutsideStore(true) : kids;
     }
 
     public List<TypedSpec> inlineBody(List<TypedSpec> body) {
@@ -204,6 +369,38 @@ public final class UserCallInliner {
      *  are reduced before the mark, exactly as in every statement's run, so a let's construction keeps one site
      *  across the program's statements: one object. Null: a body that is the whole query, no mark. */
     public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement) {
+        return inlineBody(body, statement, false);
+    }
+
+    /** {@link #inlineBody(List, Integer)}, and THE STAMP (the edition program's step 2, 2026-11-25;
+     *  docs/records/edition-plan-to-finish-stage-b-2026-11-25.md section 2.3): with {@code stampStoreFree}, the calls
+     *  in a query-level {@code let}'s value that reads no store, and in a last statement that reads none, are marked
+     *  outside any store query ({@code TypedNativeCall.outsideStore}). Here, because this is the last place a
+     *  {@code let} is still a statement of its own (it is dissolved into its readers below) and the first where the
+     *  functions it calls stand in place. Asked for only by a compatibility door whose table's two columns differ
+     *  ({@code planner.Edition.stampsOutsideStore}); the product never asks. A QUERY's statements only: a test
+     *  body's statements read frames, whose spliced chains are store queries inside a statement that itself reads no
+     *  store; an inliner made for a test body ({@link #ofTestBody}) stamps every statement around its frames
+     *  instead ({@link #stampAroundFrames}), whatever this flag says. */
+    public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement,
+            boolean stampStoreFree) {
+        return inlined(body, statement, stampStoreFree, 0);
+    }
+
+    /** {@link #inlineBody(List)} for the query a test's {@code execute()} runs, after the test body's own lets before
+     *  it ({@code testLets} of them, leading {@code body}): each such let is the test's own code, stamped as outside
+     *  any store query where it is bound (a call that runs a frame left alone), so the value the query reads of it
+     *  keeps the test's meaning inside the query -- legend-engine's tests compute it in Pure and hand the query the
+     *  value. The query's own statements after them are stamped as a query's are at legend-engine's API where
+     *  {@code asAQuery} ({@link #stampedIfStoreFree}: a {@code let} of the query's own that reads no store is
+     *  legend-engine's own Java's). Asked for by a door that stamps its test bodies
+     *  ({@code planner.Edition.stampsTestBodies}); zero lets and no query rule is {@link #inlineBody(List)}. */
+    public List<TypedSpec> inlineFrameQuery(List<TypedSpec> body, int testLets, boolean asAQuery) {
+        return inlined(body, null, asAQuery, testLets);
+    }
+
+    private List<TypedSpec> inlined(List<TypedSpec> body, @com.legend.base.Nullable Integer statement,
+            boolean stampStoreFree, int testLets) {
         com.legend.base.RunScope.planning("inline a body");
         // QUERY-level lets β-reduce exactly like callee lets — binders die
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
@@ -216,27 +413,41 @@ public final class UserCallInliner {
         // future fix. A value the database draws anew where it is written (random(), generateGuid()), read more
         // than once, is no trade but a wrong answer, so it is refused by name until materialization is built
         // (readOnce; the branch's generateGuid-only refusal of 2026-10-18 folded into it at main's merge, 2026-10-22).
+        // the lets that are fragments of a store query a later statement executes (the stamp: stampedIfStoreFree)
+        java.util.Set<String> fragments = new java.util.HashSet<>();
         try (Scope scope = new Scope()) {
             for (int i = 0; i < body.size() - 1; i++) {
                 if (!(body.get(i) instanceof TypedLet let)) {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
-                scope.put(let.name(), reduce(let.value(), scope));
+                TypedSpec reduced = reduce(let.value(), scope);
+                scope.put(let.name(), i < testLets ? stampedTestCode(let, reduced)
+                        : stampedIfStoreFree(stampStoreFree, let, reduced, fragments));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
             // serialize key) — the resolver reads consumed lets through this
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            java.util.function.Supplier<TypedSpec> reduction = () -> last instanceof TypedLet let
-                    ? reduce(let.value(), scope)
-                    : reduce(last, scope);
+            java.util.function.Supplier<TypedSpec> reduction = () -> stampedIfStoreFree(stampStoreFree, last,
+                    last instanceof TypedLet let ? reduce(let.value(), scope) : reduce(last, scope), fragments);
             // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
             TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);
-            return List.of(finish(result, List.of(), List.of(), false));
+            finishedOnce.clear();
+            return List.of(atTheCall(finish(result, List.of(), List.of(), false)));
         }
+    }
+
+    /** {@code n} with each comparison a function's body kept for its call ({@code TypedRunTimeComparison}) answered:
+     *  every function the query reaches stands in it now, each argument in its parameter's place, so the types the
+     *  comparison's sides have here are the types they have. */
+    private TypedSpec atTheCall(TypedSpec n) {
+        TypedSpec kids = n.mapChildren(this::atTheCall);
+        // (answered as a plain comparison, it is still the function's own, not the query's)
+        return kids instanceof com.legend.compiler.spec.typed.TypedRunTimeComparison c
+                ? EqualityClasses.notTheQuerys(specs.atTheCall(c)) : kids;
     }
 
     /**
@@ -261,11 +472,57 @@ public final class UserCallInliner {
                         : reads[0] + " times") + ": each reading would draw again, where the binding is one value;"
                         + " not supported yet");
             }
+            // a value HOLDING draws (a list of them), one of which is read again beside it: an element taken out by
+            // its place ($ks->at(0), which the unroll answers with the element as it is written) is the bound draw
+            // written a second time (the closing batch of step 6, measured 2026-11-27: let ks = [generateGuid(),
+            // generateGuid()]; $ks->filter(k | $k == $ks->at(0))->size() answered 0 where Pure's one list answers 1)
+            List<TypedSpec> held = new ArrayList<>();
+            draws(e.getValue(), held);
+            for (TypedSpec draw : held) {
+                int[] beside = {0};
+                boolean[] besideRow = {false};
+                countBeside(reduced, e.getValue(), draw, false, beside, besideRow);
+                if (draw != e.getValue() && (beside[0] > 1 || besideRow[0] || beside[0] == 1 && reads[0] > 0)) {
+                    throw new NotImplementedException("$" + e.getKey() + " holds values drawn afresh where they are"
+                            + " written (random(), generateGuid()), and one of them is read again by its place:"
+                            + " each reading would draw again, where the binding is one value; not supported yet");
+                }
+            }
+        }
+    }
+
+    /** The calls in {@code t} that draw afresh at each place they are written, into {@code out}. */
+    private static void draws(TypedSpec t, List<TypedSpec> out) {
+        if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
+                || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
+            out.add(t);
+            return;
+        }
+        for (TypedSpec k : t.children()) {
+            draws(k, out);
+        }
+    }
+
+    /** The places {@code draw} stands in {@code t} (by reference) BESIDE {@code term}, the bound value that holds it
+     *  (a place inside a reading of the whole value is that reading's), and whether one is under a lambda. */
+    private static void countBeside(TypedSpec t, TypedSpec term, TypedSpec draw, boolean underLambda, int[] reads,
+            boolean[] perRow) {
+        if (t == term) {
+            return;
+        }
+        if (t == draw) {
+            reads[0]++;
+            perRow[0] |= underLambda;
+            return;
+        }
+        boolean lambda = underLambda || t instanceof TypedLambda;
+        for (TypedSpec k : t.children()) {
+            countBeside(k, term, draw, lambda, reads, perRow);
         }
     }
 
     /** Whether {@code t} holds a call that draws afresh at each place it is written. */
-    private static boolean drawsAfresh(TypedSpec t) {
+    public static boolean drawsAfresh(TypedSpec t) {
         if (t instanceof TypedNativeCall c && (com.legend.builtin.Pure.AT_MATH_RANDOM.contains(c.callee().id())
                 || com.legend.builtin.Pure.AT_STRING_GENERATION_GENERATE_GUID.contains(c.callee().id()))) {
             return true;
@@ -339,6 +596,33 @@ public final class UserCallInliner {
      *  fold the database runs evaluates its lambdas once per element too, and reads no position: a construction in
      *  them is {@code untracked} (§4.3). */
     private TypedSpec finish(TypedSpec n, List<Integer> at, List<String> iterations, boolean untracked) {
+        if (n instanceof TypedLambda || n.children().isEmpty()) {
+            return finishHere(n, at, iterations, untracked);
+        }
+        // ONE VALUE READ TWICE IS ONE EVALUATION (the edition program's step 6, 2026-11-27): a let's value, or an
+        // argument's, stands in the reduced tree at each place it is read, the same node. It was evaluated once, so
+        // the objects it built are the same objects at every reading: finished once, its constructions one site.
+        // Finished at each place, every lambda in it took a new instantiation there, so
+        // `let xs = [1, 2]->map(x|^C(...)); $xs->at(0) == $xs->at(0)` compared two objects (measured: false on
+        // DuckDB and SQLite, where Pure and an assert of the two say true). A LAMBDA read twice is not one
+        // evaluation -- it is applied at each place -- so a lambda itself is never shared here.
+        Finished was = finishedOnce.get(n);
+        if (was != null && was.at().equals(at) && was.iterations().equals(iterations) && was.untracked() == untracked) {
+            return was.result();
+        }
+        TypedSpec result = finishHere(n, at, iterations, untracked);
+        finishedOnce.put(n, new Finished(List.copyOf(at), List.copyOf(iterations), untracked, result));
+        return result;
+    }
+
+    /** A node finished where it stood ({@link #finish}): the place it was finished at, and what it became. */
+    private record Finished(List<Integer> at, List<String> iterations, boolean untracked, TypedSpec result) {
+    }
+
+    /** Each value node the current {@link #finish} has finished, by identity. */
+    private final java.util.IdentityHashMap<TypedSpec, Finished> finishedOnce = new java.util.IdentityHashMap<>();
+
+    private TypedSpec finishHere(TypedSpec n, List<Integer> at, List<String> iterations, boolean untracked) {
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1) {
             List<String> inner = new ArrayList<>(iterations);
             inner.add(m.mapper().parameters().get(0));
@@ -777,7 +1061,7 @@ public final class UserCallInliner {
         }
         ExprType ni = new ExprType(callInfo.type(), reduced.info().multiplicity());
         return switch (reduced) {
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos());
+            case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos(), c.outsideStore());
             case com.legend.compiler.spec.typed.TypedCollection tc -> tc.withInfo(ni);
             case TypedUserCall uc -> uc.withInfo(ni);
             default -> reduced;
@@ -1345,19 +1629,37 @@ public final class UserCallInliner {
     }
 
     private TypedSpec rewrite(TypedSpec n) {
+        return rewrite(n, false);
+    }
+
+    /** {@link #rewrite(TypedSpec)}; {@code keptForItsCall} says {@code n} is the comparison a function's body kept
+     *  for its call ({@code TypedRunTimeComparison}): its sides are rewritten and it is folded as any call is,
+     *  EXCEPT, where the door's setting answers a kept comparison by its sides' types
+     *  ({@code CrossTypeRule.answersAKeptComparisonByItsTypes}: lite's own), by the rule for two written values of
+     *  two kinds, one an enumeration's ({@code LiteralUnroll.neverEqual}, register S169: false, legend-pure's
+     *  answer). That rule answers a comparison the QUERY writes; one kept for its call is the call's to answer
+     *  ({@link #atTheCall}) -- on lite's own door a type variable given an enumeration and a String is that call's
+     *  compile error. Every other door folds it here, as it always did
+     *  (the equality measure, 2026-11-28: {@code t::sameT(t::E.A, 'A')} answered false, the fold having answered
+     *  before the call's rule saw two types). */
+    private TypedSpec rewrite(TypedSpec n, boolean keptForItsCall) {
         if (reducedTerms.containsKey(n)) {
             return n;
         }
         if (hook != null) {
             TypedSpec h = hook.apply(n, bound.keySet());
             if (h != n) {
-                return rewrite(h);
+                return rewrite(h, keptForItsCall);
             }
         }
         // literal-structure folds (tier 1): exact, or the node itself —
         // never inside quoted code
         TypedSpec r = reached(rewriteSwitch(n));
-        return quotedFrames.isEmpty() ? LiteralUnroll.fold(r, specs.ctx()) : r;
+        if (!quotedFrames.isEmpty() || keptForItsCall && r instanceof TypedNativeCall c && c.args().size() == 2
+                && LiteralUnroll.neverEqual(c.args().get(0), c.args().get(1)) && specs.keptForItsTypes(c)) {
+            return r;
+        }
+        return LiteralUnroll.fold(r, specs.ctx());
     }
 
     private TypedSpec rewriteSwitch(TypedSpec n) {
@@ -1572,6 +1874,9 @@ public final class UserCallInliner {
             // this replaces dropped TypedAggCol.orderKey and skipped MapReduce
             // strategy lambdas (remediation T2.1). Untouched subtrees keep
             // identity.
+            // (a comparison kept for its call, not yet answered: rewritten as such, above)
+            case com.legend.compiler.spec.typed.TypedRunTimeComparison kept when !kept.neverEqual() ->
+                    kept.mapChildren(k -> rewrite(k, true));
             default -> n.mapChildren(this::rewrite);
         };
     }
@@ -1680,7 +1985,7 @@ public final class UserCallInliner {
                 args.add(a instanceof TypedVariable v2
                         && v2.name().equals(param) ? lit : a);
             }
-            return new TypedNativeCall(nc.callee(), args, nc.info(), nc.pos());
+            return new TypedNativeCall(nc.callee(), args, nc.info(), nc.pos(), nc.outsideStore());
         }
         if (referencesVar(node, param)) {
             throw new IllegalStateException("effectful map body reads the"

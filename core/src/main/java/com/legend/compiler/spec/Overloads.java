@@ -127,13 +127,24 @@ final class Overloads {
         // yet, so the call keeps its signature typing (the engine types
         // a closure body by signatures too; it pastes nothing)
         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
-            return inlineNormalized(af, a, env);
+            // a function's body typed into the call: a body the query reaches, for the comparison setting (the edition
+            // program's step 2b, 2026-11-26; until then never read, B3 step 5)
+            // (a lambda the caller wrote into the call stays the caller's code inside the body: Typer.callerLambdas)
+            af.parameters().forEach(t::writtenHere);
+            return t.comparing(t.bodyOf(a.chosen()) == Typer.Compared.UNREAD ? Typer.Compared.UNREAD
+                    : Typer.Compared.GENERIC_BODY, a.chosen().qualifiedName(), () -> inlineNormalized(af, a, env));
         }
         TypedSpec shadow = derivedShadow(af, a, env);
         if (shadow != null) {
             return shadow;
         }
-        return rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()), env);
+        TypedSpec call = rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()),
+                env);
+        // the one equality (B3 step 5, the user's ruling of 2026-11-24): a comparison across types is what the door's
+        // comparison setting says it is (CrossTypeRule; the edition program's step 2b, 2026-11-26) -- lite's the marker
+        // its planner refuses, a compatibility door's the database's comparison or Pure's answer; in code the setting
+        // does not read (an island's translation, a planning-time frame, a mapping's operation) it is the call
+        return t.compared(call, a.chosen(), a.args(), af.pos());
     }
 
     /** Leg 6a — the receiver's OWN qualified property SHADOWS an
@@ -368,6 +379,11 @@ final class Overloads {
             TypedSpec typedArg = a.args().get(i);
             subst.put(chosen.parameters().get(i).name(), arg);
             if (!(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
+                typedArgs.put(arg, typedArg);
+            } else if (t.holdsAQueryAnswer(typedArg)) {
+                // an argument written in the body a door receives keeps the setting's answers for the query: the body
+                // is typed as a body, its argument as the caller typed it (B3 step 5a's review, M1, 2026-11-25; by the
+                // answers' identity since the edition program's step 2b, when a door's answer stopped being a marker)
                 typedArgs.put(arg, typedArg);
             }
         }
@@ -635,7 +651,9 @@ final class Overloads {
                     + " or a misspelling)");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected);
-        List<TypedSpec> typedArgs = Typer.withOperatorRun(r.chosen(), args);
+        // (a Float literal written into a Decimal's sum, difference or product is the Decimal its digits write)
+        List<TypedSpec> typedArgs = NumberLiterals.inExactArithmetic(r.chosen(), Typer.withOperatorRun(r.chosen(),
+                args));
         return new Application(r.chosen(), typedArgs, NumberKinds.refine(r.chosen(), typedArgs,
                 refineParseDate(r.chosen(), typedArgs, refineDecimalCarrier(r.chosen(), r.output()))));
     }
@@ -842,7 +860,8 @@ final class Overloads {
 
         ExprType out = kernel.resolveOutput(chosen.returnType(), chosen.returnMultiplicity(), b,
                 java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
-        List<TypedSpec> typedArgs = Typer.withOperatorRun(chosen, List.of(typed));
+        List<TypedSpec> typedArgs = NumberLiterals.inExactArithmetic(chosen, Typer.withOperatorRun(chosen,
+                List.of(typed)));
         return new Application(chosen, typedArgs, NumberKinds.refine(chosen, typedArgs,
                 refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out))));
     }
@@ -1050,6 +1069,11 @@ final class Overloads {
 
     /** Type a lambda argument against its function-type parameter, with type vars partly solved in {@code b}. */
     TypedSpec typeLambda(LambdaFunction lam, Type functionParamType, Bindings b, Env env) {
+        // (a lambda its caller wrote into a body typed into its call is typed as its author's code)
+        return t.asItsAuthors(lam, () -> typeLambdaHere(lam, functionParamType, b, env));
+    }
+
+    private TypedSpec typeLambdaHere(LambdaFunction lam, Type functionParamType, Bindings b, Env env) {
         Type.FunctionType ftype = extractFunctionType(functionParamType);
         boolean multiStatement = false;
         // the objects a let splice evaluates apart (docs/OBJECT_IDENTITY_2026_10_20.md §4.4)

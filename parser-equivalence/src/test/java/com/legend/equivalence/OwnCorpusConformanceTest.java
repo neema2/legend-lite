@@ -275,7 +275,15 @@ class OwnCorpusConformanceTest {
                 // 10 -> 12 (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a: overloads by a relation's
                 // column type, lite's dialect, ruled): RelationGeneric's aColumnsTypePicksTheOverload (test::pick<K> beside
                 // test::pick of key:All) and SignatureMangleTest's fixture of the same two
-                Map.entry("PURE-DIALECT-generics", 12),
+                // 12 -> 15 (2026-11-26, REVIEWED, register S112 again): three models, each with a function generic
+                // over relations, whose body is typed into its call -- where the equality rule must keep a query-written
+                // comparison's answer (CrossTypeComparisonsTest, on the branch since B3 step 5a's review of 2026-11-25
+                // and unpinned until now; CrossTypeRuleTest and PureComparisonsTest, the edition program's step 2b)
+                // 15 -> 14 (2026-11-26, the edition program's step 4, a move between two classes, the total unchanged:
+                // CrossTypeRuleTest's model gained a function generic over a relation's columns, x::same<T,P,Q>(r:
+                // Relation<T>[1], a: ColSpec<P⊆T>[1], ...), to hold lite's rule in a body typed into its call; the
+                // subset constraint classes the model's one snippet under the signature dialect, below)
+                Map.entry("PURE-DIALECT-generics", 14),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
@@ -313,7 +321,12 @@ class OwnCorpusConformanceTest {
                 // enumeration's value a generic body compares a mapped column to, read as the database's code
                 // 24 -> 25 (2026-11-03, REVIEWED, S146, the user's 2a): RelationGeneric's
                 // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T> beside ColSpec<L⊆T>)
-                Map.entry("PURE-DIALECT-signatures", 25),
+                // 25 -> 26 (2026-11-26, the edition program's step 4): CrossTypeRuleTest's model, moved here from the
+                // generics class above by its new function's subset constraint (ColSpec<P⊆T>); no new snippet
+                // 26 -> 27 (2026-11-27, the edition program's step 6): UserFunctionIntegrationTest's
+                // comparesTheCallersColumns (test::sameCols<T,A,B>, ColSpec<A⊆T>), a body that compares two of its
+                // caller's columns -- the call's compile error where their types differ
+                Map.entry("PURE-DIALECT-signatures", 27),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity

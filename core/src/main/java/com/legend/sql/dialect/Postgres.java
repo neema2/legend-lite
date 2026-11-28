@@ -474,7 +474,7 @@ public class Postgres extends AnsiSqlRenderer {
     /** A map's raise of {@code kind} (DuckDB's words the edge's, D1.1), raised as a map (the CASE's type). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
         // a map construction's raise, its kind alone (the D part 1 audit's S4, 2026-11-15; its where went with BE's item 2)
-        SqlWriter.Piece text = raise(raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null)), null, true);
+        SqlWriter.Piece text = raise(raiseArgs(new SqlExpr.RaiseText(kind, List.of())), null, true);
         return w -> w.append("CAST(").piece(text).append(" AS JSONB[])");
     }
 
@@ -813,7 +813,7 @@ public class Postgres extends AnsiSqlRenderer {
             // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
             case CONCAT_WS -> writer.function("concat_ws", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> parseInt(writer, c.args().get(0));
+            case PARSE_INT, CAST_INT, CAST_FLOAT -> parses(writer, c, parentPrec);
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -831,6 +831,7 @@ public class Postgres extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case FLOAT_FULL_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");   // its own cast: SqlFn's javadoc
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             case CURRENT_USER_FN -> writer.append("current_user");
@@ -906,9 +907,9 @@ public class Postgres extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP; Postgres rounds double precision
             // half-EVEN and numeric half away from zero (POSTGRES_BACKEND.md §4.3),
             // and has no round(double, int) at all
-            case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            case ROUND_HALF_UP, ROUND_RAW, DECIMAL_RAW -> rounds(writer, c);
             // the engine's out-of-domain answer is NaN; Postgres raises
-            case ACOS, ASIN -> acos(writer, c);
+            case ACOS, ASIN, ACOS_IN_DOMAIN, ASIN_IN_DOMAIN -> acos(writer, c);
 
             // ---- strings
             // the engine coerces a non-text argument (DuckDb's arm)
@@ -1123,6 +1124,18 @@ public class Postgres extends AnsiSqlRenderer {
         return writer.append("make_timestamp(")
                 .join(a.subList(0, 5), ", ", (w, x) -> w.append("CAST(").expr(x, 0).append(" AS INTEGER)"))
                 .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE PRECISION))");
+    }
+
+    /** The {@code PARSE_INT}, {@code CAST_INT} and {@code CAST_FLOAT} arm of {@link #call}: the checked parse, or the
+     *  database's own cast of a text as given. */
+    private SqlWriter parses(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return c.fn() == SqlFn.PARSE_INT ? parseInt(writer, c.args().get(0)) : rawCast(writer, c, parentPrec);
+    }
+
+    /** The {@code ROUND_HALF_UP}, {@code ROUND_RAW} and {@code DECIMAL_RAW} arm of {@link #call}: Pure's HALF_UP
+     *  rounding, or the database's own function as given (an edition's table's rules; the base's {@code asGiven}). */
+    private SqlWriter rounds(SqlWriter writer, SqlExpr.Call c) {
+        return c.fn() == SqlFn.ROUND_HALF_UP ? roundHalfUp(writer, c) : asGiven(writer, c, "round", null);
     }
 
     /** Pure's HALF_UP rounding: round over NUMERIC (half away from zero), a double cast back. */
@@ -1805,12 +1818,17 @@ public class Postgres extends AnsiSqlRenderer {
         return false;
     }
 
-    /** The {@code ACOS}, {@code ASIN} arm of {@link #call}. */
+    /** The {@code ACOS}, {@code ASIN} arm of {@link #call}, and their {@code _IN_DOMAIN} forms': the function alone
+     *  where the statement's own guard holds the value within the domain. */
     private SqlWriter acos(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String f = c.fn() == SqlFn.ACOS ? "acos" : "asin";
+        String f = c.fn() == SqlFn.ACOS || c.fn() == SqlFn.ACOS_IN_DOMAIN ? "acos" : "asin";
+        if (c.fn() == SqlFn.ACOS_IN_DOMAIN || c.fn() == SqlFn.ASIN_IN_DOMAIN) {
+            return writer.function(f, a);
+        }
         return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(f)
-                .append("(").expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE PRECISION) END)");
+                .append("(").expr(a.get(0), 0).append(") WHEN (").expr(a.get(0), 0)
+                .append(") IS NOT NULL THEN CAST('NaN' AS DOUBLE PRECISION) END)");
     }
 
     /** The {@code REGEXP_EXTRACT} arm of {@link #call}. */

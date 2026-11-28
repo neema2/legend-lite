@@ -40,9 +40,8 @@ public final class Census {
         DIVERGENCE_AGREE("divergence.agree"),
         DIVERGENCE_DISAGREE("divergence.disagree"),
         DIVERGENCE_RESIDUE("divergence.residue"),
-        SQL_ULP_POLICY("sql-verdict.ulp-policy"),
-        ROW_ORDER_CANON("sql-verdict.row-order-canon"),
-        DECIMAL_SCALE_ONLY("sql-verdict.decimal-scale-only");
+        ROW_ORDER_CANON("sql-verdict.row-order-canon");
+        // (DECIMAL_SCALE_ONLY: deleted 2026-11-24 with the scale-sensitive rule it counted, B3 step 1a)
 
         private final String label;
 

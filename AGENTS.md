@@ -131,10 +131,16 @@
 > questions a reviewer asks; nothing turns red until B5's guards land. Cite
 > them as "tenet N of the six", never as "invariant N": the invariants below
 > and `core/README.md`'s are separate lists.
-> 1. **The database computes.** Every value a program produces is computed by
->    the database: numbers, `toString()` and `format()` text, an error's
->    values, product verdicts. *Test:* could this value differ from one row to
->    the next? Then the database computes it.
+> 1. **The database computes.** In the PRODUCT, every value a program produces
+>    is computed by the database: numbers, `toString()` and `format()` text, an
+>    error's values, product verdicts. *Test:* could this value differ from one
+>    row to the next? Then the database computes it. In COMPATIBILITY, how a
+>    value is written for legend-pure or legend-engine is presentation, done in
+>    Java at the edge from the typed value the database computed, wherever it
+>    can be; the database writes lite's own text only where the program goes on
+>    computing with it (a `toString()` in the middle of a chain). A mode changes
+>    the SQL only where the answer itself differs (rule zero of the edition
+>    design v3). Amended by the user, 2026-11-25: "Tenet 1 should say for the PRODUCT, database computes every value in database including toString(), for compatibility everything presentation that can be should be done at the edge as much as possible (excluding toString in middle of chain for example)".
 > 2. **Java orchestrates and decides nothing about a value.** It plans, sends
 >    the statements, carries typed results and serializes them; product
 >    presentation never chooses, rounds, reorders or rewords. *Test:* does
@@ -163,9 +169,29 @@
 >    deleted by the user's ruling of 2026-11-20 ~07:55 ("Delete the settings,
 >    make engine only mode for engine for everything"); legend-engine's door
 >    always answers legend-engine's meaning, with no setting.
+>    **One exception, the edition** (the user, 2026-11-25: "Edition seems best
+>    of all options", "Yes to all the amendments";
+>    `docs/records/edition-design-2026-11-25.md`): every piece of code has an
+>    edition, `lite`, `pure` (legend-pure's meaning) or `engine` (legend-engine's),
+>    a property of the code (per project; until projects declare one, the door
+>    that admits the code sets it). Only the typer reads it, in one package
+>    (`compiler.spec.edition`), which turns each edition-dependent construct into
+>    ordinary typed calls that mean the same in every edition; nothing after the
+>    typer can see it (an architecture test, and no edition field in the plan).
+>    Meaning follows the code; format follows the door. It is the registry's one
+>    permanent entry, and B5's goal is "the switch counts read one". `[CONVENTION
+>    until the edition's guards land, phase E1]`
 >
 > Two readings were ruled the same minute. **Folds:** the compiler may fold
-> constants and facts fixed by the types, never row data. **Error records:** a
+> constants and facts fixed by the types, never row data. *Made precise by the
+> fold rule (the user, 2026-11-26: "Yes apply fold rule", then "Whole numbers
+> fine"):* the compiler compares two written values only of a kind whose
+> written token IS the value -- a String, a Boolean, an enumeration's value, a
+> whole number. A Float, a Decimal and a date are compared by the database,
+> which knows what each denotes (a Decimal by its number, a date-time by its
+> instant). Whole numbers stay because a function that recurses over a written
+> list ends at a guard like `size() == 0`, which the compiler must answer to
+> stop (`compiler.spec.LiteralUnroll.comparedHere`). **Error records:** a
 > raised error's record is lite's typed output, so compatibility may word
 > upstream's sentence in Java from it (tenet 3).
 >
@@ -176,10 +202,78 @@
 > matching upstream's answers (the user: "We just should decide our tenets").
 > - **Different types never compare.** Where the types are known when the query is
 >   compiled (literals, columns, parameters, computed expressions), comparing two
->   different types is a compile error naming the fix: Integer, Float and Decimal are
->   three types; a day and a date-time; an enumeration and a String; two unrelated
+>   different types is a compile error naming the fix: an exact number and a Float
+>   (below); a day and a date-time; an enumeration and a String; two unrelated
 >   classes. `==`, `!=`, `in`, `contains`, `indexOf`, the deduplications, joins and
 >   ordering (`<`, `max`, `min`, `sort`) all hold to it.
+> - **Numbers are of two families** (the user, 2026-11-27: "Yes I like the rule, keep
+>   ordering strict"; the rule is the user's own, "exact with exact (int and decimal
+>   when fits) vs approx (float) only and let untyped literals only when lossless"):
+>   exact (Integer, Decimal) and approximate (Float). Within a family a comparison is
+>   by value: `1 == 1D` is true, `2 < 2.5D` is true. Across the two the writer
+>   converts: an exact number against a Float is the compile error above, ordering
+>   included, and at run time the two are never equal. In a mixed list an Integer and
+>   a Decimal of one value are one element (a duplicate, a member, the same position);
+>   a sort places a tie of value by family, an exact number before a Float, and two
+>   equal exact numbers keep the order they were written in. Until this ruling
+>   Integer, Float and Decimal were three types never equal (2026-11-24).
+> - **A type only a column gives** (the user, 2026-11-27: "great do it"; for dates,
+>   "You can do the error way if it's only for lite mode"): a property declared
+>   `Number`, `Any` or the abstract `Date` takes the type its column holds once the
+>   query is planned. Two that can never be equal there (an exact number's column
+>   against a Float's, a day's against a date-time's) are refused where the query is
+>   planned, in lite's mode alone (`lowering.HeldKinds`), for "the same" and for an
+>   ordering alike (the user, 2026-11-27: "We don't really want date vs datetime to
+>   work for greater than/less than vs not for equal"). Only a comparison the
+>   query's author wrote: one in a function's body is the function's.
+>   A written number literal still adapts; a written day does not read as a
+>   date-time (a day is no instant).
+> - **Inside a function whose types the caller gives** (the user, 2026-11-27: "the
+>   split with compile error when we know"): a parameter declared `Any`, `Number` or
+>   the abstract `Date` is compared when the query runs; a comparison between the
+>   caller's own columns or a type variable's values is that call's compile error
+>   where the two types differ, naming the function.
+> - **Two tables** (the user, 2026-11-27, to "should we be strict with 2 table equals and have a separate operator
+>   or function for multiset compare?": "Yeah or ~= if want to be cute, or setCompare()"): `==` compares two tables'
+>   columns by name and their rows IN ORDER; a side whose order the query does not define is a compile error naming
+>   the fixes. `hasSameElements(a, b)` (lite's own function, register S430) compares two lists or two tables in any
+>   order, duplicates counted. One operator, one meaning. A list whose order the query does not define is refused
+>   under `==` the same way.
+> - **Wherever it stands** (the user, 2026-11-27: "why cant we do the work we promised to get to one equality?"): a
+>   comparison of two whole sides (computed lists, maps, tables) answers the same as a query's last statement, as an
+>   `if`'s condition, under `&&`, `||` or `!`, and in a test's `assert(...)`: one statement plans it
+>   (`planner.RootComparison`). Only a comparison whose sides read the row it stands in is still the database's own.
+> - **An empty side** (the user, 2026-11-27: "Yes do the empty side fix"; the closing batch's rule after its two
+>   reviews): `$x.nick == 'a'` where `nick` holds no value is false, and two empty sides are equal, as Pure says,
+>   wherever the comparison stands. Where it is a POSITIVE condition (a filter's, a join's, an `if`'s, and `&&`, `||`
+>   beneath them) the database's "no value" already is that answer and the statement is as written
+>   (`Lowerer.asCondition`); everywhere else -- a kept value, an operand, a window's or an aggregate's input, anything
+>   under `!` or a `forAll` -- the equality answers for its empty side where it is written (`Lowerer.written`,
+>   `lowering.Equalities.emptySidesAsPure`). On lite's route and at legend-pure's door; legend-engine's door answers
+>   as legend-engine does, by where the comparison runs (`EditionTable.emptySideIsFalse`).
+> - **Two codes still, until step 6B** (the architecture audit of step 6's closing batch, 2026-11-27; the user:
+>   "let's do A and then fast follow with B"): two WHOLE sides are compared by one code wherever they stand
+>   (`planner.RootComparison` over `lowering.SideEqualities`, which the test checkers call too); two SINGLE values
+>   where they stand are lowered by another (`lowering.Equalities`). They hold the same rules and are meant to
+>   agree; where they are known not to is listed in
+>   `docs/records/edition-homework/step-6-closing-batch-2026-11-27.md`. Do not describe the product as having one
+>   comparison code until 6B lands, and do not add a third.
+> - **An assert is the comparison it means** (the user, 2026-11-26: "yes compile
+>   error"): on lite's own door an assert of two written types is refused when the
+>   body is compiled.
+> - **A number literal reads as the type of the value it is written against** (the
+>   user, 2026-11-26: "okay for float/decimal literal compare"): `$x.qty > 0` over a
+>   Float is `> 0.0`, `$x.salary < 50000` over a Decimal is `< 50000D`, when the
+>   literal is exact in that type. Still a compile error: two literals (`1 == 1.0`),
+>   two values, a literal that is not exact there (`1.5` against an Integer), a
+>   Decimal literal (`1.5D`: its suffix states its type). The literal is read by its
+>   written digits; nothing is computed from a row (`compiler.spec.NumberLiterals`).
+> - **Inside functions and mapping code too** (the edition program's step 4,
+>   2026-11-26): a function's, a derived property's, a constraint's and a mapping's
+>   Pure hold to the same rule, the error raised when the body is compiled. A
+>   function whose body is typed into each call (generic over a relation's columns,
+>   or taking a table with no declared columns) is held to it at the call (below,
+>   since the edition program's step 6).
 > - **Types known only at run time** (`Any`, `Number`, the abstract `Date`, a generic
 >   position) carry their type beside the value; equal means the same type and the
 >   same value, and a mixed list orders by value, then by type.
@@ -544,6 +638,9 @@ otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
+| `docs/records/edition-wrap-up-plan-2026-11-28.md` | **How the edition program is wrapped up** (the user, 2026-11-28): where each step stands, what is true today and what may not be claimed yet, the order of what is left (land 6B's slices, the doors, part 2, step 8 re-specified, step 9, step 10, `main`), and what makes a step done |
+| `docs/records/edition-program-START-HERE-2026-11-25.md` | **Start here for the edition program** (the user's rulings of 2026-11-25; branches `claude/compat-b3-nufdlk` and `claude/compat-b2-nufdlk`): every piece of code carries an edition (`lite`, `pure`, `engine`) read only by the typer; the whole context for a session with none -- background, every approach tried and why it was rejected, the rulings verbatim, the measurements, the open decisions, the phases E0c-E7 step by step, how to run every check, the traps. The design is `docs/records/edition-design-2026-11-25.md`, the census `docs/records/edition-census-2026-11-25.md` |
+| `docs/records/database-recheck-2026-11-26/START_HERE.md` | **Start here for lean SQL on every database** (the follow-up to Stage B; the user, 2026-11-26: "we should write down all the research and all the context and any artifacts so we can do it next as a follow up right after B is done"): researched, nothing built. Where each database's SQL blows up and why (a list written more than once per operation; ClickHouse's settings on every statement), fourteen fixes ranked with estimates, every "this database cannot" of ours checked against the vendor and the database, versions against the latest, the defects found, the probe programs, the rules a slice is held to |
 | `docs/TOTAL_WALL_START_HERE_2026_11_11.md` | **Start here for the total-wall program** (branch `claude/total-wall`, the user's go of 2026-11-11): total plan/exec separation, phases A-F, then ONE PR. The orchestrator's handoff: every ruling, the state, what remains in order, the runbook (fast loop, lane rounds, audits, checkpoints), the sessions, and the templates for a fresh worker, lane round and audit |
 | `docs/DATA_IN_THE_PLAN_2026_11_09.md` | **Data in the plan** (the user's go, 2026-11-09): data enters a database through a load and only a load -- a reference with a digest (never a machine path, never large rows), resolved, verified and delivered by exec, the delivery chosen at planning per database; today's 17 mechanisms each replaced and deleted (13) or bounded by a guard (4, not loads); the deletion census as the proof; slices L1-L8. Evidence: `docs/data-in-the-plan-homework/` |
 | `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |
@@ -565,6 +662,145 @@ otherwise, which is how it drifted:
 | `docs/CORPUS_BURNDOWN_HANDOFF.md` | History: the corpus burn-down program (paused; its ledger is Maven-era) |
 | `docs/RELATIONAL_CORPUS.md` | History: the Maven-era corpus scoreboard (not regenerated by the Bazel chain; the roster files are the gate) |
 | `docs/OUTSTANDING.md` | History: the Maven-era non-passing ledger (not regenerated) |
+
+## The fast dev loop (the user, 2026-11-24: "write this down so we stick to this loop")
+
+A full round is 1-2 hours and a corpus regeneration about 40 minutes; one Bazel run at a time per container. So:
+
+1. **A failure goes through the narrowest runner first, never a full regeneration.** A corpus test:
+   `bazel run //spec:corpus_one -- <duckdb|h2> host <test fqn>` (about 2 minutes); a PCT or core test: its own
+   target with `--test_filter`. Only when every failure of a round is fixed this way does the step regenerate.
+2. **Probe, don't guess.** Where a fix depends on a shape you have not seen (a typed tree, a plan, a SQL text), print
+   it once with a temporary debug line in the Bazel tree (never committed) and the narrow runner, then write the fix.
+3. **Read the whole round before fixing anything.** Every failure of a round is read and grouped first; the fixes
+   are made together; then ONE regeneration and ONE confirming round per step -- never a regeneration per fix.
+4. **The cadence** (2026-11-24, docs/records/compat-b3-progress.md): a fast check after editing (the guards, the census,
+   the touched packages: 5-15 minutes); one full round per step; one independent review per step, run beside the next
+   work, its fixes in the next commit; the warm lanes only for a change a database could answer differently, and at
+   milestones; CI at milestones through the pull request.
+5. **While a run goes, do the next thing** (edit in another tree, write the record, prepare the next step) -- never
+   wait idle, never start a second Bazel run.
+6. **Never block on a run** (the user, 2026-11-25: "make sure we're not always blocking waiting for something in
+   background to finish"). Start every long run in the background and let its completion post back; never hold a turn
+   in a foreground wait loop (`until ...; sleep`) for a run to end. The one limit is one Bazel server per container:
+   while it builds, the work is whatever needs no Bazel -- code, test fixes, records, reviews.
+
+## The fast setup: who does what, all at once (the user, 2026-11-25)
+
+The loop above says what one session does. This is how the work is spread so nothing waits on anything else. The
+user's words: "we have to go much much much much much faster"; "very fast loops and then at end of a big chunk or big
+step or big milestone do in parallel round of testing, independent audit, update a PR so CI can run in parallel early,
+and the subset of the manual tests and heavy tests in subagent or another session, and use the warm lanes"; "when run
+long things here run them in background so you can parallelize to do research or other read-only work so we not
+sitting idle". Tried on the edition program's step 1 (2026-11-25): a database lane went from nothing to its report in
+about 30 minutes.
+
+**Who does what:**
+
+| Work | Where | Model |
+|---|---|---|
+| Design, code, the fast test loop | the working session (the best code and reasoning stay here) | the session's own |
+| Research and other read-only work while a run goes | subagents | Opus 5.5 |
+| Independent audits | subagents, given the diff and the rules, never the author's conclusion | Opus 5.5 at high effort; xhigh before a landing |
+| Full rounds, the local gate, heavy and manual tests | a new session for each big step | Opus 5.5 at medium effort |
+| The server and cloud database lanes | one new session per group of databases, measure only | Opus 5.5 at medium effort |
+
+**What judges a change** is the tests' answers (core, PCT, the relational corpus, the stress corpus) and the product's
+SQL size pins, which may only go down. SQL text staying the same is not a goal, and no harness is built to check it.
+
+**For every small change, in the working session (minutes):** compile, then run only what exercises it: one test
+class (`--test_filter`), one corpus test (`bazel run //spec:corpus_one -- <duckdb|h2> host <test>`), one PCT suite.
+No full round and no regeneration for a small change.
+
+**At the end of each big step, all of these at once:**
+1. the full round and `//gates:local` in a new session, so the working session's one Bazel stays free;
+2. an independent audit of the step's diff;
+3. a push to the pull request's branch, so CI runs on every operating system;
+4. the heavy and manual lanes in another session;
+5. a round on the database lanes.
+
+**Every database lane, every major change** (the user, 2026-11-27: "Have to run the lanes always when making major
+changes"): the embedded-server lanes, the cloud lanes and the heavy run (the local gate and the relational corpus) are
+started for each big step without asking, and run again after the fixes its checks bring. Saving tokens is no reason
+to leave one out.
+
+**No check twice** (the user, 2026-11-27: "do we need to remember to only run the subset of heavy and manual that we
+need/doesnt overlap with other stuff running?"; and, the same day, of lanes started before the code was final: "Don't
+start all the work if it's not done that mean we have to do it again"). The outside runs start once, on the FINAL
+commit: after the working session's own round and the audit of the last fixes are in and fixed. And each check has
+one runner:
+- **CI on the pull request** holds every per-push lane on every operating system (`gates/BUILD.bazel`, `lanes`): the
+  product build, core, the guards, both corpora, PCT on DuckDB, H2 and Postgres (channel A), channel B on DuckDB, parser
+  equivalence, stress, the warehouse, DataCube, the UI. With CI running, NO session reruns the local gate, the corpus
+  or the stress suites; a red CI lane is reproduced alone, by the session that will fix it.
+- **The database lanes** hold what CI cannot: PCT's two channels on the databases with no per-push lane (channel B alone
+  on Postgres), and each database's own manual tests the change can touch (the time-series replays on ClickHouse,
+  Postgres and Snowflake when the library's text moved; MongoDB's plan test).
+- **The heavy session** holds only the manual tests left over that the change can touch (`gates/BUILD.bazel`, `heavy`:
+  lite's own PCT channel A, channel B on H2, channel B twice). Measurements, benchmarks and probes that judge nothing
+  are not run for a landing.
+- **The working session** runs its focused round before the push (it overlaps CI's Linux lanes on purpose: a push that
+  is red on something a local run shows wastes a CI cycle) and the equality measure.
+
+The working session goes on to the next step meanwhile. What the checks find is fixed in the next commit. Every test
+whose answer moves and every new difference from legend-engine is gathered and brought to the user at the end of the
+step, with its register row.
+
+**While a run goes in the working session:**
+- it runs in the background and its completion posts back (rule 6 above: never a foreground wait loop);
+- code for the next step is written in a second worktree (`git worktree add <dir> <branch>`), because a tree Bazel is
+  building must not be edited; it is merged into the build tree when Bazel is free;
+- research for the steps ahead goes to subagents: an inventory of the guards a draft will trip, a sheet of the rows to
+  add with upstream's own text beside lite's, the list of tests that will judge a change.
+
+**Scratch branches** (the user, 2026-11-26: "Def can push to scratch branches or make any number of branches you
+need without my permission"): a session may create and push any number of scratch branches (`claude/...`) without
+asking: work in progress for a worker session to build or measure, a backup of an edit tree, a worker's own results.
+So the pull request's branch carries verified work only, and a push to it is a deliberate CI run. Never `main`, and
+never a merge of a pull request, without the user's word (below).
+
+**Starting a session** (`create_session`): the environment **Legend Dev** (it sets `DB_AWS_ACCESS_KEY_ID` and
+`DB_AWS_SECRET_ACCESS_KEY`, which the cloud lanes need), `model` Opus, `effort` medium, `source_url` this repository,
+`source_revision` the branch under test, and a prompt that says: measure only (no tracked file edited, no commit, no
+push, no pull request); one Bazel at a time, long runs in the background; what to read (`docs/CLOUD_SESSIONS.md`); the
+setup command; the commits to compare; exactly what to report; and to send the report to the orchestrator's session
+with `send_message`, then stay available with its logs and its warm Bazel. The reply arrives as a notification.
+
+**The database lanes,** one session each (two or three embedded servers fit a container):
+
+| Lane | Targets (`//pct:pct_<name>` is channel A, `//pct:pct_channel_b_<name>` channel B) | Needs |
+|---|---|---|
+| Postgres, Trino | `postgres`, `trino` | Postgres run unprivileged (`tools/postgres/as_unprivileged.sh`) |
+| MariaDB, MySQL, ClickHouse | `mariadb`, `mysql`, `clickhouse` | nothing |
+| SQLite, MongoDB | `sqlite`; `mongodb` (channel A only) | nothing |
+| Databricks | `databricks` | credentials |
+| Snowflake | `snowflake` | credentials |
+| BigQuery | `bigquery` | credentials |
+
+A lane's setup: `export PATH=/root/.local/bin:$PATH; tools/cloud-distdir.sh <its targets>` (about 8 minutes cold). A
+cloud lane also needs, in `~/.bazelrc`, `test --test_env=JAVA_TOOL_OPTIONS --test_env=HTTPS_PROXY
+--test_env=https_proxy --test_env=NO_PROXY --test_env=no_proxy`, and its credentials:
+`tools/cloud-lane-credentials.sh <database>`, then `export LEGENDLITE_PCT_CLOUD_PROPERTIES=$HOME/.legendlite/cloud-pct.properties`.
+The script holds no secret: it reads the two environment variables and fetches the database's secret; nobody pastes a
+key into a session, a message or the repository. A lane runs each suite with
+`bazel test //pct:pct_<name> --keep_going --test_timeout=3600 --cache_test_results=no` and keeps each suite's
+`test.log` per commit in its scratchpad, so a later round compares test by test without re-running the base. Its first
+round is a baseline: a lane's value is its history.
+
+**Measured (2026-11-25, the Databricks lane, 4 cores):** setup 8 minutes, credentials under a second, a cold build 1
+minute, channel A about 5 minutes and channel B about 4 a commit. In the working session a full round is 1.5 to 2
+hours and the local gate another 30 minutes, which is why neither runs there for a small change.
+
+**Traps:**
+- At Bazel's default concurrency the container's memory limit kills a heavy test now and then (its log ends mid-run,
+  the summary says `Killed`): rerun it alone, and give a round `--jobs=3 --local_test_jobs=2`.
+- Fourteen targets fail only because the container runs as root (the Postgres-backed tests,
+  `//core:is_numeric_probe_test`, `//datacube:verify_app_test`): rerun them through
+  `tools/postgres/as_unprivileged.sh` before calling one a regression.
+- A golden regenerated at the end of a step can carry a line that is not that step's: read every regenerated diff
+  against what the step predicted, and run the odd test alone on the base to see whether it had moved before.
+- A session in another account cannot be reached with `get_session` or `send_message`; its work reaches this one only
+  through a pushed branch.
 
 ## Pushing to main
 

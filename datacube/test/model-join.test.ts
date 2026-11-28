@@ -166,7 +166,7 @@ describe('a page\'s model: two sources as classes over relation functions, relat
   it('a to-many end in a filter: the customers with a trade over 60, each once however many it has', async () => {
     // Acme's two trades both pass: Acme once (the compiler writes the semi-join as a join to the distinct keys)
     const { rows } = await run(
-      'files::customers::Customer.all()->filter(c|$c.trades->exists(t|$t.notional > 60))->project(~[name: x|$x.name])');
+      'files::customers::Customer.all()->filter(c|$c.trades->exists(t|$t.notional > 60.0))->project(~[name: x|$x.name])');
     assert.deepEqual(rows, [['Acme']]);
   });
 
@@ -246,7 +246,7 @@ page::grossNotional(t: files::trades::Trade[*]): Float[1]
 function <<meta::legend::bi::BI.measure>>
 page::bigNotional(t: files::trades::Trade[*]): Float[1]
 {
-  $t->filter(x|$x.notional > 60).notional->sum()
+  $t->filter(x|$x.notional > 60.0).notional->sum()
 }
 
 function <<meta::legend::bi::BI.measure>> {meta::legend::bi::BI.format = '#,##0.00'}
@@ -264,7 +264,7 @@ page::regionsKnown(t: files::trades::Trade[*]): Integer[1]
 function <<meta::legend::bi::BI.measure>>
 page::bigTrades(t: files::trades::Trade[*]): Integer[1]
 {
-  $t->filter(x|$x.notional > 60)->count()
+  $t->filter(x|$x.notional > 60.0)->count()
 }
 `;
 

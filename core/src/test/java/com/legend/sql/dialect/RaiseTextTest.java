@@ -24,8 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A RAISE'S MESSAGE IS ITS KIND (phase D's D1.1, 2026-11-12; the orchestrator's addition 3): the product's dialects
  * write a {@link SqlExpr.RaiseText}'s kind's name and never its operands, so a raise's SQL is byte-identical with its
  * operands and without them -- no value's text built, no parameter bound for one -- on every database; the user's own
- * {@code fail} message is the one operand written. The compatibility edge's dialects write legend-pure's sentence
- * ({@code edge.PureMessages}).
+ * {@code fail} message is the one operand written. Every door, the compatibility edge's too, writes the same site; its
+ * sentence is worded after the run from the site's record (stage B's B1, 2026-11-20).
  */
 class RaiseTextTest {
 
@@ -88,9 +88,9 @@ class RaiseTextTest {
 
     @Test
     void aRaisesMessageIsOnlyItsKindAndOperands() {
-        // its kind, its operands, and its product words where it is data, a fixed text worded at planning -- never a
-        // value (the D part 1 audit's S3 and its nit, 2026-11-15: the type the constructor discarded went)
-        assertEquals(List.of("kind", "operands", "asData"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
+        // its kind and its operands -- never a value (the D part 1 audit's S3 and its nit, 2026-11-15: the type the
+        // constructor discarded went; its words as data went with B2b's S7a, 2026-11-25)
+        assertEquals(List.of("kind", "operands"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName).toList());
     }
 
@@ -199,8 +199,6 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.WINDOW_FRAME_OFFSET_INVALID, List.of()), lit("Invalid window frame"
                 + " boundary - a window frame bound written -(n) is n before the current row and any other n after it,"
                 + " so a computed n must be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)"));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.CONSTRAINT_UNEVALUABLE, List.of(lit("posInt"))),
-                lit("Unable to evaluate constraint [posInt]: data not available - check your mappings"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.USER_FAIL, List.of(lit("my own words"))), lit("my own words"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.MAP_KEYS_MISALIGNED, List.of()),
                 lit("The map key list does not align with the map value list."));

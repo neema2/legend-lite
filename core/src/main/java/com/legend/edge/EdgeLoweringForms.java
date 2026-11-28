@@ -3,49 +3,27 @@
 
 package com.legend.edge;
 
-import com.legend.sql.RaiseKind;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
 
-import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * THE EDGE'S FORMS OF THE LOWERING'S TWO-FORM CHOICES ({@link com.legend.lowering.LoweringForms}, the audit's K5,
- * 2026-11-17): legend-engine's choices, held here so the product branches on none of them.
- *
- * @param plain         the raises written as the plain operation, the database's own error passing through: none for
- *                      PCT and the corpus (legend-pure's guarded words), legend-engine's census class A for the pure/v1
- *                      route (B7, the user's ruling of 2026-11-17: "pure/v1 matches legend-engine")
+ * 2026-11-17): legend-engine's choices, held here so the product branches on none of them. (The raises a door writes
+ * as the plain operation, B7, were a set held here until the edition program's step 3, 2026-11-26: the door's
+ * edition's table says which checks are written, {@code EngineTable.checks}.)
  *
  * <p>legend-engine's statement shape for its SQL text ({@code EngineShape}, J40) went with that text (A2 of the
  * compatibility program, 2026-11-19, CP-4): the edge's SQL text is lite's own statement.
  */
-record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.LoweringForms {
+final class EdgeLoweringForms implements com.legend.lowering.LoweringForms {
 
-    /** PCT's and the corpus's style ({@link PureText#UPSTREAM}): every check written, views flat, wire casts written. */
-    static final EdgeLoweringForms PCT = new EdgeLoweringForms(Set.of());
+    /** The compatibility doors' forms, PCT's, the corpus's and pure/v1's alike: which checks a door's audience writes
+     *  is its edition's table's since the edition program's step 3 (2026-11-26; until then a set of raise kinds here
+     *  set pure/v1's apart). */
+    static final EdgeLoweringForms INSTANCE = new EdgeLoweringForms();
 
-    /** The pure/v1 route's style ({@link PureText#PURE_V1}): legend-engine's unchecked raises plain. */
-    static final EdgeLoweringForms PURE_V1 = new EdgeLoweringForms(PureText.ENGINE_UNCHECKED);
-
-    EdgeLoweringForms {
-        plain = plain.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
-    }
-
-    @Override
-    public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plainOperation) {
-        return plain.contains(kind) ? plainOperation : checked.get();
-    }
-
-    @Override
-    public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
-        return body;
-    }
-
-    @Override
-    public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-        return written.get();
+    private EdgeLoweringForms() {
     }
 
     /** legend-engine's protocol connection segment for its test database (H2's, as the goldens pin it), which its
@@ -90,26 +68,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
                 new com.legend.sql.OutputCol("result", com.legend.sql.SqlType.Scalar.VARCHAR, false))));
     }
 
-    /** legend-engine's statement shape writes a relation at each read; every other edge form, the product's lean SQL
-     *  (the edge audit's J23, 2026-11-17). */
-    @Override
-    public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
-            Supplier<com.legend.sql.SqlQuery> unshared) {
-        return shared.get();
-    }
 
-    /** legend-engine's statement shape counts a keyed relation's rows as written (J23). */
-    @Override
-    public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
-            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
-        return fold.apply(q);
-    }
 
-    /** legend-engine's statement shape keeps an unread computed projection (J23). */
-    @Override
-    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-        return com.legend.lowering.SubselectPrune.prune(q, true);
-    }
 
     /** legend-engine's one-argument parseDecimal on H2: its hardcoded {@code decimal(5, 2)}
      *  (h2Extension2_1_214.pure transformParseDecimalH2; its goldens round through it, 123.450021 to 123.45; the audit's
@@ -135,22 +95,6 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     public SqlSelect existsJoin(SqlSelect filtered, com.legend.lowering.ExistsSites sites) {
         return com.legend.sql.ExistsJoins.rewrite(filtered, sites.alias(), sites.keysWhere(), ex -> true);
     }
-
-    /** legend-engine's H2 isNumeric ({@code lower(s) = upper(s)}: a text with no cased letter), every edge style's
-     *  (census J20, 2026-11-18: the product's is a real numeric check). */
-    @Override
-    public SqlExpr isNumeric(SqlExpr s) {
-        return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Call.of(com.legend.sql.SqlFn.LOWER, s),
-                SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
-    }
-
-    /** No union frame outside legend-engine's statement shape (L10, the lens audit's L-A.unionAlias, 2026-11-18): the
-     *  product's lean form, as J23's. */
-    @Override
-    public @com.legend.base.Nullable String unionFrame() {
-        return null;
-    }
-
 
     /** legend-engine's conjunct zones, on every edge style (L10): its exists form reads them ({@code existsJoin}, J19 --
      *  user conditions, then correlation, then temporal). */

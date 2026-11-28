@@ -90,11 +90,13 @@ final class PctPlanRoute {
         }
 
         /** The style the audience's cases are planned in: the edge's UPSTREAM text for legend-pure's, the pure/v1
-         *  route's for legend-engine's, the product's under lite's own rules. */
+         *  route's with PCT's legend-engine run's edition for legend-engine's (a case is the one expression its own
+         *  PCT adapter sends to the database, so every row of legend-engine's table answers it: the edition
+         *  program's step 3, 2026-11-26), the product's under lite's own rules. */
         com.legend.database.PlanStyle style() {
             return switch (this) {
                 case LEGEND_PURE -> com.legend.edge.PureText.UPSTREAM;
-                case LEGEND_ENGINE -> com.legend.edge.PureText.PURE_V1;
+                case LEGEND_ENGINE -> com.legend.edge.PureText.ENGINE_PCT;
                 case LITE -> com.legend.database.PlanStyle.PRODUCT;
             };
         }
@@ -131,7 +133,7 @@ final class PctPlanRoute {
     static Answer execute(String model, String expression) throws IOException {
         // the tests' planning options: as-of joins answer the same row on every database (PlanOption, off by default;
         // the user, 2026-11-07: "our tests should use the option")
-        TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
+        TypedQuery typed = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
                 .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
@@ -139,6 +141,13 @@ final class PctPlanRoute {
         // -Dpct.audience=engine (the ENGINE lane, H7), lite's own rules under -Dpct.channela.rules=LITE (the LITE-PCT
         // lane's channel A); a combination refused by name
         Audience audience = Audience.current();
+        // each comparison across types as the audience's door answers it (B3 step 5, the one equality; the user's ruling
+        // of 2026-11-24): legend-pure's Pure's answer, legend-engine's the database's comparison, lite's own refused
+        TypedQuery query = switch (audience) {
+            case LEGEND_PURE -> com.legend.edge.PureComparisons.asPures(typed);
+            case LEGEND_ENGINE -> com.legend.edge.EngineComparisons.asTheDatabases(typed);
+            case LITE -> typed;
+        };
         // no feature flag for any audience (A3 of the compatibility program, piece 2, 2026-11-19: substring is Pure's by
         // default; S130), as upstream's own PCT adapters set none. Until then legend-pure's audience set
         // CORRECT_SQL_SUBSTRING_INDEXING; piece 2's change applied to #124's audience at the stage-A batch's merge,
@@ -146,6 +155,42 @@ final class PctPlanRoute {
         java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
         // counted as chosen here, the text and the flags the run is handed, for the ENGINE lane's check (RouteAudience)
         RouteAudience.planned(audience == Audience.LEGEND_ENGINE && features.isEmpty());
+        // B2b S2 (stage B's B2, 2026-11-24; the plan of record's B2 and E0 = A, "E0 - yes": at legend-pure's and
+        // legend-engine's doors the edge removes a final toString()/toCSV() and hands the run a table printer as its
+        // receiver): a compatibility audience's case whose last step prints a relation answers legend-pure's text,
+        // printed in Java from the relation's typed rows (edge.PrintedRelations, edge.PureRelationText) -- lite's own
+        // rules keep the run's answer (lite's route prints a relation in the database, B2b's S5). Since the edition
+        // program's step 8 (2026-11-26; tenet 1 as amended 2026-11-25) legend-pure's audience has a last step's print of
+        // a value lifted too -- a Float's toString, legend-pure's print in Java (edge.PureValueText) -- and either
+        // audience the print's tail, the calls of one closed set after it (edge.PrintTail), whose answer may be an
+        // Integer or a Boolean. legend-engine's audience keeps a value's print in the query: its database's cast is
+        // legend-engine's own answer
+        com.legend.edge.PrintedRelations.Lifted lifted = audience == Audience.LITE ? null
+                : com.legend.edge.PrintedRelations.lift(query, audience == Audience.LEGEND_PURE);
+        if (lifted != null) {
+            java.util.List<Object> text = new java.util.ArrayList<>(1);
+            com.legend.Execution.run(lifted.relation(), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    PctBackend.executionSource(), PctBackend.planSessions(),
+                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features, audience.style(),
+                    new com.legend.result.Output.Rows(lifted.writer(text::add)), com.legend.result.Batcher.DEFAULT_CAPACITY);
+            // the plans compared are the ones the case ran: the relation's (the review of 54d922e92: the print's own
+            // query, which the product refuses at lowering, reported every lifted case as PRODUCT_REFUSES)
+            PctCaseRecorder.onePlan(() -> onePlan(lifted.relation(), features));
+            if (text.size() != 1) {
+                throw new IllegalStateException("a lifted print answers one value; got " + text.size());
+            }
+            String slot = switch (lifted.answers()) {
+                case "String" -> "VARCHAR";
+                case "Integer" -> "BIGINT";
+                case "Boolean" -> "BOOLEAN";
+                default -> throw new IllegalStateException("a lifted print answers a String, an Integer or a Boolean,"
+                        + " not " + lifted.answers());
+            };
+            ExecutionPlan.Column value = new ExecutionPlan.Column("value", lifted.answers(),
+                    new ExecutionPlan.Multiplicity(1, 1), slot, null, null);
+            return new Answer(ExecutionPlan.TdsResult.Shape.VALUE, new PlanRunner.Rows(java.util.List.of(value),
+                    java.util.List.of(java.util.List.<Object>of(text.get(0)))), query.resultType(), null, null);
+        }
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in the audience's style; a raise says the one catalog's sentence on every audience (stage B's BE,

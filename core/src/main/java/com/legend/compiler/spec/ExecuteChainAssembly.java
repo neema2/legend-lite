@@ -516,16 +516,20 @@ public final class ExecuteChainAssembly {
      * mappings / JSON sources — the XStore rule, same as FromChecker's
      * instance-runtime arm). Inliner-consumed query lets accumulate into
      * {@code queryLetsSink} (the resolver's let env resolves surviving
-     * reads — engine inScopeVars).
+     * reads — engine inScopeVars). {@code stampTestLets}: the let prefix is
+     * a test body's own code, stamped as outside any store query where the
+     * door's edition stamps test bodies (the edition program's step 3,
+     * {@code UserCallInliner.inlineFrameQuery}): the query reads the VALUE
+     * the test computed, with the test's meaning.
      */
     public static Chain chain(Prepared p, TypedNativeCall ec,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             @com.legend.base.Nullable String runtimeFqn,
-            Map<String, TypedSpec> queryLetsSink) {
+            Map<String, TypedSpec> queryLetsSink, boolean stampTestLets) {
         List<TypedSpec> qb = new ArrayList<>(letPrefix);
         qb.addAll(p.lam().body());
         var inliner = new UserCallInliner(specs);
-        TypedSpec chain = inliner.inlineBody(qb).get(0);
+        TypedSpec chain = inliner.inlineFrameQuery(qb, stampTestLets ? letPrefix.size() : 0, stampTestLets).get(0);
         queryLetsSink.putAll(inliner.queryLets());
         if (!containsTypedFrom(chain)) {
             if (p.mref() == null) {

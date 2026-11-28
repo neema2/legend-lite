@@ -1,0 +1,359 @@
+diff --git a/core/src/main/java/com/legend/edge/EngineTable.java b/core/src/main/java/com/legend/edge/EngineTable.java
+index cbd6bfbf..2b7eaf8f 100644
+--- a/core/src/main/java/com/legend/edge/EngineTable.java
++++ b/core/src/main/java/com/legend/edge/EngineTable.java
+@@ -38,7 +38,11 @@ import java.util.Set;
+  *   <li>{@code round}: the database's own ROUND, which on DuckDB and H2 sends a half away from zero
+  *       ({@code ROUND_AS_GIVEN}; legend-engine's {@code transformRoundForDuckDB} and H2's {@code round}
+  *       write the bare function; the edition program's step 5, 2026-11-26, a delegation the user ruled matched,
+- *       amendment 22). Pure's {@code round} sends a half to the even neighbour.</li>
++ *       amendment 22). Pure's {@code round} sends a half to the even neighbour;</li>
++ *   <li>{@code parseInteger} and {@code parseFloat}: the database's own cast of the text, its refusal the database's
++ *       own conversion error ({@code TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}; legend-engine's SQL casts,
++ *       ruled plain inside a store query: the edition design's S-2). Until 2026-11-26 a pass of the edge's dialect
++ *       unguarded them in every compatibility style, PCT's legend-pure run and a host-side {@code let} included.</li>
+  * </ul>
+  * Outside any store query (the planner's stamp) legend-engine's own Java computes them, with Pure's meaning: no row.
+  * That is a store-free {@code let}, and a model-to-model mapping's transforms under a graph fetch or over a model
+@@ -65,8 +69,14 @@ final class EngineTable implements EditionTable, Edition {
+      *  ({@link #stampsOutsideStore}). */
+     static final EngineTable PCT = new EngineTable(false, null, false, false);
+ 
+-    /** A row: the rule that lowers the call, and what a refusal calls the call. */
+-    private record Row(NamedRule as, String named) {
++    /** A row: the rule that lowers the call, what a refusal calls the call, and whether the row answers on every
++     *  database (a rule that is legend-engine's on each by what it writes: the database's own cast) or only where
++     *  legend-engine's answer is checked ({@link PureText#engineAnswers}: a rule whose answer is the database's own
++     *  function's). */
++    private record Row(NamedRule as, String named, boolean onEveryDatabase) {
++        Row(NamedRule as, String named) {
++            this(as, named, false);
++        }
+     }
+ 
+     private static final FunctionId TO_ONE = FunctionId.of(Pure.TO_ONE__T_MANY);
+@@ -81,6 +91,9 @@ final class EngineTable implements EditionTable, Edition {
+         each(given, Pure.AT_STRING_SUBSTR, NamedRule.SUBSTR_AS_GIVEN, "substr/2", "substr/3");
+         given.put(FunctionId.of(Pure.INDEX_OF__STRING_1__STRING_1), new Row(NamedRule.SQL_POSITION, "indexOf/2"));
+         each(given, Pure.AT_MATH_ROUND, NamedRule.ROUND_AS_GIVEN, "round/2", "round/2", "round/1");
++        // the plain parses answer on every database, as the edge's pass they replace did (2026-11-26)
++        given.put(Pure.AT_STRING_PARSE_INTEGER.get(0), new Row(NamedRule.TEXT_CAST_TO_INTEGER, "parseInteger/1", true));
++        given.put(Pure.AT_STRING_PARSE_FLOAT.get(0), new Row(NamedRule.TEXT_CAST_TO_FLOAT, "parseFloat/1", true));
+         Map<FunctionId, Row> flagged = new java.util.LinkedHashMap<>();
+         each(flagged, Pure.AT_STRING_SUBSTRING, NamedRule.SUBSTR_AS_GIVEN, "substring(corrected)/2",
+                 "substring(corrected)/3");
+@@ -135,7 +148,7 @@ final class EngineTable implements EditionTable, Edition {
+         if (row == null) {
+             return null;
+         }
+-        if (!PureText.engineAnswers(database)) {
++        if (!row.onEveryDatabase() && !PureText.engineAnswers(database)) {
+             // never guessed: legend-engine's answer on another database is checked first (the database lanes)
+             throw new NotImplementedException("legend-engine's answer for " + row.named()
+                     + (call.pos() == null ? "" : " at " + call.pos().startLine() + ":" + call.pos().startColumn())
+diff --git a/core/src/main/java/com/legend/edge/PurePrintForms.java b/core/src/main/java/com/legend/edge/PurePrintForms.java
+index 4b2091ac..f21b0d24 100644
+--- a/core/src/main/java/com/legend/edge/PurePrintForms.java
++++ b/core/src/main/java/com/legend/edge/PurePrintForms.java
+@@ -34,31 +34,12 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
+     /** The edge's first pass, as a list a dialect returns, a Float literal under {@code toString} written by
+      *  {@code floatLiteral}. */
+     static java.util.List<com.legend.sql.SqlRewriter> passes(FloatLiteral floatLiteral) {
+-        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses());
++        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
+     }
+ 
+-    /**
+-     * F31 (approved by the orchestrator, 2026-11-17): in an edge plan a parse is upstream's -- the plain CAST, its
+-     * refusal the database's own conversion error (DATABASE_ERROR, the database's text), as legend-engine's SQL casts:
+-     * {@code parseInteger} a cast to BIGINT, {@code parseFloat} a cast to DOUBLE, never the product's grammar guard and
+-     * its TEXT_NOT_INTEGER or TEXT_NOT_FLOAT (which the product keeps). A cast of the dialect's own reason, which no
+-     * parse guard reads. (F38, not here: upstream's H2 casts parseInteger AS INTEGER, lite's edge BIGINT.)
+-     */
+-    private static final class UnguardedParses extends com.legend.sql.SqlRewriter {
+-        @Override
+-        protected SqlExpr expr(SqlExpr e) {
+-            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.PARSE_INT) {
+-                return new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.BIGINT, SqlExpr.Reason.DIALECT);
+-            }
+-            if (e instanceof SqlExpr.Cast c && c.reason() == SqlExpr.Reason.USER
+-                    && c.target() == com.legend.sql.SqlType.Scalar.DOUBLE
+-                    && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+-                    && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR) {
+-                return new SqlExpr.Cast(c.value(), com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
+-            }
+-            return e;
+-        }
+-    }
++    // (F31's pass, the unguarded parses: a parse written as upstream's plain cast in every edge plan. Gone 2026-11-26,
++    // the edition program's step 5: the plain cast is a row of legend-engine's table, EngineTable -- inside a store
++    // query alone -- and PCT's legend-pure run and a host-side let keep the product's checked parse.)
+ 
+     /** The edge's pass after {@link PurePrintForms}: a {@link SqlFn#CELL_TEXT} no join read (a TDS cell's
+      *  {@code toString}), legend-engine's {@code TDSNull} where the cell is empty (D1.3, 2026-11-15: until then the
+diff --git a/core/src/main/java/com/legend/lowering/NamedRule.java b/core/src/main/java/com/legend/lowering/NamedRule.java
+index 88366dec..25670da1 100644
+--- a/core/src/main/java/com/legend/lowering/NamedRule.java
++++ b/core/src/main/java/com/legend/lowering/NamedRule.java
+@@ -44,5 +44,14 @@ public enum NamedRule {
+      *  exactly halfway going where that database sends it (away from zero on DuckDB and H2: 16.5 to 17). Not the
+      *  product's {@code round}, which sends a half to the even neighbour on every database, as Pure does (16.5 to
+      *  16). */
+-    ROUND_AS_GIVEN
++    ROUND_AS_GIVEN,
++
++    /** A text read as an Integer by the target database's own cast ({@code SqlFn.CAST_INT}), its refusal the
++     *  database's own conversion error. Not the product's {@code parseInteger}, which checks the text against Pure's
++     *  grammar first and raises lite's own error. */
++    TEXT_CAST_TO_INTEGER,
++
++    /** A text read as a Float by the target database's own cast ({@code SqlFn.CAST_FLOAT}), its refusal the
++     *  database's own conversion error. Not the product's {@code parseFloat}, which checks the text first. */
++    TEXT_CAST_TO_FLOAT
+ }
+diff --git a/core/src/main/java/com/legend/lowering/NamedRules.java b/core/src/main/java/com/legend/lowering/NamedRules.java
+index 2359ba56..bdf21964 100644
+--- a/core/src/main/java/com/legend/lowering/NamedRules.java
++++ b/core/src/main/java/com/legend/lowering/NamedRules.java
+@@ -26,6 +26,8 @@ final class NamedRules {
+             case SQL_POSITION -> new SqlExpr.Call(SqlFn.STRPOS, args);
+             case TRUST_ONE -> args.get(0);
+             case ROUND_AS_GIVEN -> DecimalKindRules.roundAsGiven(call, args);
++            case TEXT_CAST_TO_INTEGER -> new SqlExpr.Call(SqlFn.CAST_INT, args);
++            case TEXT_CAST_TO_FLOAT -> new SqlExpr.Call(SqlFn.CAST_FLOAT, args);
+         };
+     }
+ 
+diff --git a/core/src/main/java/com/legend/sql/SqlFn.java b/core/src/main/java/com/legend/sql/SqlFn.java
+index 86cc18a5..ee7b8791 100644
+--- a/core/src/main/java/com/legend/sql/SqlFn.java
++++ b/core/src/main/java/com/legend/sql/SqlFn.java
+@@ -21,6 +21,13 @@ public enum SqlFn {
+     // spell its golden 'integer' while execution casts BIGINT (the
+     // per-dynafunction origin tag audit 19 F3 called for)
+     PARSE_INT,
++    /** CAST_INT(text), CAST_FLOAT(text): the database's OWN cast of a text to its 64-bit integer and to its double
++     *  (the edition program's step 5, 2026-11-26): every dialect writes its plain CAST, with no grammar check before
++     *  it, so a text the database cannot convert is the database's own conversion error. Not {@link #PARSE_INT} nor
++     *  a user's cast to a Float, which the product checks against Pure's grammar and raises as its own. Written by
++     *  two of the lowering's named rules ({@code NamedRule.TEXT_CAST_TO_INTEGER}, {@code TEXT_CAST_TO_FLOAT}), which
++     *  an edition's table alone names. */
++    CAST_INT, CAST_FLOAT,
+     // Strings
+     CONCAT, LENGTH, UPPER, LOWER, GREATEST, LEAST,
+     // joinStrings over a literal element list in VALUE (map) position:
+diff --git a/core/src/main/java/com/legend/sql/SqlTyping.java b/core/src/main/java/com/legend/sql/SqlTyping.java
+index 8836c317..f6ec4020 100644
+--- a/core/src/main/java/com/legend/sql/SqlTyping.java
++++ b/core/src/main/java/com/legend/sql/SqlTyping.java
+@@ -409,7 +409,7 @@ public final class SqlTyping {
+                     JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR, BINARY_COLLATE -> T_VARCHAR;
+             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
+                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
+-                    EPOCH_MS, EPOCH_NS, PARSE_INT,
++                    EPOCH_MS, EPOCH_NS, PARSE_INT, CAST_INT,
+                     // HASH types as OUR EMISSION: the DuckDB renderer
+                     // reinterprets hash()'s UBIGINT into signed BIGINT
+                     // (DuckDb.hashSigned — exact two's-complement, the
+@@ -419,7 +419,7 @@ public final class SqlTyping {
+                     HASH -> T_BIGINT;
+             case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, RANDOM,
+                     ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
+-                    DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
++                    DEGREES, DIVIDE, JARO_WINKLER, CAST_FLOAT -> T_DOUBLE;
+             case TODAY, MAKE_DATE -> T_DATE;
+             case NOW, MAKE_TIMESTAMP, STRPTIME, PARSE_DATE, FROM_EPOCH_SECONDS,
+                     FROM_EPOCH_MS, FROM_EPOCH_NS, TIMEZONE, DATE_AT_TIME -> T_TIMESTAMP;
+diff --git a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+index 67edd2d4..567d21f6 100644
+--- a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
++++ b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+@@ -1470,6 +1470,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+         return writer.append("CAST(").append(fn).append("(").expr(a.get(0), 0).append(") AS BIGINT)");
+     }
+ 
++    /** The {@code CAST_INT} and {@code CAST_FLOAT} arm of every dialect's {@code call}: the database's own cast of a
++     *  text, as given (an edition's table's rules, NamedRule.TEXT_CAST_TO_INTEGER and TEXT_CAST_TO_FLOAT) -- this
++     *  dialect's plain cast to its 64-bit integer or its double, which no parse guard reads. */
++    protected final SqlWriter rawCast(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
++        return writer.expr(new SqlExpr.Cast(c.args().get(0), c.fn() == com.legend.sql.SqlFn.CAST_INT
++                ? com.legend.sql.SqlType.Scalar.BIGINT : com.legend.sql.SqlType.Scalar.DOUBLE,
++                SqlExpr.Reason.DIALECT), parentPrec);
++    }
++
+     /** {@code CAST(x AS type)}, the type as the calling dialect spells it. */
+     protected final SqlWriter castAs(SqlWriter writer, SqlExpr x, String type) {
+         return writer.append("CAST(").expr(x, 0).append(" AS ").append(type).append(")");
+diff --git a/core/src/main/java/com/legend/sql/dialect/BigQuery.java b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+index be87166f..9eb1de9d 100644
+--- a/core/src/main/java/com/legend/sql/dialect/BigQuery.java
++++ b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+@@ -1673,7 +1673,7 @@ public class BigQuery extends AnsiSqlRenderer {
+             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
+             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
+             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
+-            case PARSE_INT -> parseInt(writer, a.get(0));
++            case PARSE_INT, CAST_INT, CAST_FLOAT -> parses(writer, c, parentPrec);
+             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
+             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
+             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
+@@ -2012,6 +2012,12 @@ public class BigQuery extends AnsiSqlRenderer {
+ 
+     // ---- call arms too long to stay inline (CodeShapeGuardrailTest: call under 250 lines)
+ 
++    /** The {@code PARSE_INT}, {@code CAST_INT} and {@code CAST_FLOAT} arm of {@link #call}: the checked parse, or the
++     *  database's own cast of a text as given. */
++    private SqlWriter parses(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
++        return c.fn() == SqlFn.PARSE_INT ? parseInt(writer, c.args().get(0)) : rawCast(writer, c, parentPrec);
++    }
++
+     /** The {@code ROUND_HALF_UP} and {@code ROUND_RAW} arm of {@link #call}: Pure's HALF_UP rounding, or the
+      *  database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN). */
+     private SqlWriter rounds(SqlWriter writer, SqlExpr.Call c) {
+diff --git a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+index f7602398..97e997d7 100644
+--- a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
++++ b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+@@ -1931,6 +1931,7 @@ public class ClickHouse extends AnsiSqlRenderer {
+             case IN -> inList(writer, c.args(), parentPrec);
+             // 64-bit parse (PCT Long.MIN/MAX round-trips)
+             case PARSE_INT -> parseInteger(writer, c.args().get(0));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             case PI -> writer.append("pi()");
+             case CEILING -> bigintOf(writer, "ceil", c.args());
+             case FLOOR -> bigintOf(writer, "floor", c.args());
+diff --git a/core/src/main/java/com/legend/sql/dialect/Databricks.java b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+index 60bc7ab1..a0b6b597 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Databricks.java
++++ b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+@@ -1082,6 +1082,7 @@ public class Databricks extends AnsiSqlRenderer {
+             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                     w -> w.expr(c.args().get(0), 6).append(" RLIKE '^[+-]?[0-9]+$'"),
+                     w -> castAs(w, c.args().get(0), "BIGINT"));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             // parseDate(text): the ISO text as a timestamp
+             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+             case PI -> writer.append("pi()");
+diff --git a/core/src/main/java/com/legend/sql/dialect/DuckDb.java b/core/src/main/java/com/legend/sql/dialect/DuckDb.java
+index 123069b0..9f5572c5 100644
+--- a/core/src/main/java/com/legend/sql/dialect/DuckDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/DuckDb.java
+@@ -582,6 +582,7 @@ public class DuckDb extends AnsiSqlRenderer {
+             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                     w -> w.append("regexp_full_match(").expr(c.args().get(0), 0).append(", '[+-]?[0-9]+')"),
+                     w -> castAs(w, c.args().get(0), "BIGINT"));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             // NULL-skipping flat concat (the database's concat skips NULL arguments)
+             case CONCAT -> concatFlat(writer, c.args());
+             // joinStrings' interleaved concat, never flattened
+diff --git a/core/src/main/java/com/legend/sql/dialect/H2.java b/core/src/main/java/com/legend/sql/dialect/H2.java
+index 219fa913..7af82a86 100644
+--- a/core/src/main/java/com/legend/sql/dialect/H2.java
++++ b/core/src/main/java/com/legend/sql/dialect/H2.java
+@@ -663,6 +663,7 @@ public class H2 extends AnsiSqlRenderer {
+             case IN -> inList(writer, c.args(), parentPrec);
+             // 64-bit parse (PCT Long.MIN/MAX round-trips)
+             case PARSE_INT -> parseInteger(writer, c.args().get(0));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             // NULL-skipping flat concat (the database's concat skips NULL arguments)
+             case CONCAT -> concatFlat(writer, c.args());
+             // joinStrings' interleaved concat, never flattened
+diff --git a/core/src/main/java/com/legend/sql/dialect/MariaDb.java b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+index 9a3c7059..4b864a76 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MariaDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+@@ -1985,6 +1985,7 @@ public class MariaDb extends AnsiSqlRenderer {
+                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
+             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");
+             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
+             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
+             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
+diff --git a/core/src/main/java/com/legend/sql/dialect/MongoDb.java b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+index 4038cf2a..f6be0aea 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MongoDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+@@ -1067,6 +1067,7 @@ public class MongoDb extends AnsiSqlRenderer {
+             // ---- numbers
+             case PARSE_INT -> guardedParse(writer, a.get(0), "^[+-]?[0-9]+$", "{\"$toLong\": " + G0 + "}",
+                     com.legend.sql.RaiseKind.TEXT_NOT_INTEGER);
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             case SQRT -> writer.append("{\"$sqrt\": ").piece(unfolded(a.get(0))).append("}");
+             case CBRT -> cubeRoot(writer, a);
+             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));
+diff --git a/core/src/main/java/com/legend/sql/dialect/MySql.java b/core/src/main/java/com/legend/sql/dialect/MySql.java
+index 4072831f..fe2c04ed 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MySql.java
++++ b/core/src/main/java/com/legend/sql/dialect/MySql.java
+@@ -103,7 +103,7 @@ public class MySql extends MariaDb {
+     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+         return switch (c.fn()) {
+             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
+-                 DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
++                 DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CAST_INT, CAST_FLOAT, CONCAT, LENGTH, UPPER,
+                  LOWER, GREATEST, LEAST, CONCAT_JOIN, CONCAT_WS, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT,
+                  LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH,
+                  SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
+diff --git a/core/src/main/java/com/legend/sql/dialect/Postgres.java b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+index 26d79526..64b579a2 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Postgres.java
++++ b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+@@ -813,7 +813,7 @@ public class Postgres extends AnsiSqlRenderer {
+             // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+             case CONCAT_WS -> writer.function("concat_ws", c.args());
+             // 64-bit parse (PCT Long.MIN/MAX round-trips)
+-            case PARSE_INT -> parseInt(writer, c.args().get(0));
++            case PARSE_INT, CAST_INT, CAST_FLOAT -> parses(writer, c, parentPrec);
+             // parseDate(text): the ISO text as a timestamp
+             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
+             case PI -> writer.append("pi()");
+@@ -1126,6 +1126,12 @@ public class Postgres extends AnsiSqlRenderer {
+                 .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE PRECISION))");
+     }
+ 
++    /** The {@code PARSE_INT}, {@code CAST_INT} and {@code CAST_FLOAT} arm of {@link #call}: the checked parse, or the
++     *  database's own cast of a text as given. */
++    private SqlWriter parses(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
++        return c.fn() == SqlFn.PARSE_INT ? parseInt(writer, c.args().get(0)) : rawCast(writer, c, parentPrec);
++    }
++
+     /** The {@code ROUND_HALF_UP} and {@code ROUND_RAW} arm of {@link #call}: Pure's HALF_UP rounding, or the
+      *  database's own ROUND over the arguments as given (an edition's table's rule, NamedRule.ROUND_AS_GIVEN). */
+     private SqlWriter rounds(SqlWriter writer, SqlExpr.Call c) {
+diff --git a/core/src/main/java/com/legend/sql/dialect/SQLite.java b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+index 733c6237..951a3dc7 100644
+--- a/core/src/main/java/com/legend/sql/dialect/SQLite.java
++++ b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+@@ -1787,6 +1787,7 @@ public class SQLite extends AnsiSqlRenderer {
+                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
+             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");
+             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
+             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
+             // NULL-skipping, as DuckDB's (SQLite's max/min of several are NULL for any NULL argument)
+diff --git a/core/src/main/java/com/legend/sql/dialect/Snowflake.java b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+index 900626e7..78cfd054 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Snowflake.java
++++ b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+@@ -1530,6 +1530,7 @@ public class Snowflake extends AnsiSqlRenderer {
+                     w -> w.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(stringLit("^[+-]?[0-9]+$"))
+                             .append(")"),
+                     w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)"));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             // an ISO text with an offset is its UTC instant (a TIMESTAMP_NTZ cast drops the offset, measured)
+             case PARSE_DATE -> writer.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(a.get(0), 0)
+                     .append(")) AS TIMESTAMP_NTZ)");
+diff --git a/core/src/main/java/com/legend/sql/dialect/Trino.java b/core/src/main/java/com/legend/sql/dialect/Trino.java
+index 186a523e..887cd61c 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Trino.java
++++ b/core/src/main/java/com/legend/sql/dialect/Trino.java
+@@ -940,6 +940,7 @@ public class Trino extends AnsiSqlRenderer {
+             case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                     w -> w.append("regexp_like(").expr(c.args().get(0), 0).append(", '^[+-]?[0-9]+$')"),
+                     w -> castAs(w, c.args().get(0), "BIGINT"));
++            case CAST_INT, CAST_FLOAT -> rawCast(writer, c, parentPrec);
+             case PI -> writer.append("pi()");
+             case CEILING -> bigintOf(writer, "ceil", c.args());
+             case FLOOR -> bigintOf(writer, "floor", c.args());

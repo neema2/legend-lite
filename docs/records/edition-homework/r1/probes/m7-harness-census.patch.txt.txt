@@ -1,0 +1,50 @@
+diff --git a/core/BUILD.bazel b/core/BUILD.bazel
+index 2bf758b2..04cfd58a 100644
+--- a/core/BUILD.bazel
++++ b/core/BUILD.bazel
+@@ -359,7 +359,7 @@ legend_java_library(
+     # never by rules of its own
+     # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 3, hole 4): the test runner reads the stores a body's planned
+     # appeals name from the plan's data (PlannedAppeals.stores) and seeds them between the body's plan and its run
+-    deps = ["//base", "//json", ":compiler", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test_plan", ":values"],
++    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test_plan", ":values"],
+ )
+ # legend-lite's own API (server/LiteV1Api.java; B7, 2026-11-17: its legend-engine content moved to the edge): THE PLAN SIDE -- no database and
+ # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
+diff --git a/core/src/main/java/com/legend/test/PureTestRunner.java b/core/src/main/java/com/legend/test/PureTestRunner.java
+index 6977097f..93f6dd1c 100644
+--- a/core/src/main/java/com/legend/test/PureTestRunner.java
++++ b/core/src/main/java/com/legend/test/PureTestRunner.java
+@@ -271,6 +271,10 @@ public final class PureTestRunner implements AutoCloseable {
+     /** Run one test: its package session (opened on demand), its setups once,
+      *  its body through the platform, one result. */
+     public Result run(PureTests.TestCase t) {
++        if (Boolean.getBoolean("probe.m7.only")) {
++            M7Probe.census(t, ctx);
++            return new Result(t.fqn(), Status.SKIPPED, List.of(), "m7 probe");
++        }
+         observer.testStarted(t);
+         // the test's audience: its options, its run hook and its door together (B3 step 2b, 2026-11-24)
+         Audience audience = observer.audience(t);
+diff --git a/spec/BUILD.bazel b/spec/BUILD.bazel
+index b925c377..b26da81c 100644
+--- a/spec/BUILD.bazel
++++ b/spec/BUILD.bazel
+@@ -190,7 +190,7 @@ corpus_lane(
+     # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
+     # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
+     # shows here as a verdict that moves, against the committed rosters
+-    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
++    jvm_flags = ["-Dlegend.diagnostics=decoded-plan", "-Dprobe.m7.only=true"],
+     rosters = "duckdb",
+     runtime_deps = [":spec_tests_lib"],
+ )
+@@ -232,7 +232,7 @@ corpus_lane(
+     name = "corpus_h2",
+     memory_mb = 4096,
+     data = _CORPUS_INPUTS,
+-    jvm_flags = ["-Drcorpus.backend=h2"],
++    jvm_flags = ["-Drcorpus.backend=h2", "-Dprobe.m7.only=true"],
+     rosters = "h2",
+     runtime_deps = [":spec_tests_lib"],
+ )

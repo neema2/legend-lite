@@ -204,12 +204,14 @@ public final class HostAnswers {
      * 4.145.0, 2026-10-08): {@code legend.builder}, the TDS builder as the JSON answer's; {@code legend.activities},
      * the activities WITHOUT their {@code _type}; {@code legend.columns}, the column names. The host writes the rows
      * as upstream does: an Arrow IPC stream with this metadata, compressed as one zstd frame. {@code models} are the
-     * only models the host runs: a request over any other is refused. {@code style}: the plan's, pure/v1's the
-     * compatibility edge's ({@code com.legend.edge.PureText.UPSTREAM}, Pure's sentence for a raise: the user's ruling of
-     * 2026-11-10; the D part 1 audit's M2, 2026-11-15), handed by the host's door, which the product never names (G5).
+     * only models the host runs: a request over any other is refused. {@code style}: the plan's, which is pure/v1's
+     * ({@code com.legend.edge.PureText.PURE_V1}), handed by the host's door, which the product never names (G5). Any
+     * other style is refused: legend-engine's meaning at this door is its style's edition's (the edition program's
+     * step 2, 2026-11-26; until then a rewrite of the typed query gave it under any style).
      */
     public static Answer arrowPlan(String body, java.util.Collection<String> models,
             com.legend.database.PlanStyle style) {
+        PureText.requirePureV1(style);
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
             QueryPlan plan = hosted.query().plan(hosted.runtime(), style);
@@ -261,6 +263,7 @@ public final class HostAnswers {
      */
     public static Answer jsonPlan(String body, java.util.Collection<String> models,
             com.legend.database.PlanStyle style) {
+        PureText.requirePureV1(style);
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
             com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime(),
@@ -416,8 +419,11 @@ public final class HostAnswers {
         }
         LambdaFunction lambda = ProtocolReader.lambda(
                 boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
-        com.legend.TypedQuery query = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda);
-        return new Hosted(query, runtimeOf(request, query));
+        com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
+        // legend-engine's meaning at this door too, as at pure/v1's execute (B3 step 5a's review, M2, 2026-11-25)
+        com.legend.TypedQuery query = EngineComparisons.query(ctx, lambda);
+        String runtime = runtimeOf(request, query);
+        return new Hosted(query, runtime);
     }
 
     /** The TDS builder (moved from server.LiteV1Api, the P2 checkpoint audit's S5, 2026-11-16: legend-engine's

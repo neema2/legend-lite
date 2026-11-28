@@ -57,7 +57,7 @@ final class AssertRecords {
         @Nullable String eClass = ef == null ? null : ef.classFqn();
         @Nullable String aClass = af == null ? null : af.classFqn();
         if (!wantEqual) {
-            return notEqual(e, a, aClass);
+            return notEqual(e, a, eClass, aClass);
         }
         return incidental ? sameElements(e, a, eClass, aClass)
                 : sidesNotEqual(e, a, carrier(ef, eCarried), carrier(af, aCarried), eClass, aClass,
@@ -72,7 +72,11 @@ final class AssertRecords {
     /** A side's values as a JSON carrier may have brought them: none for a side of a primitive kind. */
     private static List<Object> carrier(com.legend.testexecutionplan.HostJudgment.@Nullable SideFacts f,
             List<Object> carried) {
-        return f != null && f.kind() instanceof com.legend.testexecutionplan.KindClass.Primitive ? List.of() : carried;
+        // (a Variant side's JSON texts are its VALUES, no class's carrier: read as one, a Variant holding an object
+        // or an array against a value of another type was written "expected: [{...}], actual: []", the other side
+        // lost -- probed 2026-11-27)
+        return f != null && (f.kind() instanceof com.legend.testexecutionplan.KindClass.Primitive || variant(f))
+                ? List.of() : carried;
     }
 
     /**
@@ -144,8 +148,9 @@ final class AssertRecords {
         return java.util.Collections.unmodifiableList(new java.util.ArrayList<>(l));
     }
 
-    static ErrorRecord notEqual(List<Object> e, List<Object> a, @Nullable String aClass) {
-        return record(AssertKind.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, aClass));
+    static ErrorRecord notEqual(List<Object> e, List<Object> a, @Nullable String eClass, @Nullable String aClass) {
+        return record(AssertKind.NOT_EQUALS, "expected", LiteWords.pairSide(e, a, eClass), "actual",
+                LiteWords.pairSide(a, e, aClass));
     }
 
     static ErrorRecord sameElements(List<Object> e, List<Object> a, @Nullable String eClass, @Nullable String aClass) {
@@ -189,7 +194,7 @@ final class AssertRecords {
         return out;
     }
 
-    /** A tagged side's values ({@code VerdictSql.typedTagged}): each struct's value, the column its kind's index
+    /** A tagged side's values ({@code SideEqualities.tagged}): each struct's value, the column its kind's index
      *  ({@code k}) names. */
     private static List<Object> untagged(List<Object> structs) {
         List<Object> out = new java.util.ArrayList<>(structs.size());
@@ -225,7 +230,7 @@ final class AssertRecords {
      *  database judge's typed row structs, item 3's S4). */
     static ErrorRecord grids(List<? extends List<?>> e, List<? extends List<?>> a, boolean wantEqual) {
         return wantEqual ? record(AssertKind.EQUALS, "expected", rowsText(e), "actual", rowsText(a))
-                : record(AssertKind.NOT_EQUALS, "actual", rowsText(a));
+                : record(AssertKind.NOT_EQUALS, "expected", rowsText(e), "actual", rowsText(a));
     }
 
     static ErrorRecord size(@Nullable Object expected, long actual) {
@@ -245,7 +250,8 @@ final class AssertRecords {
 
     static ErrorRecord negated(String kind, List<Object> first, List<Object> second) {
         return switch (kind) {
-            case "NOT_EQ" -> record(AssertKind.NOT_EQUALS, "actual", LiteWords.side(second, null));
+            case "NOT_EQ" -> record(AssertKind.NOT_EQUALS, "expected", LiteWords.side(first, null), "actual",
+                    LiteWords.side(second, null));
             case "IS_NOT" -> record(AssertKind.IS_NOT, "actual", LiteWords.side(second, null));
             // the sides are the collection's, then the value's (planContains)
             case "NOT_CONTAINS" -> record(AssertKind.NOT_CONTAINS, "collection", LiteWords.values(first, null),

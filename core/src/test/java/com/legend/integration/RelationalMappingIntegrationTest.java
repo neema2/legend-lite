@@ -225,6 +225,15 @@ class RelationalMappingIntegrationTest {
             var r = exec(m, "model::R.all()->project(~[s:x|$x.s, i:x|$x.i, f:x|$x.f, b:x|$x.b, d:x|$x.d])");
             assertEquals(1, r.rowCount());
             assertEquals(5, r.columnCount());
+            // a Float the store holds as an integer (the BIGINT column under a Float property) prints every Float's
+            // text, a whole value keeping one fraction digit: S311 amended by the user's ruling of 2026-11-23 ("I think
+            // we do it as 2.0"; B2a, 2026-11-24 -- until then a plain cast printed its digits, 42, beside a computed
+            // 42.0: one text per type, B2a's audit's finding)
+            String asFloat = singleTableModel("Q", "MIXED", "store::DB", "model::M",
+                    "Class model::Q { i: Float[1]; }",
+                    "ID INTEGER, S VARCHAR(100), I BIGINT, F DOUBLE, B BIT, D DATE",
+                    "i: [store::DB] MIXED.I");
+            assertEquals(List.of("42.0"), colStr(exec(asFloat, "model::Q.all()->project(~[t:x|$x.i->toString()])"), 0));
             assertEquals("hello", r.rows().get(0).get(0).toString());
         }
 
@@ -924,7 +933,7 @@ class RelationalMappingIntegrationTest {
                         TaskStatus: EnumerationMapping TaskStatusMap { PENDING: 'PENDING', IN_PROGRESS: 'IN_PROGRESS', DONE: 'DONE' }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "model::Task.all()->filter({t|$t.status == 'PENDING'})->project(~[name:t|$t.name])");
+            var r = exec(m, "model::Task.all()->filter({t|$t.status == model::TaskStatus.PENDING})->project(~[name:t|$t.name])");
             assertEquals(2, r.rowCount());
         }
 

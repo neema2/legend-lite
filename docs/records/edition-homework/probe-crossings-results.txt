@@ -1,0 +1,71 @@
+kind                              sites    lines  test bodies
+mapping: class                       18      114           88
+island                                3        8            5
+derived property                      2       16           16
+unscoped                              2        5            3
+mapping: association                  1        2            2
+platform function                     1       88           88
+user function                         1        1            1
+
+== mapping: class: by lane (test bodies)
+       42  corpus_h2
+       42  corpus_duckdb
+        4  core_tests_integration
+== mapping: class: sites (most reached first)
+       30  fn meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order  ==  FLOAT vs INTEGER  @null
+       28  fn meta::relational::validation::showcase::standalone::validationShowcaseMapping$class$meta::relational::valid  ==  STRING vs INTEGER  @null
+       10  fn meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::System  ==  STRING vs INTEGER  @null
+        8  fn meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin$cla  ==  INTEGER vs STRING  @null
+        8  fn meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::System  ==  STRING vs INTEGER  @null
+        4  fn meta::relational::tests::TestMappingWithViewJoins$class$meta::relational::tests::model::simple::Person  ==  STRING vs ClassType[fqn=meta::relational::metamodel::SQLNull]  @null
+        4  fn meta::relational::validation::showcase::standalone::validationShowcaseMappingWithInnerJoinsInFilter$class$m  ==  STRING vs INTEGER  @null
+        2  fn meta::relational::graphFetch::tests::isolation::IsolationTestMapping1$class$meta::relational::graphFetch::t  ==  BOOLEAN vs INTEGER  @null
+        2  fn meta::relational::graphFetch::tests::isolation::IsolationTestMapping1$class$meta::relational::graphFetch::t  ==  BOOLEAN vs INTEGER  @null
+        2  fn meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolat  ==  INTEGER vs STRING  @null
+        2  fn meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolat  ==  INTEGER vs STRING  @null
+        2  fn meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::MergeAliasMappingWithInnerJoinF  ==  INTEGER vs STRING  @null
+        2  fn meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::inheritanceMappingWithInnerJoin  ==  INTEGER vs STRING  @null
+        2  fn meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::inheritanceMappingWithInnerJoin  ==  INTEGER vs STRING  @null
+        2  fn model::SalaryBandMapping$class$model::PersonWithSalary  <  DECIMAL vs INTEGER  @SourceInfo[sourceId=, startLine=218, startColumn=36, endLine
+        2  fn model::SalaryBandMapping$class$model::PersonWithSalary  <  DECIMAL vs INTEGER  @SourceInfo[sourceId=, startLine=218, startColumn=71, endLine
+        2  fn model::SalaryBandMapping$class$model::PersonWithSalary  <  DECIMAL vs INTEGER  @SourceInfo[sourceId=, startLine=113, startColumn=36, endLine
+        2  fn model::SalaryBandMapping$class$model::PersonWithSalary  <  DECIMAL vs INTEGER  @SourceInfo[sourceId=, startLine=113, startColumn=71, endLine
+
+== island: by lane (test bodies)
+        5  core_tests_integration
+== island: sites (most reached first)
+        4  island  >=  FLOAT vs INTEGER  @null
+        2  island  >=  DECIMAL vs INTEGER  @null
+        2  island  >  FLOAT vs INTEGER  @null
+
+== derived property: by lane (test bodies)
+        8  corpus_h2
+        8  corpus_duckdb
+== derived property: sites (most reached first)
+       12  fn meta::relational::tests::model::simple::Money$prop$usdRate  ==  DATE_TIME vs STRICT_DATE  @SourceInfo[sourceId=, startLine=650, startColumn=51, endLine
+        4  fn meta::relational::tests::m2m2r::Entitlement$prop$prop3  ==  DECIMAL vs FLOAT  @SourceInfo[sourceId=, startLine=215, startColumn=32, endLine
+
+== unscoped: by lane (test bodies)
+        2  core_tests_integration
+        1  core_tests_compiler
+== unscoped: sites (most reached first)
+        4  unscoped TypedQuery.body  >=  DECIMAL vs INTEGER  @null
+        1  unscoped org.junit.platform.commons.util.ReflectionUtils.invokeMethod  ==  INTEGER vs STRING  @SourceInfo[sourceId=, startLine=1, startColumn=1, endLine=1,
+
+== mapping: association: by lane (test bodies)
+        1  corpus_h2
+        1  corpus_duckdb
+== mapping: association: sites (most reached first)
+        2  fn meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2$assoc$meta::pure::graphFetch::t  >  DATE_TIME vs STRICT_DATE  @SourceInfo[sourceId=, startLine=205, startColumn=107, endLin
+
+== platform function: by lane (test bodies)
+       44  corpus_h2
+       44  corpus_duckdb
+== platform function: sites (most reached first)
+       88  fn meta::relational::functions::toPostgresModel::getDynaFunctionConverterMap  ==  ClassType[fqn=meta::external::query::sql::metamodel::Expression] vs BOOLEAN  @SourceInfo[sourceId=, startLine=468, startColumn=109, endLin
+
+== user function: by lane (test bodies)
+        1  core_tests_compiler
+== user function: sites (most reached first)
+        1  fn f::r  ==  STRING vs ClassType[fqn=meta::relational::metamodel::SQLNull]  @SourceInfo[sourceId=, startLine=1, startColumn=105, endLine=
+

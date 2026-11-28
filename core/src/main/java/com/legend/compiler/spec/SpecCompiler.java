@@ -50,8 +50,14 @@ public final class SpecCompiler {
     private final ModelContext ctx;
 
     public SpecCompiler(ModelContext ctx) {
+        this(ctx, LiteCrossTypeRule.INSTANCE);
+    }
+
+    /** A compiler whose comparisons across types are {@code crossTypes}'s: a door's setting for the query it admits
+     *  ({@link CrossTypeRule}; {@code TypedQuery.comparing}). */
+    public SpecCompiler(ModelContext ctx, CrossTypeRule crossTypes) {
         this.ctx = ctx;
-        this.typer = new Typer(ctx, new InferenceKernel(ctx));
+        this.typer = new Typer(ctx, new InferenceKernel(ctx), java.util.Objects.requireNonNull(crossTypes));
     }
 
     private TypedSpec viewBody(TypedFunction fn) {
@@ -109,6 +115,10 @@ public final class SpecCompiler {
             // the body's error inside the function's frame (stage B's BE, 2026-11-21, the one error model)
             throw new TypeInferenceException(frameOf(fn), e);
         }
+        // a comparison across types the door's setting left as its marker in this body (lite's: the one equality
+        // inside a function's and a mapping's code, the edition program's step 4, 2026-11-26): the function's compile
+        // error, raised here, once its body is typed whole -- never where the comparison is typed
+        CrossTypeComparisons.refuse(cf.body());
         memo.put(fn, cf);
         return cf;
     }
@@ -313,10 +323,39 @@ public final class SpecCompiler {
         return typer.typeBody(expr, env, Expected.infer());
     }
 
+    /** {@code call}, a comparison a planner built over typed sides (an assert as the condition it means, over its
+     *  sides as named values; the equality program's first slice, 2026-11-26), answered by the door's comparison
+     *  setting as a comparison written in a query is ({@link CrossTypeRule#inQuery}): itself where its sides are of
+     *  one type, else the setting's answer -- lite's the marker its planner refuses. The one way a call built after
+     *  the typer meets the setting; {@link #typeQueryBodyMarked} is the body's. */
+    public TypedSpec comparedAsInAQuery(com.legend.compiler.spec.typed.TypedNativeCall call) {
+        com.legend.base.RunScope.planning("type a spec");
+        return typer.comparing(Typer.Compared.QUERY, () -> typer.compared(call, call.callee(), call.args(), call.pos()));
+    }
+
+    /** {@code comparison}, one written in a function between values whose types the caller gives, answered by the
+     *  door's comparison setting now that the function stands in the query ({@link CrossTypeRule#atTheCall}). */
+    TypedSpec atTheCall(com.legend.compiler.spec.typed.TypedRunTimeComparison comparison) {
+        return typer.atTheCall(comparison);
+    }
+
+    /** Whether {@code comparison}, one kept for its call, keeps its two sides until the door's setting answers it
+     *  there ({@link CrossTypeRule#answersAKeptComparisonByItsTypes}). */
+    boolean keptForItsTypes(TypedSpec comparison) {
+        return typer.keptForItsTypes(comparison);
+    }
+
     /** A lambda parameter's declared type and multiplicity, as {@link #typeQueryBody} puts it in scope. */
     public com.legend.compiler.element.type.ExprType declaredParameterType(com.legend.protocol.spec.Variable parameter) {
         com.legend.base.RunScope.planning("type a spec");
         return typer.declaredType(parameter);
+    }
+
+    /** {@link #typeQueryBody} for the body a door receives ({@code TypedQuery.body}): each comparison across types in it
+     *  is the comparison setting's answer for the query ({@link CrossTypeRule#inQuery}; B3 step 5, the one equality) --
+     *  lite's the marker its planner refuses. */
+    public List<TypedSpec> typeQueryBodyMarked(ValueSpecification query) {
+        return typer.comparing(Typer.Compared.QUERY, () -> typeQueryBody(query));
     }
 
     /**
@@ -328,7 +367,11 @@ public final class SpecCompiler {
      */
     public List<TypedSpec> typeQueryBody(ValueSpecification query) {
         com.legend.base.RunScope.planning("type a spec");
-        query = withIslandPrograms(query);
+        // the statements an island program wrote (SQL's, Cypher's): typed by their own language's comparison rule (B3
+        // step 5, 2026-11-25: 100 against a Float column is a valid SQL comparison), so never marked
+        java.util.Set<ValueSpecification> islandStatements = java.util.Collections.newSetFromMap(
+                new java.util.IdentityHashMap<>());
+        query = withIslandPrograms(query, islandStatements);
         // A query's PARAMETERS ({minQty: Integer[1]|...}) are in scope at their declared types:
         // the query's value is its BODY's, as legend-engine types it (lambdaReturnType,
         // lambdaRelationType) -- not the lambda's own function type. Undeclared parameters stay loud.
@@ -374,7 +417,11 @@ public final class SpecCompiler {
                                     .parameters().get(1));
                     continue;
                 }
-                TypedSpec typed = typer.typeBody(stmt, scope, Expected.infer());
+                ValueSpecification typing = stmt;
+                Env typingScope = scope;
+                TypedSpec typed = islandStatements.contains(stmt)
+                        ? typer.comparing(Typer.Compared.UNREAD, () -> typer.typeBody(typing, typingScope, Expected.infer()))
+                        : typer.typeBody(stmt, scope, Expected.infer());
                 body.add(typed);
                 if (typed instanceof TypedLet let) {
                     // same syntax-carrying bind as the function-body fold
@@ -400,7 +447,7 @@ public final class SpecCompiler {
      *  {@link CypherIslands#statements}), and likewise each {@code #SQL{...}#} statement that writes a table in more
      *  than one statement ({@link SqlIslands#isProgram}, {@link SqlIslands#statements}), as a lambda of the query's
      *  parameters; a query of none as it is. */
-    private ValueSpecification withIslandPrograms(ValueSpecification query) {
+    private ValueSpecification withIslandPrograms(ValueSpecification query, java.util.Set<ValueSpecification> island) {
         List<ValueSpecification> body = query instanceof com.legend.protocol.spec.LambdaFunction lf ? lf.body()
                 : List.of(query);
         if (body.stream().noneMatch(s -> s instanceof com.legend.protocol.spec.SqlIsland si
@@ -410,11 +457,16 @@ public final class SpecCompiler {
         List<ValueSpecification> out = new ArrayList<>();
         for (ValueSpecification stmt : body) {
             if (stmt instanceof com.legend.protocol.spec.SqlIsland si && CypherIslands.updates(si)) {
-                out.addAll(CypherIslands.statements(si, ctx));
+                List<ValueSpecification> written = CypherIslands.statements(si, ctx);
+                island.addAll(written);
+                out.addAll(written);
             } else if (stmt instanceof com.legend.protocol.spec.SqlIsland si && SqlIslands.isProgram(si)) {
                 // a #SQL{...}# statement written in several statements (RETURNING, the writes design's leg 4; an ON
                 // CONFLICT DO UPDATE's check of its keys, PR #67's second review)
-                out.addAll(SqlIslands.statements(si, source -> typer.synth(source, Env.empty()), ctx));
+                List<ValueSpecification> written = SqlIslands.statements(si,
+                        source -> typer.comparing(Typer.Compared.UNREAD, () -> typer.synth(source, Env.empty())), ctx);
+                island.addAll(written);
+                out.addAll(written);
             } else {
                 out.add(stmt);
             }

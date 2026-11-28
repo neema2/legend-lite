@@ -769,6 +769,12 @@ public final class MappingNormalizer {
         return cm instanceof ClassMapping.Union || cm instanceof ClassMapping.Inheritance;
     }
 
+    /** A class mapping's provenance: the relational mapping language's translation where the mapping is a
+     *  relational one (its columns, filters and joins compare by SQL's rule); Pure otherwise. */
+    private static FunctionDefinition.Synthesized provenance(ClassMapping cm, FunctionDefinition.Synthesized from) {
+        return cm instanceof ClassMapping.Relational ? from.ofRelationalLanguage() : from;
+    }
+
     static FunctionDefinition synthesizeClassMapping(ResolvedMapping md,
                                                             ClassMapping cm,
                                                             ModelBuilder model,
@@ -796,8 +802,8 @@ public final class MappingNormalizer {
                 Multiplicity.Concrete.ZERO_MANY,
                 List.of(body),
                 List.of(), List.of())
-                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
-                        SynthHat.CLASS, md.qualifiedName(), cm.className()));
+                .withSynthesizedFrom(provenance(cm, new FunctionDefinition.Synthesized(
+                        SynthHat.CLASS, md.qualifiedName(), cm.className())));
     }
 
     /**
@@ -1120,7 +1126,7 @@ public final class MappingNormalizer {
                 List.of(body),
                 List.of(), List.of())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(
-                        SynthHat.ASSOC, md.qualifiedName(), mj.associationName()));
+                        SynthHat.ASSOC, md.qualifiedName(), mj.associationName()).ofRelationalLanguage());
     }
 
 

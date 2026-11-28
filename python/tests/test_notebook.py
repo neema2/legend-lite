@@ -23,7 +23,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite import datacube, notebook
+from legend_lite import _json, datacube, notebook
 from legend_lite.notebook import DataCube
 
 
@@ -138,7 +138,7 @@ class Calls(Widget):
         # Arrow stream (legend-engine's execute is the edge's, H5)
         cube = self.cube(name='trades')
         table = datacube._session.frames['trades']
-        body = json.dumps({'lambda': json.dumps(ll.parse('|' + table.accessor + '->filter(x|$x.qty > 5)')),
+        body = json.dumps({'lambda': _json.dumps(ll.parse('|' + table.accessor + '->filter(x|$x.qty > 5.0)')),
                            'model': table.model, 'runtime': table.runtime})
         status, kind, _, answer = self.call(cube, 'POST', '/plan-and-run.json', '', body)
         self.assertEqual((status, kind), (200, 'application/vnd.apache.arrow.stream'), answer[:300])

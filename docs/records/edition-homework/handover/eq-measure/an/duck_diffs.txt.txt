@@ -1,0 +1,658 @@
+q0012 [abt] {|assertIsNot(1, 2)}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0013 [abt] {|assertIsNot('x', 'x')}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected an instance other than "x" || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected an instance other than "x" || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0034 [abt] {|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: 10 || NotImplementedException: the program road does not plan this body: host judge's planner re
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: 10 || NotImplementedException: the program road does not plan this body: database judge's planne
+q0042 [abt] {|let l = [10]; [1, 1]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: the program road does not plan this body: host judge's planner re
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: the program road does not plan this body: database judge's planne
+q0050 [abt] {|assertIs(t::Employee, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0051 [abt] {|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(1)->type())}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0052 [abt] {|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected t::Person, got t::Employee || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected t::Person, got t::Employee || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0062 [abt,b3,pct] {|assertEquals(1, 1.0)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1, got 1.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1, got 1.0 || pass verdicts=1
+q0063 [abt,pct] {|assertEquals([1, 2], [1.0, 2.0])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1, 2], got [1.0, 2.0] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1, 2], got [1.0, 2.0] || pass verdicts=1
+q0064 [abt] {|assertSameElements([2, 1], [2.0, 1.0])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [2, 1] in any order, got [2.0, 1.0] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [2, 1] in any order, got [2.0, 1.0] || pass verdicts=1
+q0065 [abt,b12] {|assertEquals(1D, 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1 (Decimal), got 1 (Integer) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1 (Decimal), got 1 (Integer) || pass verdicts=1
+q0066 [abt,b3,pct] {|assertEquals(1.5, 1.5D)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1.5 (Float), got 1.5 (Decimal) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1.5 (Float), got 1.5 (Decimal) || pass verdicts=1
+q0067 [abt] {|assertNotEquals(3, 3D)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0069 [abt] {|assertEquals([], [1, 2]->filter(x | $x > 5))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0086 [abt] {|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0087 [abt,b3] {|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0088 [abt,pct] {|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0089 [abt] {|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:00.000, %2020-01-01T11:00:00]->at(0))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0091 [abt,b3,pct] {|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01, got 2020-01-01T00:00:00.000000000Z || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01, got 2020-01-01T00:00:00.000000000Z || pass verdicts=1
+q0094 [abt] {|assertContains([%2020-01-01T10:00:00.5, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00.50)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0095 [abt] {|assertContains([%2020-01-01T10:00:00.000, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0099 [abt] {|assertEquals([], ['a', 'b']->filter(x | $x == 'c'))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0100 [abt] {|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0103 [abt] {|assertInstanceOf(1 + 1, Integer)}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: instanceOf undecidable statically: INTEGER vs 'meta::pure::metamo
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: instanceOf undecidable statically: INTEGER vs 'meta::pure::metamo
+q0114 [abt] {|assertSameElements([true, false], [true])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected the elements [true, false] in any order, got [true] || DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected the elements [true, false] in any order, got [true] || DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])
+q0115 [abt] {|assertSameElements([%2020-01-02, %2019-05-01], [%2019-05-01])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected the elements [2020-01-02, 2019-05-01] in any order, got [2019-05-01 || DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected the elements [2020-01-02, 2019-05-01] in any order, got [2019-05-01 || DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])
+q0117 [abt] {|assertEquals(1, [1, 2])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected [1], got [1, 2] || DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\n\nLINE 1:
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected [1], got [1, 2] || DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\n\nLINE 3:
+q0122 [abt] {|assertIs('a', 'a')}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0123 [abt,b3] {|assertIs(1, 2)}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected 1, got 2 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected 1, got 2 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0139 [abt] {|assertEq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1 (Integer), got 1 (Decimal) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1 (Integer), got 1 (Decimal) || pass verdicts=1
+q0140 [abt] {|assertEq(1, p::P.all()->map(x | $x.d)->toOne())}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1 (Integer), got 1 (Decimal) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1 (Integer), got 1 (Decimal) || pass verdicts=1
+q0141 [abt] {|assertIs(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected 1 (Integer), got 1 (Decimal) || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected 1 (Integer), got 1 (Decimal) || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0142 [abt] {|assertIs(1, p::P.all()->map(x | $x.d)->toOne())}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected 1 (Integer), got 1 (Decimal) || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected 1 (Integer), got 1 (Decimal) || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0143 [abt] {|assertNotEq(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0144 [abt] {|assertNotEq(1, p::P.all()->map(x | $x.d)->toOne())}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0145 [abt] {|assertIsNot(1, p::P.all()->filter(x | $x.id == 1)->toOne().d)}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0146 [abt] {|assertIsNot(1, p::P.all()->map(x | $x.d)->toOne())}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0152 [abt] {|assertNotEquals([], [1, 2]->filter(x | $x > 5))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected a value other than [] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected a value other than [] || pass verdicts=1
+q0160 [abt] {|assertEquals([1.0D, 10.125D], [1.0D])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected [1.000, 10.125], got [1.0] || DataError: Conversion Error: Unimplemented type for cast (DECIMAL(2,1) -> DECIMAL(5,3)[])\
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected [1.000, 10.125], got [1.0] || DataError: Conversion Error: Unimplemented type for cast (DECIMAL(2,1) -> DECIMAL(5,3)[])\
+q0174 [abt] {|assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z || pass verdicts=1
+q0176 [abt] {|assertEquals(%2020-01-01T10:00:00.123456789, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+q0177 [abt] {|assertEquals(%2020-01-01T10:00, [%2019-01-01, %2020-01-01T10:00:00]->max())}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+q0181 [abt] {|assertEquals(%2020-01-01T10:00:00, [%2019-01, %2020-01-01T10:00:00.000]->at(1))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0183 [abt] {|assertIsNot(3, [1, 2.0, 3]->max())}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected an instance other than 3 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected an instance other than 3 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0184 [abt] {|assertIsNot(4, [1, 2.0, 3]->max())}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0204 [abt,b5,pct] {|assertEquals('1', 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected "1", got 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected "1", got 1 || pass verdicts=1
+q0205 [abt,b5] {|assertSameElements(['1'], [1])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements ["1"] in any order, got [1] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements ["1"] in any order, got [1] || pass verdicts=1
+q0206 [abt,b5] {|assertEq(true, 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected true, got 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected true, got 1 || pass verdicts=1
+q0208 [abt] {|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values, [1, 3])}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected [1, 2, 3], got [1, 3] || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericT || AssertFailed: expected true, got false
+q0212 [abt] {|assertEquals([1.50D, 2.25D], [1.50D])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected [1.50, 2.25], got [1.50] || DataError: Conversion Error: Unimplemented type for cast (DECIMAL(3,2) -> DECIMAL(3,2)[])\
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected [1.50, 2.25], got [1.50] || DataError: Conversion Error: Unimplemented type for cast (DECIMAL(3,2) -> DECIMAL(3,2)[])\
+q0214 [abt] {|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.1234567890)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0219 [abt] {|assertEquals(%2020-01-01T10:00:00.123456, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+q0221 [abt] {|assertEquals(%2020-01-01T10:00:00.5, [%2019-01, %2020-01-01T10:00:00.500]->at(1))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0222 [abt] {|assertEquals(%2407-05-19T19:15:12, %2407-05-19T19:15:12.000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0231 [abt] {|assertEquals(%25489-01-01T10:00:00, %25489-01-01T10:00:00.000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0233 [abt] {|assertEquals(%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00.0000000002)}
+   HOST     a=REFUSED  b=FAIL     | DialectCapability: the date-time 2020-01-01T10:00:00.0000000001 has 10 fraction digits; no || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | DialectCapability: the date-time 2020-01-01T10:00:00.0000000001 has 10 fraction digits; no || AssertFailed: expected true, got false
+q0310 [abt,b5] {|assertEquals(true, 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected true, got 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected true, got 1 || pass verdicts=1
+q0311 [abt,b5] {|assertNotEquals('1', 1)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0316 [abt] {|assertContains([%2020-01-01T00:00, %2020-01-02]->map(x | $x), %2020-01-02T00:00)}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+q0317 [abt] {|assertEquals(%2020-01-02T00:00, [%2020-01-02, %2020-01-01T00:00]->at(0))}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+q0318 [abt,b8,b9] {|assertContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+q0319 [abt,b9] {|assertEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+q0320 [abt] {|assertNotContains([1, 2], '1'->fromJson())}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertNotContains: UNJUDGED in database mode — a Variant membership: no type || pass verdicts=1
+q0328 [abt] {|assertEq(newMap([pair('a', 1)]), newMap([pair('a', 1)]))}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, whic || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, whic || pass verdicts=1
+q0331 [abt] {|assertEquals(newMap([pair('a', 1), pair('b', 2)]), newMap([pair('b', 2), pair('a', 1)]))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0340 [abt] {|assertNotEquals(1->cast(@Any), 'a'->cast(@Any))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Conversion Error: Could not convert string 'a' to INT32\n\nLINE 1: SELECT 1 <> 
+   DATABASE a=PASS     b=ERR      | pass verdicts=1 || DataError: Conversion Error: Could not convert string 'a' to INT32\n\nLINE 3:     SELECT 1
+q0341 [abt] {|assertNotEquals([1]->cast(@Any), [1.0]->cast(@Any))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0350 [abt] {|assertContains(p::Q.all().e, 1.5D)}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || pass verdicts=1
+q0360 [abt] {|assertEquals(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n  2\n#->sort(~id->descending()))}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected [[1], [2]], got [[2], [1]] || DataError: Invalid Input Error: More than one row returned by a subquery used as an expres
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected [[1], [2]], got [[2], [1]] || DataError: Invalid Input Error: More than one row returned by a subquery used as an expres
+q0361 [abt] {|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [[1]], got [[1]] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [[1]], got [[1]] || pass verdicts=1
+q0362 [abt,pct] {|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [[1]], got [[1.0]] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [[1]], got [[1.0]] || pass verdicts=1
+q0365 [abt] {|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Conversion Error: invalid timestamp field format: "2015-04-16T14", expected for
+   DATABASE a=PASS     b=ERR      | pass verdicts=1 || DataError: Conversion Error: invalid timestamp field format: "2015-04-16T14", expected for
+q0366 [abt] {|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Conversion Error: invalid timestamp field format: "1973-11-13T23", expected for
+   DATABASE a=PASS     b=ERR      | pass verdicts=1 || DataError: Conversion Error: invalid timestamp field format: "1973-11-13T23", expected for
+q0367 [abt] {|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected 2015-04-16T14:00:00.000000000Z, got 2015-04-16T15:00:00.000000000Z || DataError: Conversion Error: invalid timestamp field format: "2015-04-16T15", expected for
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected 2015-04-16T14:00:00.000000000Z, got 2015-04-16T15:00:00.000000000Z || DataError: Conversion Error: invalid timestamp field format: "2015-04-16T15", expected for
+q0369 [abt] {|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0370 [abt] {|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z || pass verdicts=1
+q0400 [b1] {|assertEquals(1, [fromJson('1'), 2]->at(0))}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: an equality between two whole Variants is not computed: legend-pu || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: an equality between two whole Variants is not computed: legend-pu || AssertFailed: expected true, got false
+q0401 [b1] {|assertNotEquals(1, [fromJson('1'), 2]->at(0))}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: an equality between two whole Variants is not computed: legend-pu || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: an equality between two whole Variants is not computed: legend-pu || pass verdicts=1
+q0420 [b2] {|assertSameElements(['a', 1], [1, 'b'])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected the elements ["a", 1] in any order, got [1, "b"] || DataError: Binder Error: subqueries in lambda expressions are not supported
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected the elements ["a", 1] in any order, got [1, "b"] || DataError: Binder Error: subqueries in lambda expressions are not supported
+q0421 [b2] {|assertNotContains([1, 'a'], 'a')}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: a constant side of type meta::pure::metamodel::type::Any: the fol || AssertFailed: expected true, got false
+   DATABASE a=FAIL     b=FAIL     | AssertFailed: expected [1, "a"] not to contain "a" || AssertFailed: expected true, got false
+q0422 [b2] {|assertContains([1, 'a'], 'b')}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: a constant side of type meta::pure::metamodel::type::Any: the fol || AssertFailed: expected true, got false
+   DATABASE a=FAIL     b=FAIL     | AssertFailed: expected [1, "a"] to contain "b" || AssertFailed: expected true, got false
+q0423 [b2] {|assertEmpty([1, 'a'])}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: a constant side of type meta::pure::metamodel::type::Any: the fol || AssertFailed: expected true, got false
+   DATABASE a=FAIL     b=FAIL     | AssertFailed: expected no values, got [1, "a"] || AssertFailed: expected true, got false
+q0429 [b2] {|assertNotEq(1, [1, 'a']->at(0))}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: the program road does not plan this body: host judge's planner re || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: the program road does not plan this body: database judge's planne || AssertFailed: expected true, got false
+q0432 [b3,pct] {|assertNotEquals(1, 1.0)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0439 [b3] {|assertEquals([], [1]->filter(x|$x > 5))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0440 [b3] {|assertEquals(1, [1]->filter(x|$x > 5))}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected [1], got [] || DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\n\nLINE 1:
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected [1], got [] || DataError: Conversion Error: Unimplemented type for cast (INTEGER -> INTEGER[])\n\nLINE 3:
+q0441 [b3] {|assertNotEquals([], [1]->filter(x|$x > 5))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected a value other than [] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected a value other than [] || pass verdicts=1
+q0443 [b3] {|assertContains([1.5, 2.5], 1.5D)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1.5, 2.5] to contain 1.5 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1.5, 2.5] to contain 1.5 || pass verdicts=1
+q0444 [b3,pct] {|assertContains([1D, 2D], 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1, 2] to contain 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1, 2] to contain 1 || pass verdicts=1
+q0445 [b3,pct] {|assertNotContains([1, 2], 1.0)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0447 [b3,pct] {|assertEq(1, 1.0)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1, got 1.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1, got 1.0 || pass verdicts=1
+q0450 [b3] {|assertNotEq(1.0D, 1.00D)}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: the program road does not plan this body: host judge's planner re || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: the program road does not plan this body: database judge's planne || AssertFailed: expected true, got false
+q0451 [b3] {|assertIsNot(1, 1)}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected an instance other than 1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected an instance other than 1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0476 [b3] {|assertTrue(1 == 2)}
+   HOST     a=ERR      b=FAIL     | TypeInferenceException: unknown function 'assertTrue' — no function of this name in the na || AssertFailed: expected true, got false
+   DATABASE a=ERR      b=FAIL     | TypeInferenceException: unknown function 'assertTrue' — no function of this name in the na || AssertFailed: expected true, got false
+q0485 [b3,pct] {|assertNotEquals(%2020-01-01, %2020-01-01T00:00:00)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0487 [b3] {|assertNotEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected a value other than 2020-01-01T10:00:00.500000000Z || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected a value other than 2020-01-01T10:00:00.500000000Z || pass verdicts=1
+q0488 [b3,pct] {|assertContains([%2020-01-01T10:00:00], %2020-01-01T10:00:00.000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0489 [b3] {|assertSameElements([%2020-01-01T10:00:00, %2021-01-01], [%2021-01-01, %2020-01-01T10:00:00.000])}
+   HOST     a=REFUSED  b=ERR      | NotImplementedException: values holding both days and date-times are not compared: the dat || DataError: Binder Error: subqueries in lambda expressions are not supported
+   DATABASE a=REFUSED  b=ERR      | NotImplementedException: values holding both days and date-times are not compared: the dat || DataError: Binder Error: subqueries in lambda expressions are not supported
+q0493 [b3] {|assertEquals([true], [1 == 1, 2 == 2])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected [true], got [true, true] || DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected [true], got [true, true] || DataError: Conversion Error: Unimplemented type for cast (BOOLEAN -> BOOLEAN[])
+q0494 [b3,pct] {|assertEquals(pair(1, 1.0), pair(1, 1))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected meta::pure::functions::collection::Pair {"first":1,"second":1.0}, g || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Pair<In || pass verdicts=1
+q0497 [b3] {|assertEq(pair(1, 'a'), pair(1, 'a'))}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, whic || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: the program road does not plan this body: database judge's planne || pass verdicts=1
+q0498 [b3] {|let p = pair(1, 'a'); assertEq($p, $p);}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: assertEq over non-primitive values: eq is INSTANCE identity, whic || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: the program road does not plan this body: database judge's planne || pass verdicts=1
+q0501 [b3,pct] {|assertEquals(^p::KD(d=1.0D, b=true, e=t::E.A, sd=%2020-01-01), ^p::KD(d=1.00D, b=true, e=t::E.A, sd=%2020-01-01))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0503 [b3,pct] {|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[2, 1]))}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected p::KM {"ids":[1,2]}, got p::KM {"ids":[2,1]} || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (p::KM a || AssertFailed: expected true, got false
+q0504 [b3,pct] {|assertEquals(^p::KNum(n=1), ^p::KNum(n=1.0))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected p::KNum {"n":1}, got p::KNum {"n":1.0} || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (p::KNum || pass verdicts=1
+q0508 [b3,pct] {|assertEquals(newMap([pair('a', 1)]), newMap([pair('a', 1.0)]))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected meta::pure::functions::collection::Map {"a":1}, got meta::pure::fun || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Map<Str || pass verdicts=1
+q0509 [b3] {|assertEquals(list([1, 2]), list([1.0, 2]))}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected [1, 2], got [1.0, 2] || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (List<In || AssertFailed: expected true, got false
+q0510 [b3] {|assertEquals([1, 2]->sum(), 3.0)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 3, got 3.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 3, got 3.0 || pass verdicts=1
+q0512 [b3] {|assertEquals(10 / 4, 2.5D)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 2.5 (Float), got 2.5 (Decimal) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 2.5 (Float), got 2.5 (Decimal) || pass verdicts=1
+q0513 [b4,pct] {|assertSameElements([t::E.A], ['A'])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [A] in any order, got ["A"] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [A] in any order, got ["A"] || pass verdicts=1
+q0514 [b4] {|assertContains([t::E.A], 'A')}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected ["A"] to contain "A" || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || AssertFailed: expected true, got false
+q0515 [b4] {|assertContains(['A'], t::E.A)}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected ["A"] to contain "A" || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || AssertFailed: expected true, got false
+q0516 [b4,pct] {|assertEquals([t::E.A, t::E.B], ['A', 'B'])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [A, B], got ["A", "B"] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [A, B], got ["A", "B"] || pass verdicts=1
+q0520 [b5] {|assertEquals(%2020-01-01, '2020-01-01')}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01, got "2020-01-01" || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01, got "2020-01-01" || pass verdicts=1
+q0521 [b5] {|assertIs('1', 1)}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected "1", got 1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected "1", got 1 || NotImplementedException: upstream native 'meta::pure::functions::boolean::is' is declared 
+q0524 [b6] {|let xs = [1, 2]->map(i|^t::Person(name='a')); assertEquals($xs->at(0), $xs->at(0));}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0528 [b6] {|assertEquals(p::Q.all()->at(0), p::Q.all()->at(0))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+   DATABASE a=REFUSED  b=ERR      | AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: p::Q || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+q0529 [b6] {|assertEquals(p::Q.all()->sortBy(x|$x.id)->at(0), p::Q.all()->sortBy(x|$x.id)->at(0))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+   DATABASE a=REFUSED  b=ERR      | AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: p::Q || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+q0530 [b6] {|let a = p::Q.all()->sortBy(x|$x.id)->at(0); assertEquals($a, $a);}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+   DATABASE a=REFUSED  b=ERR      | AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: p::Q || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+q0531 [b6] {|assertEquals(p::Q.all()->filter(x|$x.id == 1), p::Q.all()->filter(x|$x.id == 1))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+   DATABASE a=REFUSED  b=ERR      | AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: p::Q || DataError: Binder Error: failed to bind function, either: Invalid LIST argument during lam
+q0532 [b6] {|assertContains(p::Q.all(), p::Q.all()->filter(x|$x.id == 1)->toOne())}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: No function matches the given name and argument types 'list_conta
+   DATABASE a=REFUSED  b=ERR      | AssertFailed: assertContains: UNJUDGED in database mode — side: keyless-instance: p::Q || DataError: Binder Error: No function matches the given name and argument types 'list_conta
+q0533 [b6] {|assertSameElements(p::Q.all()->filter(x|$x.id == 1), p::Q.all()->filter(x|$x.id == 1))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: No function matches the given name and argument types 'list_sort(
+   DATABASE a=REFUSED  b=ERR      | AssertFailed: assertSameElements: UNJUDGED in database mode — side-e: keyless-instance: p: || DataError: Binder Error: No function matches the given name and argument types 'list_sort(
+q0538 [b7] {|assertEquals(%2020-01-01T10:00:00.1234567, %2020-01-01T10:00:00.123456700)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0540 [b7] {|assertEquals([%2020-01-01T10:00:00, %2020-01-01], [%2020-01-01T10:00:00.000, %2020-01-01T00:00:00])}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+q0541 [b7] {|assertSameElements([%2020-01-01, %2020-01-02], [%2020-01-02, %2020-01-01T00:00])}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+q0542 [b7] {|assertEquals(%2020-01-01T10, %2020-01-01T10:00)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0543 [b7] {|assertEquals(%2020-01-01T10:30, %2020-01-01T10:30:00.000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0555 [b7] {|assertEquals(p::Y.all()->sortBy(x|$x.id).t, [%2407-01-01T10:00:00, %1624-01-01T10:00:00.000000001, %2020-01-01T10:00:00.5])}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected [2407-01-01T10:00:00.000000000Z, 1624-01-01T10:00:00.000000000Z, 20 || DataError: Conversion Error: Could not convert Timestamp(US) to Timestamp(NS)
+   DATABASE a=ERR      b=ERR      | DataError: a date-time an assert compares to the nanosecond is outside the days DuckDB hol || DataError: Conversion Error: Could not convert Timestamp(US) to Timestamp(NS)
+q0557 [b7] {|assertEquals(p::Q.all()->sortBy(x|$x.id).e, [1.5D, -2D, 1.5D])}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Decimal || pass verdicts=1
+q0558 [b7] {|assertEquals(p::Q.all()->sortBy(x|$x.id).e, [1.5, -2.0, 1.5])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1.5, -2, 1.5], got [1.5, -2.0, 1.5] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1.5, -2, 1.5], got [1.5, -2.0, 1.5] || pass verdicts=1
+q0560 [b7] {|assertEquals(p::Q.all()->sortBy(x|$x.id).f, [2.5, 3, 2.5])}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected [2.5, 3.0, 2.5], got [2.5, 3, 2.5] || NotImplementedException: a mixed list compared with a list whose elements' kind is not sta
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected [2.5, 3.0, 2.5], got [2.5, 3, 2.5] || NotImplementedException: a mixed list compared with a list whose elements' kind is not sta
+q0561 [b8] {|assertEquals(%2020-01-02, [%2020-01-01T00:00, %2020-01-02]->at(1))}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+q0562 [b8] {|assertNotEquals(%2020-01-02T00:00, [%2020-01-01T00:00, %2020-01-02]->at(1))}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+q0563 [b8,b9] {|assertNotContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+q0564 [b8] {|assertEquals([%2020-01-02], [%2020-01-01T00:00, %2020-01-02]->tail())}
+   HOST     a=REFUSED  b=ERR      | NotImplementedException: values holding both days and date-times are not compared: the dat || DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])
+   DATABASE a=REFUSED  b=ERR      | NotImplementedException: values holding both days and date-times are not compared: the dat || DataError: Conversion Error: Unimplemented type for cast (DATE -> DATE[])
+q0571 [b9] {|assertNotEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: values holding both days and date-times are not compared: the dat || pass verdicts=1
+q0572 [b9] {|assertSameElements([%2020-01-01T00:00, %2020-01-02], [%2020-01-02T00:00, %2020-01-01T00:00])}
+   HOST     a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | NotImplementedException: values holding both days and date-times are not compared: the dat || AssertFailed: expected true, got false
+q0573 [b10] {|let l = ['a', 'b']; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: a || NotImplementedException: the program road does not plan this body: host judge's planner re
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: a || NotImplementedException: the program road does not plan this body: database judge's planne
+q0574 [b10] {|let l = ['a', 'b']; [1, 5]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}
+   HOST     a=ERR      b=REFUSED  | DataError: The system is trying to get an element at offset 5 where the collection is of s || NotImplementedException: the program road does not plan this body: host judge's planner re
+   DATABASE a=ERR      b=REFUSED  | DataError: The system is trying to get an element at offset 5 where the collection is of s || NotImplementedException: the program road does not plan this body: database judge's planne
+q0575 [b10] {|[1, 2]->forAll(i | assertEquals(1, $i, 'element ' + $i->toString()))}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: element 2 || NotImplementedException: the program road does not plan this body: host judge's planner re
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: element 2 || NotImplementedException: the program road does not plan this body: database judge's planne
+q0598 [b12] {|assertEquals(1.0D, 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1.0, got 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1.0, got 1 || pass verdicts=1
+q0599 [b12] {|assertEquals([1, 2], [1D, 2])}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected [1, 2] (Integer), got [1, 2] (Any) || NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[preci
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected [1, 2] (Integer), got [1, 2] (Any) || NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[preci
+q0617 [b13] {|let f = {i: Integer[1] | ^t::Person(name='a')}; assertEquals($f->eval(1), $f->eval(2));}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0619 [pct] {|assertEquals(1, 1D)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1 (Integer), got 1 (Decimal) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1 (Integer), got 1 (Decimal) || pass verdicts=1
+q0620 [pct] {|assertNotEquals(1, 1D)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0621 [pct] {|assertEquals(1.0, 1D)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1.0, got 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1.0, got 1 || pass verdicts=1
+q0622 [pct] {|assertNotEquals(1.5, 1.5D)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0624 [pct] {|assertEquals(3D, 1 + 2)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 3 (Decimal), got 3 (Integer) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 3 (Decimal), got 3 (Integer) || pass verdicts=1
+q0625 [pct] {|assertEquals(3, 1.5 * 2)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 3, got 3.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 3, got 3.0 || pass verdicts=1
+q0630 [pct] {|assertEquals(3, [1.0, 2.0]->sum())}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 3, got 3.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 3, got 3.0 || pass verdicts=1
+q0637 [pct] {|assertNotEq(1, 1.0)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0639 [pct] {|assertNotEquals([1, 2], [1.0, 2.0])}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0640 [pct] {|assertEquals([1, 2], [1D, 2D])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1, 2] (Integer), got [1, 2] (Decimal) || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1, 2] (Integer), got [1, 2] (Decimal) || pass verdicts=1
+q0643 [pct] {|assertEquals([1, 2.5D], [1.0, 2.5D])}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected [1, 2.5], got [1.0, 2.5] || NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[preci
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected [1, 2.5], got [1.0, 2.5] || NotImplementedException: two mixed lists' equality across the kinds Decimal (Decimal[preci
+q0649 [pct] {|assertEquals([1], 1.0)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1, got 1.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1, got 1.0 || pass verdicts=1
+q0651 [pct] {|assertContains([1, 2], 1.0)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1, 2] to contain 1.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1, 2] to contain 1.0 || pass verdicts=1
+q0652 [pct] {|assertContains([1.0, 2.0], 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1.0, 2.0] to contain 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1.0, 2.0] to contain 1 || pass verdicts=1
+q0653 [pct] {|assertContains([1, 2.5], 2.5D)}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected [1, 2.5] to contain 2.5 || NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[preci
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected [1, 2.5] to contain 2.5 || NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[preci
+q0655 [pct] {|assertNotContains([1, 2.5], 2.5D)}
+   HOST     a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[preci
+   DATABASE a=PASS     b=REFUSED  | pass verdicts=1 || NotImplementedException: a mixed list's membership across the kinds Decimal (Decimal[preci
+q0657 [pct] {|assertSameElements([1, 2], [2.0, 1.0])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [1, 2] in any order, got [2.0, 1.0] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [1, 2] in any order, got [2.0, 1.0] || pass verdicts=1
+q0658 [pct] {|assertSameElements([1, 2.0], [2.0, 1])}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: subqueries in lambda expressions are not supported
+   DATABASE a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: subqueries in lambda expressions are not supported
+q0659 [pct] {|assertSameElements([1, 2.5D], [2.5D, 1])}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: subqueries in lambda expressions are not supported
+   DATABASE a=PASS     b=ERR      | pass verdicts=1 || DataError: Binder Error: subqueries in lambda expressions are not supported
+q0666 [pct] {|assertEquals(1.5, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [1.5] in any order, got [1.5] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [1.5] in any order, got [1.5] || pass verdicts=1
+q0667 [pct] {|assertEquals(1.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Decimal || pass verdicts=1
+q0669 [pct] {|assertEquals(2.5D, p::Q.all()->filter(x | $x.id == 1)->toOne().f)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [2.5] in any order, got [2.5] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [2.5] in any order, got [2.5] || pass verdicts=1
+q0670 [pct] {|assertEquals(3, p::Q.all()->filter(x | $x.id == 2)->toOne().f)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [3] in any order, got [3.0] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [3] in any order, got [3.0] || pass verdicts=1
+q0671 [pct] {|assertEquals(1.0, p::Q.all()->filter(x | $x.id == 1)->toOne().id)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [1.0] in any order, got [1] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [1.0] in any order, got [1] || pass verdicts=1
+q0672 [pct] {|assertEquals(1, p::P.all()->toOne().d)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [1] in any order, got [1] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [1] in any order, got [1] || pass verdicts=1
+q0673 [pct] {|assertEquals(1D, p::P.all()->toOne().d)}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Decimal || pass verdicts=1
+q0675 [pct] {|assertEquals([1.0, 2.0, 3.0], p::Q.all()->sortBy(x | $x.id).id)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1.0, 2.0, 3.0], got [1, 2, 3] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1.0, 2.0, 3.0], got [1, 2, 3] || pass verdicts=1
+q0676 [pct] {|assertEquals([2.5, 3, 2.5], p::Q.all()->sortBy(x | $x.id).f)}
+   HOST     a=FAIL     b=REFUSED  | AssertFailed: expected [2.5, 3, 2.5], got [2.5, 3.0, 2.5] || NotImplementedException: a mixed list compared with a list whose elements' kind is not sta
+   DATABASE a=FAIL     b=REFUSED  | AssertFailed: expected [2.5, 3, 2.5], got [2.5, 3.0, 2.5] || NotImplementedException: a mixed list compared with a list whose elements' kind is not sta
+q0677 [pct] {|assertEquals([1.5D, -2D, 1.5D], p::Q.all()->sortBy(x | $x.id).e)}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Decimal || pass verdicts=1
+q0678 [pct] {|assertEquals([1.5, -2.0, 1.5], p::Q.all()->sortBy(x | $x.id).e)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1.5, -2.0, 1.5], got [1.5, -2, 1.5] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1.5, -2.0, 1.5], got [1.5, -2, 1.5] || pass verdicts=1
+q0679 [pct] {|assertContains(p::Q.all().f, 3)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [2.5, 3.0, 2.5] to contain 3 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [2.5, 3.0, 2.5] to contain 3 || pass verdicts=1
+q0681 [pct] {|assertContains(p::Q.all().e, 1.5)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1.5, -2, 1.5] to contain 1.5 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || pass verdicts=1
+q0682 [pct] {|assertContains(p::Q.all().id, 1.0)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1, 2, 3] to contain 1.0 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1, 2, 3] to contain 1.0 || pass verdicts=1
+q0684 [pct] {|assertSameElements([3, 2.5, 2.5], p::Q.all().f)}
+   HOST     a=FAIL     b=ERR      | AssertFailed: expected the elements [3, 2.5, 2.5] in any order, got [2.5, 3.0, 2.5] || DataError: Binder Error: subqueries in lambda expressions are not supported
+   DATABASE a=FAIL     b=ERR      | AssertFailed: expected the elements [3, 2.5, 2.5] in any order, got [2.5, 3.0, 2.5] || DataError: Binder Error: subqueries in lambda expressions are not supported
+q0691 [pct] {|assertContains([t::E.A, t::E.B], 'A')}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected ["A", "B"] to contain "A" || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || AssertFailed: expected true, got false
+q0692 [pct] {|assertNotContains([t::E.A, t::E.B], 'A')}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertNotContains: UNJUDGED in database mode — a membership with no typed fo || pass verdicts=1
+q0693 [pct] {|assertContains(['A', 'B'], t::E.A)}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected ["A", "B"] to contain "A" || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || AssertFailed: expected true, got false
+q0694 [pct] {|assertContains([t::E.A, t::E.B], p::E.A)}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected ["A", "B"] to contain "A" || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || AssertFailed: expected true, got false
+q0696 [pct] {|assertEquals(t::E.A, 'A'->cast(@Any))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=FAIL     b=FAIL     | AssertFailed: expected "A" (String), got "A" (String) || AssertFailed: expected true, got false
+q0697 [pct] {|assertEquals(t::E.A, [t::E.A, 'A']->at(1))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=FAIL     b=FAIL     | AssertFailed: expected "A" (String), got "A" (String) || AssertFailed: expected true, got false
+q0698 [pct] {|assertEquals('A', [t::E.A, 'A']->at(0))}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=FAIL     b=FAIL     | AssertFailed: expected "A" (String), got "A" (String) || AssertFailed: expected true, got false
+q0699 [pct] {|assertContains([t::E.A, 'B'], 'A')}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertContains: UNJUDGED in database mode — a literal channel's membership:  || AssertFailed: expected true, got false
+q0701 [pct] {|assertNotEq(t::E.A, 'A')}
+   HOST     a=REFUSED  b=PASS     | NotImplementedException: the program road does not plan this body: host judge's planner re || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | NotImplementedException: the program road does not plan this body: database judge's planne || pass verdicts=1
+q0703 [pct] {|assertEquals(^p::KA(a=t::E.A), ^p::KA(a='A'))}
+   HOST     a=PASS     b=ERR      | pass verdicts=1 || DataError: Invalid Input Error: Malformed JSON at byte 0 of input: unexpected character.  
+   DATABASE a=PASS     b=ERR      | pass verdicts=1 || DataError: Invalid Input Error: Malformed JSON at byte 0 of input: unexpected character.  
+q0706 [pct] {|assertEquals(%2020-01-01T00:00:00, %2020-01-01)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01 || pass verdicts=1
+q0707 [pct] {|assertEquals(%2020-01-01T00:00, %2020-01-01T00:00:00.000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0708 [pct] {|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0709 [pct] {|assertNotEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:00.000)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected a value other than 2020-01-01T10:00:00.000000000Z || pass verdicts=1
+q0713 [pct] {|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.50)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0714 [pct] {|assertEquals(%2020-01-01T10:00:00.123456, %2020-01-01T10:00:00.123456000)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0715 [pct] {|assertContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01, 2020-01-02] to contain 2020-01-01T00:00:00.000000000Z || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01, 2020-01-02] to contain 2020-01-01T00:00:00.000000000Z || pass verdicts=1
+q0716 [pct] {|assertNotContains([%2020-01-01, %2020-01-02], %2020-01-01T00:00:00)}
+   HOST     a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+   DATABASE a=PASS     b=FAIL     | pass verdicts=1 || AssertFailed: expected true, got false
+q0717 [pct] {|assertContains([%2020-01-01T00:00:00, %2020-01-02T00:00:00], %2020-01-01)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z] to || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z] to || pass verdicts=1
+q0718 [pct] {|assertEquals([%2020-01-01, %2020-01-02], [%2020-01-01T00:00:00, %2020-01-02T00:00:00])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01, 2020-01-02], got [2020-01-01T00:00:00.000000000Z, 2020 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01, 2020-01-02], got [2020-01-01T00:00:00.000000000Z, 2020 || pass verdicts=1
+q0720 [pct] {|assertSameElements([%2020-01-02, %2020-01-01], [%2020-01-01T00:00, %2020-01-02T00:00])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [2020-01-02, 2020-01-01] in any order, got [2020-01-01 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [2020-01-02, 2020-01-01] in any order, got [2020-01-01 || pass verdicts=1
+q0723 [pct] {|assertEquals(%2020-01-02T00:00:00, %2020-01-01->adjust(1, DurationUnit.DAYS))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 2020-01-02T00:00:00.000000000Z, got 2020-01-02 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 2020-01-02T00:00:00.000000000Z, got 2020-01-02 || pass verdicts=1
+q0727 [pct] {|assertEquals(%2020-01-01T00:00:00, date(2020, 1, 1))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01 || pass verdicts=1
+q0731 [pct] {|assertEquals(%2020-01-01T00:00:00, %2020-01-01T10:00:00->datePart())}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 2020-01-01T00:00:00.000000000Z, got 2020-01-01 || pass verdicts=1
+q0733 [pct] {|assertEquals(%2020-01-01T00:00:00, p::Q.all()->filter(x | $x.id == 1)->toOne().d)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [2020-01-01T00:00:00.000000000Z] in any order, got [20 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [2020-01-01T00:00:00.000000000Z] in any order, got [20 || pass verdicts=1
+q0737 [pct] {|assertEquals(%2020-01-01, p::R.all()->filter(x | $x.id == 1)->toOne().t)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected the elements [2020-01-01] in any order, got [2020-01-01T00:00:00.00 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected the elements [2020-01-01] in any order, got [2020-01-01T00:00:00.00 || pass verdicts=1
+q0739 [pct] {|assertContains(p::Q.all().d, %2020-01-01T00:00:00)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01, 2020-01-02, 2020-01-01] to contain 2020-01-01T00:00:00 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01, 2020-01-02, 2020-01-01] to contain 2020-01-01T00:00:00 || pass verdicts=1
+q0741 [pct] {|assertContains(p::R.all().t, %2020-01-01)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z, 20 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [2020-01-01T00:00:00.000000000Z, 2020-01-02T00:00:00.000000000Z, 20 || pass verdicts=1
+q0747 [pct] {|assertEquals(fromJson('1')->to(@Float), 1)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected 1.0, got 1 || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected 1.0, got 1 || pass verdicts=1
+q0753 [pct] {|assertContains([1, 2], fromJson('1'))}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected [1, 2] to contain 1 || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertContains: UNJUDGED in database mode — a Variant membership: no typed f || AssertFailed: expected true, got false
+q0754 [pct] {|assertNotContains([1, 2], fromJson('1'))}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertNotContains: UNJUDGED in database mode — a Variant membership: no type || pass verdicts=1
+q0756 [pct] {|assertEquals(fromJson('[1,2]')->toMany(@Integer), [1.0, 2.0])}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1, 2], got [1.0, 2.0] || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected [1, 2], got [1.0, 2.0] || pass verdicts=1
+q0764 [pct] {|assertEquals(^p::KS(id=1, at=%2020-01-01T00:00:00, note='x', extra='e'), ^p::K(id=1, at=%2020-01-01T00:00:00, note='x'))}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected p::KS {"id":1,"at":2020-01-01T00:00:00.000000000Z,"note":"x","extra || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (ClassTyp || AssertFailed: expected true, got false
+q0768 [pct] {|assertEquals(^p::KM(ids=[1, 2]), ^p::KM(ids=[1, 2]))}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (p::KM a || pass verdicts=1
+q0773 [pct] {|assertEquals(pair(1, 1D), pair(1, 1))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected meta::pure::functions::collection::Pair {"first":1,"second":1} (met || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Pair<In || pass verdicts=1
+q0774 [pct] {|assertEquals(pair(1, %2020-01-01), pair(1, %2020-01-01T00:00:00))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected meta::pure::functions::collection::Pair {"first":1,"second":2020-01 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (Pair<In || pass verdicts=1
+q0776 [pct] {|assertContains([pair(1, 1)], pair(1, 1.0))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [meta::pure::functions::collection::Pair {"first":1,"second":1}] to || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertContains: UNJUDGED in database mode — a membership with no typed form  || pass verdicts=1
+q0777 [pct] {|assertEquals(list([1, 2]), list([1.0, 2.0]))}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1, 2], got [1.0, 2.0] || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — a pair with no typed form (List<In || pass verdicts=1
+q0780 [pct] {|assertEquals([1, 2, 3], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values)}
+   HOST     a=PASS     b=PASS     | pass verdicts=1 || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (Primitiv || pass verdicts=1
+q0781 [pct] {|assertEquals([1.0, 2.0, 3.0], execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue, []).values)}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected [1.0, 2.0, 3.0], got [1, 2, 3] || pass verdicts=1
+   DATABASE a=REFUSED  b=PASS     | AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (Primitiv || pass verdicts=1
+q0782 [pct] {|assertEquals([2.5, 3.0, 2.5], execute(|p::Q.all()->project([x | $x.f], ['f'])->sort('f'), p::M, p::RT.runtimeValue, []).values)}
+   HOST     a=FAIL     b=FAIL     | AssertFailed: expected [2.5, 3.0, 2.5], got [2.5, 2.5, 3.0] || AssertFailed: expected true, got false
+   DATABASE a=REFUSED  b=FAIL     | AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (Primitiv || AssertFailed: expected true, got false
+q0785 [pct] {|assertEquals(true, 'true')}
+   HOST     a=FAIL     b=PASS     | AssertFailed: expected true, got "true" || pass verdicts=1
+   DATABASE a=FAIL     b=PASS     | AssertFailed: expected true, got "true" || pass verdicts=1
+219

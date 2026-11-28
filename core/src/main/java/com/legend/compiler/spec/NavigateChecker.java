@@ -321,7 +321,7 @@ final class NavigateChecker {
         List<TypedSpec> erased = kids.stream().map(c -> eraseReads(c, tVar, sVar)).toList();
         if (n instanceof TypedNativeCall nc) {
             // a source position is not part of a shape
-            return new TypedNativeCall(nc.callee(), erased, nc.info(), null);
+            return new TypedNativeCall(nc.callee(), erased, nc.info(), null, nc.outsideStore());
         }
         return n.withChildren(erased);
     }

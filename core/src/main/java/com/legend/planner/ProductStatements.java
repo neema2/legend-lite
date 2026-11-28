@@ -93,16 +93,18 @@ public final class ProductStatements {
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames, com.legend.database.PlanStyle style) {
-        return prepare(query, statements, runtime, mark, features, frames, Map.of(), style);
+        return prepare(query, statements, runtime, mark, features, frames, Map.of(), false, style);
     }
 
     /** {@link #prepare} for a frame's own query, run under {@code runtimeRenames}: the table renames of the runtime
-     *  the frame runs on (a frame let's eager run and its CTE, as the walk runs them in the frame's environment). */
+     *  the frame runs on (a frame let's eager run and its CTE, as the walk runs them in the frame's environment). The
+     *  statement is the query an {@code execute()} ran, never a test body's own code: a door that stamps its test
+     *  bodies stamps it as a query ({@code Edition.stampsTestBodies}). */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames,
             com.legend.database.PlanStyle style) {
-        return prepare(query, statements, runtime, mark, features, frames, runtimeRenames, false, style);
+        return prepared(query, statements, runtime, mark, features, frames, runtimeRenames, false, true, style);
     }
 
     /** {@link #prepare}; {@code frameAnswered}: the statement is a TEST program's answer, and its root, an
@@ -113,16 +115,35 @@ public final class ProductStatements {
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames, boolean frameAnswered,
             com.legend.database.PlanStyle style) {
+        return prepared(query, statements, runtime, mark, features, frames, runtimeRenames, frameAnswered, false,
+                style);
+    }
+
+    /** {@link #prepare}; {@code frame}: the statement is a frame's own query (above), not a statement of the query or
+     *  test body the door received. */
+    private static Statement prepared(TypedQuery query, List<TypedSpec> statements,
+            @Nullable String runtime, @Nullable Integer mark,
+            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames, boolean frameAnswered,
+            boolean frame, com.legend.database.PlanStyle style) {
         ModelContext ctx = query.context();
         SpecCompiler specs = query.specs();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         ProgramFrames.StatementRows rows = frames.statementRows();
         // the query's own planning options (TypedQuery.withOptions), its lowering's
-        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows, style).withOptions(query.options())
+        PlanEnv made = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows, style).withOptions(query.options())
                 : env(ctx, runtime, features, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
+        // the door's edition (the edition program's step 2): what it stamps, and which of the flags the statements
+        // themselves carry it reads (withFeatureFlags, legend-engine's second carrier). legend-engine's door reads the
+        // one its table has a row for; lite's own never read any, and do not. Read here as written, because the
+        // resolver reads through the call and the lowering never sees it on the prepared body
+        Edition edition = made.edition();
+        PlanEnv env = edition.writtenFlagsRead().isEmpty() ? made
+                : made.withFeatures(withWrittenFlags(features, statements, edition.writtenFlagsRead()));
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
-        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered);
+        // the stamp: asked for by a door whose table's two columns differ, never the product
+        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered,
+                edition.stampsOutsideStore(), !frame && edition.stampsTestBodies());
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
@@ -147,7 +168,9 @@ public final class ProductStatements {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
                 PlanTextRoutines.of(specs, env)));
-        body = BodyPlanner.resolver(specs, env).resolve(body, runtime);   // Phase H
+        // the stamp on the model's and the mappings' code: the door's edition says which its audience's own Java runs
+        com.legend.resolver.StampedCode outside = stampedCode(edition, body);
+        body = BodyPlanner.resolver(specs, env, outside).resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)
         Compiler.executesOn(ctx, runtime);
@@ -161,6 +184,52 @@ public final class ProductStatements {
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
         return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads(), stores);
+    }
+
+    /** The model's and the mappings' code that {@code edition}'s audience's own Java runs where {@code body} reaches
+     *  it, for the resolver to stamp as it brings it in ({@code resolver.StampedCode}; the edition program's step 2):
+     *  none where the edition stamps nothing. Read off the body: whether it fetches a graph, and whether it reads
+     *  through a chain of mappings. */
+    private static com.legend.resolver.StampedCode stampedCode(Edition edition, List<TypedSpec> body) {
+        if (!edition.stampsOutsideStore()) {
+            return com.legend.resolver.StampedCode.NONE;
+        }
+        return new com.legend.resolver.StampedCode(edition.constraintsOutsideStore(),
+                edition.transformsOutsideStore(
+                        reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedGraphFetch),
+                        reads(body, n -> n instanceof com.legend.compiler.spec.typed.TypedFrom f
+                                && !f.context().chainMappings().isEmpty())));
+    }
+
+    /** {@link #stampedCode} for a JUDGED SIDE of a test body ({@code BodyPlanner.stagedSide}): a side is the test's
+     *  code around its frames, so its mapping code is stamped as a statement's is where the door's edition stamps
+     *  test bodies ({@code Edition.stampsTestBodies}), and not at all otherwise (as before the edition program's
+     *  step 3). */
+    static com.legend.resolver.StampedCode sideStamp(Edition edition, List<TypedSpec> body) {
+        return edition.stampsTestBodies() ? stampedCode(edition, body) : com.legend.resolver.StampedCode.NONE;
+    }
+
+    /** Whether any node of {@code body} is one {@code what} names. */
+    private static boolean reads(List<TypedSpec> body, java.util.function.Predicate<TypedSpec> what) {
+        for (TypedSpec s : body) {
+            if (what.test(s) || reads(s.children(), what)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code features} with those of {@code read} that {@code statements} carry as written ({@code withFeatureFlags}
+     *  calls). */
+    private static Set<Feature> withWrittenFlags(Set<Feature> features, List<TypedSpec> statements, Set<Feature> read) {
+        Set<Feature> written = java.util.EnumSet.noneOf(Feature.class);
+        written.addAll(com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(statements));
+        written.retainAll(read);
+        if (features.containsAll(written)) {
+            return features;
+        }
+        written.addAll(features);
+        return Collections.unmodifiableSet(written);
     }
 
     /** The planning environment of a statement on this road over {@code planRows}: the model, the runtime, the
@@ -179,16 +248,17 @@ public final class ProductStatements {
     /** {@code statements} inlined with the splice hook {@code first} records into; inlined again, its frames read as
      *  their CTE, where it pastes one more than once (M3g, B10). */
     private static Inlined inline(SpecCompiler specs, List<TypedSpec> statements, @Nullable Integer mark,
-            ProgramFrames.Recorder first, boolean frameAnswered) {
+            ProgramFrames.Recorder first, boolean frameAnswered, boolean stamp, boolean testBody) {
         ProgramFrames.Recorder recorder = first;
-        UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
-        List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder,
+        UserCallInliner inliner = UserCallInliner.ofTestBody(specs, ResultEnvelopeSplice.hook(recorder), testBody);
+        List<TypedSpec> body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
                 frameAnswered);
         ProgramFrames.Recorder again = recorder.again(body);
         if (again != null) {
             recorder = again;
-            inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
-            body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark), recorder, frameAnswered);
+            inliner = UserCallInliner.ofTestBody(specs, ResultEnvelopeSplice.hook(recorder), testBody);
+            body = frameAnswered(inliner.inlineBody(new ArrayList<>(statements), mark, stamp), recorder,
+                    frameAnswered);
         }
         return new Inlined(body, Collections.unmodifiableMap(new LinkedHashMap<>(inliner.queryLets())),
                 recorder.reads());
@@ -345,6 +415,8 @@ public final class ProductStatements {
         // a relation read more than once written once, but where the engine's cteExtractionPostProcessor names the
         // statement's subqueries itself (legend-engine's text: SharedRelations, 2026-11-04; the merge of main on
         // 2026-11-06 kept it on the test road alone, BodyPlanner.lowererFor -- the second review's finding 1)
+        // (a statement whose answer is a comparison of two whole sides is the lowering's to ask for, where the
+        // product's own rule lowers it: Lowerer.wholeAnswer, over the answers this class hands every lowerer below)
         Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites)
                 .sharingRelations(!p.env().postProcessors().extractCtes());
         SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
@@ -378,8 +450,18 @@ public final class ProductStatements {
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
-        return env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites))
-                .withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
+        Lowerer made = env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body),
+                sites)).withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
+        // a comparison of two whole sides is answered by the planner's statement for it, wherever it stands
+        // (RootComparison.over): each side lowered as the statement it is, by a lowerer made as this one. Handed
+        // with no condition: the lowering asks for it where the product's own rule lowers the comparison
+        java.util.Set<String> parameters = new java.util.LinkedHashSet<>();
+        slots.forEach(slot -> parameters.add(slot.name()));
+        return made.withWholeComparisons(RootComparison.over(body, env.queryLets(), parameters,
+                side -> lowerer(query, side, env, temporal, false, slots, sites)
+                        .sharingRelations(!env.postProcessors().extractCtes())
+                        .lower(seeded(side, env, query.context())),
+                query.context()));
     }
 
     /**
@@ -424,8 +506,18 @@ public final class ProductStatements {
      * of either corpus reads raw SQL, so one entry always refuses, and no test road needs another).
      */
     public static SqlQuery lowerTestDataSeed(TypedQuery query, String runtime) {
+        return lowerTestDataSeed(query, runtime, com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** {@link #lowerTestDataSeed(TypedQuery, String)} in {@code style}: a compatibility door's seed is planned in the
+     *  door's style, as its queries are (the seed's query is the one whose meaning chooses the keys; the edition
+     *  program's step 2, 2026-11-25). */
+    public static SqlQuery lowerTestDataSeed(TypedQuery query, String runtime, com.legend.database.PlanStyle style) {
         QueryDoor.refuseRawSql(query);
-        Statement s = prepare(query, query.body(), runtime, null, Set.of(), com.legend.database.PlanStyle.PRODUCT);
+        // the one equality: a comparison across types refused by name, as the planner's door refuses it (B3 step 5a's
+        // review, M2, 2026-11-25)
+        com.legend.compiler.spec.CrossTypeComparisons.refuse(query.body());
+        Statement s = prepare(query, query.body(), runtime, null, Set.of(), style);
         Prepared.Planned p = planned(s);
         return lower(query, p, s.temporal(), false, List.of(), new ObjectSites());
     }

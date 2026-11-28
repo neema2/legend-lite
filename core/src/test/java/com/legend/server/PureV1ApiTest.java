@@ -486,7 +486,7 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        LiteV1Api.Answer a = com.legend.edge.HostAnswers.arrowPlan(request, List.of(model), com.legend.edge.PureText.UPSTREAM);
+        LiteV1Api.Answer a = com.legend.edge.HostAnswers.arrowPlan(request, List.of(model), com.legend.edge.PureText.PURE_V1);
         assertEquals(200, a.status(), a.json());
         Json.Obj lite = Json.parseObject(a.json());
         Json.Obj liteMeta = lite.getObj("metadata");
@@ -584,7 +584,7 @@ class PureV1ApiTest {
     @Test
     void e8_arrowPlan_refusesAModelItsHostDoesNotServe_andAGraphFetch() throws IOException {
         String request = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
-        LiteV1Api.Answer other = com.legend.edge.HostAnswers.arrowPlan(request, List.of(model + "\n"), com.legend.edge.PureText.UPSTREAM);
+        LiteV1Api.Answer other = com.legend.edge.HostAnswers.arrowPlan(request, List.of(model + "\n"), com.legend.edge.PureText.PURE_V1);
         assertEquals(500, other.status(), other.json());
         assertTrue(Json.parseObject(other.json()).getString("message").contains("the models it serves"), other.json());
 
@@ -592,7 +592,7 @@ class PureV1ApiTest {
         String fetch = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         LiteV1Api.Answer graph = com.legend.edge.HostAnswers.arrowPlan("{\"function\":" + fetch + ",\"model\":"
-                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.UPSTREAM);
+                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.PURE_V1);
         assertEquals(500, graph.status(), graph.json());
         assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());
     }
@@ -612,7 +612,7 @@ class PureV1ApiTest {
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         // a host runs one statement and none of its target's loads (until B3): a connection's test data is refused by
         // name, never left for the host's database to fail on (the A checkpoint's finding of B3's prep, 2026-11-10)
-        LiteV1Api.Answer loading = com.legend.edge.HostAnswers.jsonPlan(request, List.of(model), com.legend.edge.PureText.UPSTREAM);
+        LiteV1Api.Answer loading = com.legend.edge.HostAnswers.jsonPlan(request, List.of(model), com.legend.edge.PureText.PURE_V1);
         assertEquals(500, loading.status(), loading.json());
         assertTrue(loading.json().contains("reads what its target loads first"), loading.json());
         // the host's own model holds its data itself (the tab's tables, Python's frames): the same model with no test
@@ -621,7 +621,7 @@ class PureV1ApiTest {
         String hostedRequest = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + Json.toCompact(Map.of("_type", "text", "code", hosted))
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        LiteV1Api.Answer a = com.legend.edge.HostAnswers.jsonPlan(hostedRequest, List.of(hosted), com.legend.edge.PureText.UPSTREAM);
+        LiteV1Api.Answer a = com.legend.edge.HostAnswers.jsonPlan(hostedRequest, List.of(hosted), com.legend.edge.PureText.PURE_V1);
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
         // 2026-11-12 (C1's second half): the host's execution's id, minted with the plan half it runs ("execution")
@@ -645,7 +645,7 @@ class PureV1ApiTest {
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
         // its host's models only, as the Arrow half
-        assertEquals(500, com.legend.edge.HostAnswers.jsonPlan(hostedRequest, List.of(hosted + "\n"), com.legend.edge.PureText.UPSTREAM).status());
+        assertEquals(500, com.legend.edge.HostAnswers.jsonPlan(hostedRequest, List.of(hosted + "\n"), com.legend.edge.PureText.PURE_V1).status());
         // a plan that is not jsonPlan's: refused, never cast
         assertEquals(500, com.legend.edge.HostAnswers.jsonAnswer("{\"builder\":5}", "[]").status());
         // a value's answer (one value, or a list of them), which the server's execute refuses, is refused by both plan
@@ -653,7 +653,7 @@ class PureV1ApiTest {
         for (String value : List.of("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->size()->from(trades::h2::RT)",
                 "|[1, 2]->from(trades::h2::RT)")) {
             String asked = "{\"function\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(value, false).json() + ",\"model\":" + textModel() + "}";
-            for (LiteV1Api.Answer refused : List.of(com.legend.edge.HostAnswers.jsonPlan(asked, List.of(model), com.legend.edge.PureText.UPSTREAM), com.legend.edge.HostAnswers.arrowPlan(asked, List.of(model), com.legend.edge.PureText.UPSTREAM))) {
+            for (LiteV1Api.Answer refused : List.of(com.legend.edge.HostAnswers.jsonPlan(asked, List.of(model), com.legend.edge.PureText.PURE_V1), com.legend.edge.HostAnswers.arrowPlan(asked, List.of(model), com.legend.edge.PureText.PURE_V1))) {
                 assertEquals(500, refused.status(), refused.json());
                 assertTrue(refused.json().contains("result's serialization is unprobed"), value + ": " + refused.json());
             }
@@ -663,7 +663,7 @@ class PureV1ApiTest {
         String fetch = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         LiteV1Api.Answer graph = com.legend.edge.HostAnswers.jsonPlan("{\"function\":" + fetch + ",\"model\":"
-                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.UPSTREAM);
+                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.PURE_V1);
         assertEquals(200, graph.status(), graph.json());
         Json.Obj graphPlan = Json.parseObject(graph.json());
         assertEquals(List.of("sql", "run", "raises", "sites", "siteWords", "shape", "resultColumns", "builder"),
@@ -1000,25 +1000,28 @@ class PureV1ApiTest {
 
     /** {@code model} with no connection's declared test data: a host's model, whose data the host holds itself. */
     /**
-     * pure/v1's execute halves for a host plan in the compatibility edge's style (the D part 1 audit's M2, 2026-11-15;
-     * the user's ruling of 2026-11-10: pure/v1 answers Pure's full sentence): a raise in the statement a host runs
-     * carries legend-pure's words, never the product's bare kind name, which a host -- with no error layer of its own --
-     * would show as it is.
+     * pure/v1's execute halves for a host plan in pure/v1's style (the D part 1 audit's M2, 2026-11-15; the user's
+     * ruling of 2026-11-10: pure/v1 answers Pure's full sentence): a raise in the statement a host runs carries
+     * legend-pure's words, never the product's bare kind name, which a host -- with no error layer of its own -- would
+     * show as it is. The raise is one legend-engine's SQL does not write plain (a date's absent part): a division by
+     * zero is the plain operation at this door since B7 (2026-11-17, "pure/v1 matches engine"), which the hosts' doors
+     * have handed since, and which these halves require since the edition program's step 2 (2026-11-26: until then
+     * this test handed legend-pure's door's style, which production did not).
      */
     @Test
     void m2_theHostsPureV1HalvesRaiseInPuresWords() {
         String hosted = withoutTestData(model);
         String raising = com.legend.edge.PureV1Routes.grammarToJsonLambda("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"
-                + "->extend(~r: x|$x.qty->toOne() / 0)->select(~r)->from(trades::h2::RT)", false).json();
+                + "->extend(~r: x|%2015->monthNumber())->select(~r)->from(trades::h2::RT)", false).json();
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + raising + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", hosted))
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        for (LiteV1Api.Answer a : List.of(com.legend.edge.HostAnswers.jsonPlan(request, List.of(hosted), com.legend.edge.PureText.UPSTREAM),
-                com.legend.edge.HostAnswers.arrowPlan(request, List.of(hosted), com.legend.edge.PureText.UPSTREAM))) {
+        for (LiteV1Api.Answer a : List.of(com.legend.edge.HostAnswers.jsonPlan(request, List.of(hosted), com.legend.edge.PureText.PURE_V1),
+                com.legend.edge.HostAnswers.arrowPlan(request, List.of(hosted), com.legend.edge.PureText.PURE_V1))) {
             assertEquals(200, a.status(), a.json());
             Json.Obj answer = Json.parseObject(a.json());
             String sql = answer.getString("sql");
-            assertFalse(sql.contains("DIVIDE_BY_ZERO"), "no bare kind name in pure/v1's statement: " + sql);
+            assertFalse(sql.contains("DATE_PART_ABSENT"), "no bare kind name in pure/v1's statement: " + sql);
             // the statement raises its site's bare token (phase D's Phase 2, raises as SITES, 2026-11-16); the site
             // carries its facts and no words, and legend-pure's words are the edge's table beside the plan, worded
             // from each site's record (stage B's B1, 2026-11-20; a fresh recorder until then, K10b)
@@ -1027,8 +1030,18 @@ class PureV1ApiTest {
             assertFalse(site.has("upstream"), "a plan's site carries no upstream words: " + a.json());
             Json.Obj words = (Json.Obj) answer.getArr("siteWords").items().get(0);
             assertEquals(site.getInt("n"), words.getInt("n"), a.json());
-            assertEquals("Division by zero", words.getString("words"), a.json());
+            assertEquals("Cannot get month for 2015", words.getString("words"), a.json());
         }
+    }
+
+    /** The hosts' plan halves refuse a style that is not pure/v1's: legend-engine's meaning at this door is that
+     *  style's edition's, and a caller that handed another would be answered lite's meaning in silence. */
+    @Test
+    void theHostsPlanHalvesRefuseAStyleThatIsNotPureV1s() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.legend.edge.HostAnswers.jsonPlan("{}", List.of(), com.legend.edge.PureText.UPSTREAM));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.legend.edge.HostAnswers.arrowPlan("{}", List.of(), com.legend.database.PlanStyle.PRODUCT));
     }
 
     private static String withoutTestData(String model) {

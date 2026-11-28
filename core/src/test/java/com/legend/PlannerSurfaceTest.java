@@ -1050,8 +1050,14 @@ class PlannerSurfaceTest {
             // each error worded by the caller (the edge's route: legend-engine's words of a compile error's kind; D1.6,
             // W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16)
             Map.entry("Compiler#compileErrors(String, Function<Throwable, String>)", List.of(MODEL_TEXT, CALLBACK)),
-            Map.entry("Compiler#compileErrors(Protocol.PureModelContextData, Function<Throwable, String>)",
-                    List.of(MODEL, CALLBACK)),
+            // 2026-11-26 (the edition program's step 4): a model's compile check takes its door's comparison setting,
+            // the door's own object as TypedQuery#comparing's is (a callback: typed code in, typed code out), so a
+            // compatibility door's compile route does not refuse a comparison across types in a function's body. The
+            // protocol form's two-argument entry went with it: legend-engine's compile route was its one caller
+            Map.entry("Compiler#compileErrors(String, Function<Throwable, String>, CrossTypeRule)",
+                    List.of(MODEL_TEXT, CALLBACK, CALLBACK)),
+            Map.entry("Compiler#compileErrors(Protocol.PureModelContextData, Function<Throwable, String>, CrossTypeRule)",
+                    List.of(MODEL, CALLBACK, CALLBACK)),
             Map.entry("Compiler#query(ModelContext, String)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#query(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
@@ -1073,6 +1079,11 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", List.of(LAMBDA)),
             // merged main 3a217086a (#81), 2026-11-14: lite's own planning options, a closed set of words
             Map.entry("TypedQuery#withOptions(Set<PlanOption>)", List.of(OPTION)),
+            // 2026-11-26 (the edition program's step 2b): a door's comparison setting for the query it admits -- the
+            // door's own object, which the type-checker calls back with a comparison across types it typed (typed code
+            // in, typed code out: no text, no name, never a statement). A callback, not an option: the interface is
+            // open (the independent audit of that day, finding 3)
+            Map.entry("TypedQuery#comparing(CrossTypeRule)", List.of(CALLBACK)),
             Map.entry("TypedQuery#options()", List.of()),
             Map.entry("TypedQuery#context()", List.of()),
             Map.entry("TypedQuery#specs()", List.of()),
@@ -1206,6 +1217,7 @@ class PlannerSurfaceTest {
             // TypedQuery: its receiver is the query; its rewrites keep it a TypedQuery, whose plans scan its body
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#withOptions(Set<PlanOption>)", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#comparing(CrossTypeRule)", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#options()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#context()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#specs()", QueryRoad.PLANS_NOTHING),

@@ -1050,8 +1050,14 @@ const CHART_BUDGET = 303_500;
  *  first"): the library's text with a window's ramp's two refusals that core's translator had raised by a parameter's
  *  name (a negative r, which gs-quant's Window(w, r) refuses; percentiles' r past its window) -- helpers::fromZero and
  *  minPeriods, moved into the library, as TsTranslatorGuardrailTest keeps the translator to calls of the library (it
- *  had failed since b4a267ae0, found at the merge). Measured 148,023. */
-const TIMESERIES_BUDGET = 148_200;
+ *  had failed since b4a267ae0, found at the merge). Measured 148,023.
+ *  148,200 -> 148,500 (2026-11-27, the edition program's step 6; the user: "Time series budget fine"): the library's
+ *  text under the one equality -- a line's period compared with the spine's as dates (three cast(@Date), since a
+ *  day and a date-time are two types that never compare), and four overloads of lines::onto that refuse a line of
+ *  the other grain while the query runs, naming the fix, where the comparison of the two had been the database's.
+ *  Measured 148,502 (the heavy run of 83cb22ae2, 148,728 before the library's comments were shortened); two more
+ *  comments shortened in the closing batch to fit the figure ruled, never a higher one. */
+const TIMESERIES_BUDGET = 148_500;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

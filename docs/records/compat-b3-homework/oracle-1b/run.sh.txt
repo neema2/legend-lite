@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# B3 step 1b, phase 2: ask legend-engine 4.145.0 (the engine runner's own jars, test tooling, never core) for its OWN
+# answer to the 19 tests S15 and S132 move, on the same databases, and class each one (tests.md says what and why).
+#
+#   run.sh build   THE ONE Bazel command (the parent session runs it, alone: one Bazel at a time)
+#   run.sh ask     plain java only (no Bazel): seeds the DuckDB files, asks legend-engine, writes the answers and the
+#                  classes under $OUT
+#
+# Inputs (written by phase 1, all in this folder): models/*.pure (the tests' own model and setUp SQL, re-packaged),
+# requests/*.tsv (the tests' own lambdas), goldens.tsv, lite_actuals.tsv; tools/make_models.py regenerates the first
+# three from legend-engine's sources: python3 -I tools/make_models.py <legend_engine_src> "$HERE".
+#
+# Three asks, each through planoracle.GoldenRunMain (generatePlan, then the plan's JSON run by PlanExecutor, as the
+# pure/v1 routes answer: tools/engine-runner/src/main/java/planoracle/EngineRoutes.java):
+#   A  duckdb-1.3.0.0  legend-engine on ITS DuckDB (the pool's duckdb_jdbc 1.3.0.0, legend-engine's pom.xml:165), the
+#                      file seeded by that DuckDB from the tests' setUp statements (planoracle.SeedDuckDbMain)
+#   B  duckdb-1.5.6.0  the same legend-engine with lite's DuckDB driver (tools/deps/jars_table.bzl:27, 1.5.6.0) in the
+#                      pool's place, its own file seeded by 1.5.6.0: lite's database exactly, so a difference A shows
+#                      can be told apart from DuckDB's version
+#   H  h2-2.1.214      legend-engine on ITS H2 (the H2 execution jar's 2.1.214 classes, ahead of the pool's h2 jar),
+#                      LocalH2 seeded by the same statements: the goldens' own database, its raw DECFLOAT digits shown
+set -euo pipefail
+
+HERE=<oracle1b>
+# the worktree whose bazel-bin holds the build. tools/engine-runner is identical in /home/user/s3, whose output base
+# already holds @maven_runner (legend-engine's ~600 MB of jars): WS=/home/user/s3 avoids a fresh fetch
+WS=${WS:-/home/user/s4}
+OUT=${OUT:-$HERE/out}
+
+case "${1:-}" in
+build)
+    # THE ONE BAZEL COMMAND. //tools/engine-runner:plan is a java_binary over :planoracle, whose runtime class path is
+    # the whole engine runner pool (GoldenRunMain and SeedDuckDbMain are in the same jar, libplanoracle.jar);
+    # @duckdb_jdbc//jar is lite's DuckDB driver (1.5.6.0), for ask B only.
+    cd "$WS"
+    exec bazel build //tools/engine-runner:plan @duckdb_jdbc//jar
+    ;;
+ask) ;;
+*)
+    echo "usage: run.sh build | ask   (WS=$WS, OUT=$OUT)" >&2
+    exit 2
+    ;;
+esac
+
+LAUNCHER="$WS/bazel-bin/tools/engine-runner/plan"
+[[ -x "$LAUNCHER" ]] || { echo "no $LAUNCHER: run 'run.sh build' first (in WS=$WS)" >&2; exit 1; }
+OB=$(cd "$(readlink -f "$WS/bazel-out")/../../.." && pwd)
+LITE_DUCKDB_JAR=${LITE_DUCKDB_JAR:-$(ls "$OB"/external/+product_jars+duckdb_jdbc/jar/duckdb_jdbc-*.jar 2>/dev/null | head -1)}
+[[ -f "$LITE_DUCKDB_JAR" ]] || { echo "lite's duckdb_jdbc jar not found under $OB/external (set LITE_DUCKDB_JAR)" >&2; exit 1; }
+JAVABIN=$("$LAUNCHER" --print_javabin 2>/dev/null || true)
+[[ -x "$JAVABIN" ]] || JAVABIN=java
+
+mkdir -p "$OUT"/{a,b,h2}
+python3 -I "$HERE/tools/classpath.py" "$LAUNCHER" "$OUT/cp-engine.args"
+python3 -I "$HERE/tools/classpath.py" "$LAUNCHER" "$OUT/cp-lite-duckdb.args" --swap="duckdb_jdbc-1.3.0.0=$LITE_DUCKDB_JAR"
+
+# the plan binary's own JVM flags (tools/engine-runner/BUILD.bazel _ORACLE_JVM and -Xmx3g), GMT as lite's corpus runs
+jvm() {
+    local args=$1
+    shift
+    "$JAVABIN" --add-opens=java.base/java.nio=ALL-UNNAMED -Xmx3g -Duser.timezone=GMT @"$args" "$@"
+}
+
+# seed <cp args> <dir> <family>: the DuckDB file from the family's LocalH2 seed, and the model pointed at it
+seed() {
+    rm -f "$2/$3.duckdb" "$2/$3.duckdb.wal"
+    jvm "$1" planoracle.SeedDuckDbMain \
+        --model="$HERE/models/$3-h2.pure" \
+        --connection="$HERE/models/$3-duckdb-connection.pure" \
+        --db="$2/$3.duckdb" \
+        --model-out="$2/$3-duckdb.pure" \
+        --statements-out="$2/$3_seed.json" 2>&1 | tee "$2/$3_seed.log"
+}
+
+# ask <cp args> <dir> <family> <requests> [duckdb]: legend-engine's plan and answer for each request
+ask() {
+    local model="$HERE/models/$3-h2.pure" duck=()
+    if [[ "${5:-}" == duckdb ]]; then
+        model="$2/$3-duckdb.pure"
+        duck=(--duckdb="$2/$3.duckdb")
+    fi
+    jvm "$1" planoracle.GoldenRunMain --requests="$HERE/requests/$4.tsv" --model="$model" "${duck[@]}" \
+        --out="$2/$3.jsonl" 2>&1 | tee "$2/$3.log"
+}
+
+# A: legend-engine on its own DuckDB 1.3.0.0
+seed "$OUT/cp-engine.args" "$OUT/a" calendar
+seed "$OUT/cp-engine.args" "$OUT/a" sqlfn
+ask "$OUT/cp-engine.args" "$OUT/a" calendar calendar duckdb
+ask "$OUT/cp-engine.args" "$OUT/a" sqlfn sqlfn_log duckdb
+
+# H: legend-engine on its own H2 2.1.214 (the three H2 rows are calendar's annualized, cme and pma; the other eleven
+# and the two log tests answer too: legend-engine's home answers beside the goldens)
+ask "$OUT/cp-engine.args" "$OUT/h2" calendar calendar
+ask "$OUT/cp-engine.args" "$OUT/h2" sqlfn sqlfn_log
+
+# B: the same legend-engine on lite's DuckDB 1.5.6.0. Last and tolerated: legend-engine's DuckDB module was built
+# against 1.3.0.0, so a driver API it no longer finds fails this ask alone (its log says so) and A and H stand
+B_OK=1
+( set -e
+  seed "$OUT/cp-lite-duckdb.args" "$OUT/b" calendar
+  seed "$OUT/cp-lite-duckdb.args" "$OUT/b" sqlfn
+  ask "$OUT/cp-lite-duckdb.args" "$OUT/b" calendar calendar duckdb
+  ask "$OUT/cp-lite-duckdb.args" "$OUT/b" sqlfn sqlfn_log duckdb ) || { B_OK=0; echo "ask B (lite's DuckDB 1.5.6.0) failed: see $OUT/b/*.log" >&2; }
+
+# the classes: legend-engine's cells, the text its own test compares, pass or fail, lite's, (a)/(b)/(c)
+LANES=("duckdb-1.3.0.0=$OUT/a/calendar.jsonl" "duckdb-1.3.0.0=$OUT/a/sqlfn.jsonl"
+       "h2-2.1.214=$OUT/h2/calendar.jsonl" "h2-2.1.214=$OUT/h2/sqlfn.jsonl")
+if [[ $B_OK == 1 ]]; then
+    LANES+=("duckdb-1.5.6.0=$OUT/b/calendar.jsonl" "duckdb-1.5.6.0=$OUT/b/sqlfn.jsonl")
+fi
+python3 -I "$HERE/tools/classify.py" "$HERE" "${LANES[@]}" | tee "$OUT/classes.txt"
+echo "answers: $OUT/{a,h2,b}/*.jsonl; classes: $OUT/classes.txt"

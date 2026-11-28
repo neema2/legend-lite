@@ -17,8 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * A FLOAT'S TEXT ON THE PRODUCT ROAD (phase D's D1.2, 2026-11-15; register S311, the user's ruling of 2026-11-10: "let's
- * go back to 6 ... and use decimal where need"): {@code toString} of a Float is six decimals with the trailing zeros and
- * a trailing point trimmed, the same text on each lane's database (DuckDB, H2, SQLite) -- a column's value and a
+ * go back to 6 ... and use decimal where need"; S311 amended by the user's ruling of 2026-11-23, "I think we do it as
+ * 2.0"): {@code toString} of a Float is six decimals with the trailing zeros trimmed, a whole value keeping one, the
+ * same text on each lane's database (DuckDB, H2, SQLite) -- a column's value and a
  * computed one. legend-pure's print form is the compatibility edge's ({@code edge.PurePrintForms}), pinned beside it.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
@@ -31,12 +32,18 @@ class FloatTextTest {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
         try (Connection c = backend.open()) {
-            assertEquals(List.of("1.5", "2", "-1.25", "1234567.89", "100000000000000000000"),
+            // a whole value keeps one fraction digit (S311 amended, the user's ruling of 2026-11-23, "I think we do it
+            // as 2.0"; B2a, 2026-11-24)
+            assertEquals(List.of("1.5", "2.0", "-1.25", "1234567.89", "100000000000000000000.0"),
                     column(Lean.run(model, "|" + ROWS + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)",
                             StorelessRuntime.RUNTIME, c)), backend.name());
             assertEquals("0.333333", scalar(model, c, "|(1.0 / 3.0)->toString()"), backend.name());
             assertEquals("0.3", scalar(model, c, "|(0.1 + 0.2)->toString()"), backend.name());
-            assertEquals("0", scalar(model, c, "|0.0000001->toString()"), backend.name());
+            assertEquals("0.0", scalar(model, c, "|0.0000001->toString()"), backend.name());
+            // a negative whole value, and format's %f of a whole value: the same rule (B2a's end design audit, 2026-11-24)
+            assertEquals("-2.0", scalar(model, c, "|(-2.0 * 1.0)->toString()"), backend.name());
+            assertEquals("a 2.0 b", scalar(model, c, "|let x = 2.0 * 1.0; 'a %f b'->meta::pure::functions::string"
+                    + "::format([$x]);"), backend.name());
             // legend-pure's print form, at the compatibility edge
             assertEquals(List.of("1.5", "2.0", "-1.25"), column(Lean.runInStyle(model, "|" + ROWS
                     + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)", StorelessRuntime.RUNTIME, backend,
@@ -71,29 +78,88 @@ class FloatTextTest {
         }
     }
 
-    /** An edge relation's text prints a Float CELL as legend-pure prints it (DecimalFormat "0.0": its shortest round-trip
-     *  digits, plain), never as the in-query cast legend-engine writes for a Float's toString (PR #118 fix round,
-     *  2026-11-18: since 237bd8e5f DuckDB wrote 1e-05 and 1e+20, H2 1.0E-5 and 2.5E7). */
+    /** THE WINDOW UNTIL B2b's S6 (the review of S5a, 2026-11-24, and its re-review, 2026-11-25): a relation's toString
+     *  is lite's layout computed by the database on every plan style (lowering.ProductRelationText), but under the edge's
+     *  style the edge dialect's value passes (edge.PurePrintForms) re-spell its Float and DateTime cells as they re-spell
+     *  any such value's text there: a table text used further at the edge writes each cell as the edge writes that
+     *  value's toString -- a Float legend-engine's in-query cast (1e-05 on DuckDB, 1.0E-5 on H2), a DateTime
+     *  legend-pure's {@code +0000} form -- neither lite's text nor (for a Float) legend-pure's. No PCT or corpus case
+     *  meets it (a last-step table is the doors' Java printer's: PureRelationTextTest, PureRelationTextParityTest).
+     *  Pinned two ways: each cell is the edge's own text of that value (the same pass writes both, so this half holds
+     *  whatever the pass writes), and the table is NOT lite's text, so S6's deletion of the passes turns this test red
+     *  by name; the helper's toCSV used further alike (S5b, 2026-11-25). (Until S5a, this test pinned legend-pure's print, which the edge's own table SQL wrote, PR #118's fix
+     *  round.) */
     @Test
-    void anEdgeRelationsTextPrintsAFloatCellAsLegendPure() throws Exception {
+    void anEdgeTableTextUsedFurtherWritesItsCellsAsTheEdgeWritesTheirValues() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
-        // OPEN on SQLite (reported 2026-11-18, not this fix's): a whole value past 2^63 prints as the 64-bit clamp,
-        // 9223372036854775807.0 -- FloatShortestText's whole-value arm casts through HUGEINT, SQLite's INTEGER -- so its
-        // lane reads the three values below it
-        List<String> values = new ArrayList<>(List.of("0.00001", "0.0005", "25000000.0"));
-        if (!backend.name().equals("sqlite")) {
-            values.add("100000000000000000000.0");
+        String rows = "#TDS\ni:Integer, x:Float, t:DateTime\n1, 0.00001, 2014-01-01T10:20:30.123\n2, 0.0005,"
+                + " 2020-02-29T00:00:00\n3, 25000000.0, 2014-01-01T10:20:30.5\n#->sort(~i->ascending())";
+        java.util.Map<String, String> lites = java.util.Map.of(
+                "x", "#TDS\n   x\n   0.00001\n   0.0005\n   25000000.0\n#",
+                "t", "#TDS\n   t\n   2014-01-01T10:20:30.123000000Z\n   2020-02-29T00:00:00.000000000Z\n"
+                        + "   2014-01-01T10:20:30.500000000Z\n#");
+        for (String col : List.of("x", "t")) {
+            String table = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->toString()",
+                    StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+            List<String> cells = new ArrayList<>();
+            for (List<Object> row : Lean.runInStyle(model, "|" + rows + "->extend(~c: r|$r." + col
+                    + "->toOne()->toString())->select(~c)", StorelessRuntime.RUNTIME, backend,
+                    com.legend.edge.PureText.UPSTREAM).rows()) {
+                cells.add(String.valueOf(row.get(0)));
+            }
+            assertEquals("#TDS\n   " + col + "\n   " + String.join("\n   ", cells) + "\n#", table,
+                    backend.name() + " " + col);
+            org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col), table, backend.name() + " " + col
+                    + ": the edge's table text is lite's -- the window closed (S6): re-point this test");
+            // the helper's toCSV used further (the review of S5b, 2026-11-25): its DateTime cell the same window, the edge's
+            // text of its value; its Float cell the window CLOSED, the database's own full-precision text since the
+            // user's ruling of 2026-11-25 ("okay make exact"; SqlFn.FLOAT_FULL_TEXT, B3's (B)), which no edge pass
+            // re-spells -- the same CSV at the edge's door and in the product
+            String csv = Lean.runInStyle(model, "|" + rows + "->select(~" + col + ")->meta::relational::tests::csv::toCSV()",
+                    StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString();
+            if (col.equals("x")) {
+                String product = Lean.runInStyle(model, "|" + rows + "->select(~x)->meta::relational::tests::csv::toCSV()",
+                        StorelessRuntime.RUNTIME, backend, com.legend.database.PlanStyle.PRODUCT).rows().get(0).get(0)
+                        .toString();
+                assertEquals(product, csv, backend.name() + " x toCSV: the database's own text at every door");
+                continue;
+            }
+            assertEquals(col + "\n" + String.join("\n", cells) + "\n", csv, backend.name() + " " + col + " toCSV");
+            org.junit.jupiter.api.Assertions.assertNotEquals(lites.get(col).replace("#TDS\n   ", "").replace("\n   ", "\n")
+                    .replace("\n#", "\n"), csv, backend.name() + " " + col
+                    + ": the edge's CSV is lite's -- the window closed (S6): re-point this test");
         }
-        String rows = "#TDS\nx:Float\n" + String.join("\n", values) + "\n#";
-        assertEquals("#TDS\n   x\n   " + String.join("\n   ", values) + "\n#",
-                Lean.runInStyle(model, "|" + rows + "->sort(~x->ascending())->toString()", StorelessRuntime.RUNTIME,
-                        backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString(), backend.name());
     }
 
     private static String edge(String model, Connection c, String query) throws Exception {
         return Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, LaneFloor.backend(), com.legend.edge.PureText.UPSTREAM).rows()
                 .get(0).get(0).toString();
+    }
+
+    /** A Float the store holds as an integer, at the compatibility edge: legend-engine's in-query cast of the column,
+     *  its digits ({@code Quantity not in range: 1000000}, the corpus's validation showcase), where the product prints
+     *  every Float by one rule ({@code RelationalMappingIntegrationTest.testManyColumnTypes}, {@code 42.0}). Pinned
+     *  2026-11-24 (B2a's end design audit) at the SQL each edge dialect writes for the product's node, so that no fixture
+     *  is written: the edge's pass over the product's Float text keeps it today, and B2b deletes that pass, so its
+     *  replacement must write the same. */
+    @Test
+    void anIntegerHeldFloatsTextAtTheEdgeIsLegendEnginesCast() {
+        com.legend.sql.SqlExpr qty = com.legend.sql.SqlExpr.Column.of("t", "QTY", com.legend.sql.SqlType.Scalar.BIGINT,
+                true, com.legend.sql.OutputCol.Origin.PHYSICAL);
+        // the lane's own database (each lane runs it: DuckDB, H2, SQLite)
+        TestBackend backend = LaneFloor.backend();
+        com.legend.sql.dialect.SqlDialect edge = com.legend.edge.PureText.dialect(backend.type());
+        assertEquals(edge.render(select(new com.legend.sql.SqlExpr.Cast(qty, com.legend.sql.SqlType.Scalar.VARCHAR,
+                        com.legend.sql.SqlExpr.Reason.USER))),
+                edge.render(select(com.legend.lowering.LiteralSpelling.floatPrint(qty))), backend.name());
+    }
+
+    private static com.legend.sql.SqlSelect select(com.legend.sql.SqlExpr e) {
+        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(e, "v", null)), false,
+                new com.legend.sql.SqlSource.Table("T1", "t", List.of(new com.legend.sql.OutputCol("QTY",
+                        com.legend.sql.SqlType.Scalar.BIGINT, true)), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of());
     }
 
     private static String scalar(String model, Connection c, String query) throws Exception {

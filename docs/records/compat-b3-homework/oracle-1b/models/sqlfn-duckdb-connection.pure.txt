@@ -1,0 +1,15 @@
+// B3 step 1b's oracle input: the DuckDB connection that replaces oracle1b::sqlfn::Conn's LocalH2 one (planoracle.SeedDuckDbMain
+// --connection), as tools/engine-runner/src/test/resources/pure_v1/duckdb-connection.pure does for the pure/v1 goldens.
+// ${DUCKDB_PATH} is the path of the reader's copy of the seeded file (planoracle.GoldenRunMain --duckdb).
+
+###Connection
+RelationalDatabaseConnection oracle1b::sqlfn::Conn
+{
+    store: oracle1b::sqlfn::myDB;
+    type: DuckDB;
+    specification: DuckDB
+    {
+        path: '${DUCKDB_PATH}';
+    };
+    auth: Test;
+}

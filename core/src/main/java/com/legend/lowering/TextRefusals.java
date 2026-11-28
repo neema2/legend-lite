@@ -32,12 +32,8 @@ final class TextRefusals {
         return refused("toString of an instance", "the product writes an object by graph fetch");
     }
 
-    /** {@code what} of a relation ({@code toCSV}, a TDS's {@code csv}, a relation's {@code toString}): the product
-     *  writes a relation's rows by its result writers (B17, 2026-11-17; moved here from RelationTexts the same day). */
-    static ModelException relation(String what) {
-        return refused(what + " of a relation", "the product writes a relation's rows by its result writers (JSON, CSV,"
-                + " Arrow)");
-    }
+    // (tdsCsv, a TDS's csv refused by name since B2b S5c: gone 2026-11-25 with the user's ruling, ".csv in product,
+    // yes same as toCSV" -- lite's own CSV, ProductRelationText.tdsCsv; register S405)
 
     /** A user's {@code toRepresentation}. */
     static ModelException representation() {

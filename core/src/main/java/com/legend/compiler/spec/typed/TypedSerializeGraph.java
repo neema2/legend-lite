@@ -150,9 +150,12 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
 
     /** One class constraint riding a CHECKED envelope: the per-row defect
      * gate. Predicate/message are row lambdas (bindings already inlined);
-     * the remaining fields are the defect object's constants. */
+     * the remaining fields are the defect object's constants. {@code message}
+     * is null where the constraint has no {@code ~message}: its defect's words
+     * are the one catalog's ({@code ErrorKind.CONSTRAINT_VIOLATED}), written by
+     * the lowering (stage B's B2b S3, 2026-11-24). */
     public record CheckedConstraint(String id, TypedFuncCol predicate,
-            TypedFuncCol message, String level, String definerFqn) {
+            @com.legend.base.Nullable TypedFuncCol message, String level, String definerFqn) {
     }
 
     /** Unchecked compat (the common envelope). */
@@ -258,7 +261,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         if (checkedConstraints != null) {
             checkedConstraints.forEach(c -> {
                 out.add(c.predicate().fn());
-                out.add(c.message().fn());
+                TypedFuncCol message = c.message();
+                if (message != null) {
+                    out.add(message.fn());
+                }
             });
         }
         return out;
@@ -299,8 +305,9 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
             for (CheckedConstraint c : checkedConstraints) {
                 TypedFuncCol pr = new TypedFuncCol(c.predicate().name(),
                         (TypedLambda) kids.get(i++), c.predicate().documentation());
-                TypedFuncCol msg = new TypedFuncCol(c.message().name(),
-                        (TypedLambda) kids.get(i++), c.message().documentation());
+                TypedFuncCol message = c.message();
+                TypedFuncCol msg = message == null ? null : new TypedFuncCol(message.name(),
+                        (TypedLambda) kids.get(i++), message.documentation());
                 ccs.add(new CheckedConstraint(c.id(), pr, msg, c.level(), c.definerFqn()));
             }
         }

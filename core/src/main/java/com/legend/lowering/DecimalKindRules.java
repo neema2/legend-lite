@@ -29,12 +29,22 @@ final class DecimalKindRules {
     }
 
     static SqlExpr round(TypedNativeCall n, List<SqlExpr> args) {
+        return rounded(SqlFn.ROUND, n, args);
+    }
+
+    /** {@code round} by the database's own ROUND ({@link NamedRule#ROUND_AS_GIVEN}): the product's round in every
+     *  other way -- an Integer of one argument, the operand's type at a scale. */
+    static SqlExpr roundAsGiven(TypedNativeCall n, List<SqlExpr> args) {
+        return rounded(SqlFn.ROUND_RAW, n, args);
+    }
+
+    private static SqlExpr rounded(SqlFn rounding, TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() == 1) {
-            return new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
+            return new SqlExpr.Cast(new SqlExpr.Call(rounding, args),
                     SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR);
         }
         return decimalScaleCast(n, 1,
-                new SqlExpr.Call(SqlFn.ROUND, args));
+                new SqlExpr.Call(rounding, args));
     }
 
     static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args, Styled styled) {
@@ -54,7 +64,7 @@ final class DecimalKindRules {
                     && n.args().get(1).info().type()
                             == Type.Primitive.INTEGER
                     && !(args.get(1) instanceof SqlExpr.IntLit k && k.value() != 0)) {
-                return Scalars.guarded(
+                return Scalars.guarded(n,
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1),
                                 new SqlExpr.IntLit(0)),
                         // DIVIDE_BY_ZERO, no operand (the interpreter's 'Division by zero', the edge's: D1.1)

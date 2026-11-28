@@ -114,6 +114,13 @@ public final class StoreResolver {
         return this;
     }
 
+    /** THE STAMP ON THE MODEL'S AND THE MAPPINGS' CODE (the edition program's step 2, 2026-11-25): the code this
+     *  resolution stamps as outside any store query as it brings it into a statement ({@link StampedCode};
+     *  {@code TypedNativeCall.outsideStore}), for the lowering's edition table. The planner decides it per statement
+     *  from its door's edition ({@code planner.Edition}); the product stamps none. Every resolver this one makes for a
+     *  nested resolution is made with it. */
+    private final StampedCode outside;
+
     private GraphEmission.@com.legend.base.Nullable SerializeTypeConfig serializeTypeCfg;
     private boolean checkedEnvelope;   // graphFetchChecked defect gate
     /** Recursive navigate-target materialization (stateless service). */
@@ -133,10 +140,16 @@ public final class StoreResolver {
     private final ModelContext ctx;
 
     public StoreResolver(ModelContext ctx, SpecCompiler specs) {
+        this(ctx, specs, StampedCode.NONE);
+    }
+
+    /** {@link #StoreResolver(ModelContext, SpecCompiler)}, stamping the code {@code outside} names. */
+    public StoreResolver(ModelContext ctx, SpecCompiler specs, StampedCode outside) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.callees = new Callees(this.ctx);
         this.specs = Objects.requireNonNull(specs, "specs");
-        this.sources = new ClassSources(ctx, specs);
+        this.outside = Objects.requireNonNull(outside, "outside");
+        this.sources = new ClassSources(ctx, specs, outside);
         this.constructed = new ConstructedInstances(ctx, sources);
         sources.setConstructedRows(constructed::rowsFor, constructed::parametersFor);
         this.synthetics = new SyntheticHeads(ctx);
@@ -235,7 +248,7 @@ public final class StoreResolver {
                 out.add(stmt);
                 continue;
             }
-            stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings, this::storeRooted);
+            stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings, this::storeRooted, outside);
             out.add(ObjectReferenceDecode.rewrite(resolveNode(stmt, context), ctx, sources));
         }
         for (int i = 0; i < out.size(); i++) {
@@ -383,7 +396,7 @@ public final class StoreResolver {
             // in-query CLASS SUBQUERIES under lambdas lift FIRST
             // (SubQueryLift) under THIS from()'s context
             TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
-                    inner, ctx, specs, letBindings, this::storeRooted);
+                    inner, ctx, specs, letBindings, this::storeRooted, outside);
             return new TypedFrom(resolveNode(liftedSrc, inner),
                     from.context(), from.executedExtent(), from.extentFrame(), from.info());
         }
@@ -2960,7 +2973,7 @@ public final class StoreResolver {
         if (g.forEachDate()) {
             g = new TypedGetAll(g.classFqn(), List.of(   // dates resolve NOW
                     SubQueryLift.resolveDatesRelation(g.milestoning().get(0),
-                            chainContext, ctx, specs, letBindings)),
+                            chainContext, ctx, specs, letBindings, outside)),
                     false, true, g.info());
         }
         if (g.milestoning().size() > 2) {

@@ -1,0 +1,37 @@
+import com.legend.Compiler;
+import com.legend.TypedQuery;
+import com.legend.json.Json;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testbackend.StorelessRuntime;
+import java.nio.file.*;
+import java.io.*;
+import java.util.*;
+public class Dump {
+  public static void main(String[] a) throws Exception {
+    List<String> lines = Files.readAllLines(Path.of(a[0]));
+    try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(Path.of(a[1])))) {
+    for (String dbn : a[2].split(",")) {
+      DatabaseType type = DatabaseType.valueOf(dbn);
+      Map<String, com.legend.compiler.element.ModelContext> compiled = new HashMap<>();
+      int i=0;
+      for (String line : lines) { i++;
+        if (line.isBlank()) continue;
+        Json.Obj c = Json.parseObject(line);
+        String model = ((Json.Str) c.get("model")).value();
+        String expr = ((Json.Str) c.get("expression")).value();
+        try {
+          TypedQuery q = Compiler.query(compiled.computeIfAbsent(model, m -> Compiler.compileModel(withRuntime(m, type))), expr);
+          ExecutionPlan plan = q.executionPlan(StorelessRuntime.RUNTIME, Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING));
+          List<String> st = new ArrayList<>();
+          com.legend.leansql.LeanSqlBaseline.statements(plan.root(), st);
+          for (String s : st) w.println(dbn+"\t"+i+"\t"+s.length()+"\t"+expr.replace("\t"," ").replace("\n"," ")+"\t"+s.replace("\t"," ").replace("\n","\\n"));
+        } catch (Throwable e) { w.println(dbn+"\t"+i+"\t-1\t"+expr.replace("\n"," ")+"\tERR "+String.valueOf(e).replace("\n"," ")); }
+      }
+    }}
+    System.exit(0);
+  }
+  static String withRuntime(String model, DatabaseType type) {
+    try { return StorelessRuntime.with(model, type); } catch (RuntimeException e) { return StorelessRuntime.onServer(model, type, "localhost", 1, "legend"); }
+  }
+}

@@ -564,7 +564,6 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("wantEqual", x.wantEqual());
-        o.put("incidental", x.incidental());
         o.put("gridPair", x.gridPair());
         o.put("e", wSideFacts(x.e()));
         o.put("a", wSideFacts(x.a()));
@@ -576,13 +575,12 @@ final class HostJson {
     static HostJudgment.Equals rHjEquals(Json.Obj o) {
         String v_name = str(field(o, "name", "Equals"));
         boolean v_wantEqual = bool(field(o, "wantEqual", "Equals"));
-        boolean v_incidental = bool(field(o, "incidental", "Equals"));
         boolean v_gridPair = bool(field(o, "gridPair", "Equals"));
         HostJudgment.SideFacts v_e = rSideFacts(obj(field(o, "e", "Equals")));
         HostJudgment.SideFacts v_a = rSideFacts(obj(field(o, "a", "Equals")));
         HostJudgment.Keys v_keys = rKeys(obj(field(o, "keys", "Equals")));
         HostJudgment.FlatFacts v_flat = rFlatFacts(obj(field(o, "flat", "Equals")));
-        return new HostJudgment.Equals(v_name, v_wantEqual, v_incidental, v_gridPair, v_e, v_a, v_keys, v_flat);
+        return new HostJudgment.Equals(v_name, v_wantEqual, v_gridPair, v_e, v_a, v_keys, v_flat);
     }
 
     static Map<String, Object> wHjJson(HostJudgment.Json x) {

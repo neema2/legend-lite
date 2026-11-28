@@ -54,23 +54,27 @@ class AssertBarTest {
             new Probe("assertNotEq-holds", "{|assertNotEq(1, 2)}", null),
             // the four default-message asserts (#28): platform natives, each its positive family negated, worded by
             // lite's own sentence under every judge
-            new Probe("assertNotEq-fails", "{|assertNotEq(1, 1)}", "expected a value other than 1"),
+            new Probe("assertNotEq-fails", "{|assertNotEq(1, 1)}", "1 should not equal 1"),
+            // the expected side's class printed as the actual side's (the review of B3 step 3's M1, 2026-11-24: the
+            // expected side was printed with no class, "? {...}")
+            new Probe("assertNotEquals-instance-fails", "{|let p = ^t::Person(name='a'); assertNotEquals($p, $p);}",
+                    "t::Person {\"name\":\"a\"} should not equal t::Person {\"name\":\"a\"}"),
             new Probe("assertNotSize-holds", "{|assertNotSize([1, 2], 3)}", null),
-            new Probe("assertNotSize-fails", "{|assertNotSize([1, 2], 2)}", "expected a size other than 2"),
+            new Probe("assertNotSize-fails", "{|assertNotSize([1, 2], 2)}", "size should not equal: 2"),
             new Probe("assertNotContains-holds", "{|assertNotContains([1, 2], 3)}", null),
             new Probe("assertNotContains-fails", "{|assertNotContains(['a', 'b'], 'b')}",
-                    "expected [\"a\", \"b\"] not to contain \"b\""),
+                    "[\"a\", \"b\"] should not contain \"b\""),
             new Probe("assertIsNot-holds", "{|assertIsNot(1, 2)}", null),
-            new Probe("assertIsNot-fails", "{|assertIsNot('x', 'x')}", "expected an instance other than \"x\""),
+            new Probe("assertIsNot-fails", "{|assertIsNot('x', 'x')}", "Should not be identical to: \"x\""),
             new Probe("assertNotEq-with-a-message", "{|assertNotEq(1, 1, 'mine')}", "mine"),
             new Probe("one-statement-helper-holds", "{|t::check(1 + 1)}", null),
-            new Probe("one-statement-helper-fails", "{|t::check(3)}", "expected 2, got 3"),
-            new Probe("two-statement-helper-fails", "{|t::check2(3)}", "expected 2, got 3"),
+            new Probe("one-statement-helper-fails", "{|t::check(3)}", "expected: 2, actual: 3"),
+            new Probe("two-statement-helper-fails", "{|t::check2(3)}", "expected: 2, actual: 3"),
             new Probe("assert-in-an-if", "{|if(1 == 1, |assertEquals(1, 1), |assertEquals(1, 2))}", null),
             // an assert under an if (lite's plan's Branch node, step 4): the side not taken is never evaluated, as
             // upstream never evaluates it -- the else side's toOne() over nothing would fail if it ran
             new Probe("assert-in-an-if-fails", "{|if(1 == 2, |assertEquals(1, 1), |assertEquals(1, 2))}",
-                    "expected 1, got 2"),
+                    "expected: 1, actual: 2"),
             new Probe("if-side-not-taken-never-runs",
                     "{|if(1 == 1, |assert(true), |assertEquals(1, [1, 2]->filter(x | $x > 5)->toOne()))}", null),
             new Probe("if-over-a-let", "{|let x = 2; if($x > 1, |assertEquals(2, $x), |assertEquals(1, $x));}", null),
@@ -79,30 +83,32 @@ class AssertBarTest {
                     null),
             new Probe("asserts-around-an-if",
                     "{|assertEquals(1, 1); if(2 > 1, |assertEquals('a', 'a'), |assert(false)); assertEquals(2, 3);}",
-                    "expected 2, got 3"),
+                    "expected: 2, actual: 3"),
             new Probe("nested-if",
                     "{|if(1 == 1, |if(2 == 3, |assert(false, 'inner then'), |assert(false, 'inner else')),"
                             + " |assert(true))}", "inner else"),
             new Probe("if-with-a-constant-then", "{|if(1 == 1, |true, |assert(false, 'not taken')); assert(true);}",
                     null),
             new Probe("if-with-a-constant-side", "{|if(1 == 1, |assertEquals(1, 2), |true); true;}",
-                    "expected 1, got 2"),
+                    "expected: 1, actual: 2"),
             new Probe("assert-bound-by-a-let", "{|let ok = assertEquals(1, 1); assert($ok);}", null),
             new Probe("forAll-over-range", "{|range(1, 4)->forAll(i | assertEquals($i, $i))}", null),
             // per element, the operands computed by the database (step 5): the first failing element in upstream's
             // words, each operand spelled by its own kind, an empty source holding
             new Probe("forAll-over-range-fails", "{|range(1, 4)->forAll(i | assertEquals($i, 2))}",
-                    "expected 1, got 2 at index 0"),
+                    "expected: 1, actual: 2 at index 0"),
             // register S139 (the user's ruling, 2026-11-05): lite compares a Decimal by value, its scale dropped
             new Probe("forAll-decimal-scale", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.00D))}", null),
             new Probe("forAll-decimal-value", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.10D))}",
-                    "expected 3.0, got 3.10 at index 0"),
+                    "expected: 3.0, actual: 3.10 at index 0"),
+            // an Integer and a Decimal are two exact numbers, equal by their value (the user's ruling of 2026-11-27;
+            // until then two kinds never equal: "expected: 1 (Decimal), actual: 1 (Integer) at index 0")
             new Probe("forAll-decimal-vs-integer", "{|range(1, 3)->forAll(i | assertEquals(1D, $i))}",
-                    "expected 1 (Decimal), got 1 (Integer) at index 0"),
+                    "expected: 1, actual: 2 at index 1"),
             new Probe("forAll-over-nothing", "{|[1, 2]->filter(x | $x > 5)->forAll(i | assertEquals($i, 99))}", null),
             // an element's own caller's message (item 3's S4 step 3, the user's decision 4, 2026-11-22): read only where
             // THAT element fails, the failure whole as upstream raises it -- the element 1 holds, so its message, which
-            // reads past the list's end, is never read (until then both judges dropped it: "expected 1, got 0 at
+            // reads past the list's end, is never read (until then both judges dropped it: "expected: 1, actual: 0 at
             // index 1")
             new Probe("forAll-element-message-reads",
                     "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}", "10"),
@@ -110,12 +116,12 @@ class AssertBarTest {
             // and a Float are never equal, whatever a database's own list equality coerces (DuckDB types both
             // literals DOUBLE[]; the user, 2026-11-22)
             new Probe("mixed-kind-lists-differ", "{|assertEquals([1, 2.5, 3], [1.0, 2.5, 3])}",
-                    "expected [1, 2.5, 3], got [1.0, 2.5, 3]"),
+                    "expected: [1, 2.5, 3], actual: [1.0, 2.5, 3]"),
             new Probe("mixed-kind-lists-equal", "{|assertEquals([1, 2.5, 3], [1, 2.5, 3])}", null),
             // a String whose text starts with a bracket is a String, written quoted, never read as a JSON carrier (the
             // S4 audit's HIGH 1, 2026-11-22: written as minified JSON until then, assertEq's differently per judge)
-            new Probe("string-with-a-bracket", "{|assertEquals('[a b]', '[c]')}", "expected \"[a b]\", got \"[c]\""),
-            new Probe("eq-string-with-a-brace", "{|assertEq('{a}', '{b}')}", "expected \"{a}\", got \"{b}\""),
+            new Probe("string-with-a-bracket", "{|assertEquals('[a b]', '[c]')}", "expected: \"[a b]\", actual: \"[c]\""),
+            new Probe("eq-string-with-a-brace", "{|assertEq('{a}', '{b}')}", "expected: \"{a}\", actual: \"{b}\""),
             new Probe("forAll-element-literal-message", "{|[1, 2]->forAll(i | assertEquals(1, $i, 'mine'))}", "mine"),
             // the same over a row the database judge has not typed (a Decimal against an Integer, decided false at
             // planning; dates): the caller's message whole on every judge (the S4 step 3 audit's HIGH, 2026-11-22:
@@ -132,9 +138,9 @@ class AssertBarTest {
             new Probe("rendered-join-golden-folded", "{|assertEquals('a' + ',' + 'b', ['a', 'b']->joinStrings(','))}",
                     null),
             new Probe("rendered-join-fails", "{|assertEquals('a;b', ['a', 'b']->joinStrings(','))}",
-                    "expected \"a;b\", got \"a,b\""),
+                    "expected: \"a;b\", actual: \"a,b\""),
             new Probe("rendered-makeString-fails", "{|assertEquals('[1|2]', [1, 2]->makeString('[', '|', ']') + '!')}",
-                    "expected \"[1|2]\", got \"[1|2]!\""),
+                    "expected: \"[1|2]\", actual: \"[1|2]!\""),
             new Probe("forAll-zip-computed-arguments",
                     "{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}", null),
             new Probe("assertInstanceOf-custom-message", "{|assertInstanceOf(1, Integer, 'msg')}", null),
@@ -145,11 +151,11 @@ class AssertBarTest {
                     "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(1)->type())}", null),
             new Probe("assertIs-picked-element-fails",
                     "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}",
-                    "expected t::Person, got t::Employee"),   // lite's sentence since census J29 (2026-11-18)
+                    "expected: t::Person, actual: t::Employee"),   // lite's sentence since census J29 (2026-11-18)
             new Probe("concatenate-keeps-order", "{|assertEquals([3, 1, 2], [1, 2]->concatenate([3]))}",
-                    "expected [3, 1, 2], got [1, 2, 3]"),
+                    "expected: [3, 1, 2], actual: [1, 2, 3]"),
             new Probe("union-keeps-order", "{|assertEquals([3, 1, 2], [1, 2]->union([3]))}",
-                    "expected [3, 1, 2], got [1, 2, 3]"),
+                    "expected: [3, 1, 2], actual: [1, 2, 3]"),
             // exact, as upstream (S132's float tokens are backwards-compatibility mode's alone: ExecuteOptions
             // .withEngineCompat, the PCT and corpus harnesses; the user, 2026-11-04)
             // a Float in a failure message at full round-trip precision, the same text under every judge on every
@@ -158,48 +164,60 @@ class AssertBarTest {
             // the operands parsed so each is the double (a Float literal's arithmetic is the database's DECIMAL until
             // E-P5's S20 lands)
             new Probe("float-message-sum", "{|assertEquals(0.3, parseFloat('0.1') + parseFloat('0.2'))}",
-                    "expected 0.3, got 0.30000000000000004"),
+                    "expected: 0.3, actual: 0.30000000000000004"),
             // past DECIMAL(38,18): Java's exponent form, every database's text normalized to it
             new Probe("float-message-tiny", "{|assertEquals(1.0, parseFloat('1.0E-300'))}",
-                    "expected 1.0, got 1.0E-300"),
+                    "expected: 1.0, actual: 1.0E-300"),
             new Probe("float-message-negative-zero", "{|assertEquals(1.0, parseFloat('-0.0'))}",
-                    "expected 1.0, got -0.0"),
+                    "expected: 1.0, actual: -0.0"),
             new Probe("float-message-product", "{|assertEquals(1.0, parseFloat('123456789.123456789') * 3.0)}",
-                    "expected 1.0, got 370370367.3703704"),
+                    "expected: 1.0, actual: 370370367.3703704"),
             new Probe("float-looking-strings", "{|assertEquals('x=1.0000000000000002', 'x=1.0')}",
-                    "expected \"x=1.0000000000000002\", got \"x=1.0\""),
+                    "expected: \"x=1.0000000000000002\", actual: \"x=1.0\""),
             new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", null),
-            new Probe("decimal-value", "{|assertEquals(3.0D, 3.10D)}", "expected 3.0, got 3.10"),
-            new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "expected 1, got 1.0"),
+            new Probe("decimal-value", "{|assertEquals(3.0D, 3.10D)}", "expected: 3.0, actual: 3.10"),
+            // (two written types are a compile error on lite's own door: anAssertOfTwoKnownTypesIsRefused...; the judge's
+            // rule is held here by sides typed only when the test runs)
+            new Probe("integer-vs-float", "{|assertEquals(1->cast(@Number), 1.0->cast(@Number))}",
+                    "expected: 1, actual: 1.0"),
             // the ledger audit's D4 (2026-11-16): a list of Integers against the same numbers as Floats fails, as the
             // one-value probe above does; the message is the failed typed comparison's, never an untyped re-compare
             // that held (which passed the assertSameElements and raised "verdict/message divergence" on assertEquals)
-            new Probe("integer-vs-float-lists", "{|assertEquals([1, 2], [1.0, 2.0])}",
-                    "expected [1, 2], got [1.0, 2.0]"),
-            new Probe("integer-vs-float-same-elements", "{|assertSameElements([2, 1], [2.0, 1.0])}",
+            // (two sides of two KNOWN types are a compile error on lite's own door: anAssertOfTwoKnownTypesIsRefused...)
+            new Probe("integer-vs-float-lists-typed-at-run-time",
+                    "{|assertEquals([1, 2]->cast(@Number), [1.0, 2.0]->cast(@Number))}",
+                    "expected: [1, 2], actual: [1.0, 2.0]"),
+            new Probe("integer-vs-float-same-elements-typed-at-run-time",
+                    "{|assertSameElements([2, 1]->cast(@Number), [2.0, 1.0]->cast(@Number))}",
                     "expected the elements [2, 1] in any order, got [2.0, 1.0]"),
             // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
             // backwards-compatibility mode compares an Integer and a Decimal by text: below)
-            new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", "expected 1 (Decimal), got 1 (Integer)"),
-            new Probe("float-vs-decimal", "{|assertEquals(1.5, 1.5D)}", "expected 1.5 (Float), got 1.5 (Decimal)"),
-            new Probe("assertNotEquals-across-kinds", "{|assertNotEquals(3, 3D)}", null),
+            // (an Integer and a Decimal of one value are equal: two exact numbers, the user's ruling of 2026-11-27)
+            new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", null),
+            new Probe("decimal-vs-integer-values", "{|assertEquals(1.5D, 1)}", "expected: 1.5, actual: 1"),
+            new Probe("float-vs-decimal-typed-at-run-time", "{|assertEquals(1.5->cast(@Number), 1.5D->cast(@Number))}",
+                    "expected: 1.5 (Float), actual: 1.5 (Decimal)"),
+            new Probe("assertNotEquals-across-kinds-typed-at-run-time",
+                    "{|assertNotEquals(3->cast(@Number), 3.0->cast(@Number))}", null),
+            new Probe("assertNotEquals-exact-numbers", "{|assertNotEquals(3, 3D)}", "3 should not equal 3"),
             new Probe("mixed-list", "{|assertEquals([1, 'a', 2.5], [1, 'a', 2.5])}", null),
             new Probe("empty-vs-filtered", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
             new Probe("assertError-let-message", "{|let m = 'boom'; assertError(|fail($m), $m);}", null),
             new Probe("assertError-over-a-failing-assert",
-                    "{|assertError(|assertEquals(1, 2), 'expected 1, got 2')}", null),
+                    "{|assertError(|assertEquals(1, 2), 'expected: 1, actual: 2')}", null),
             // an assert's failure is the error assertError matches, as upstream's assertError catches it
             new Probe("assertError-over-a-holding-assert", "{|assertError(|assertEquals(1, 1), 'boom')}",
-                    "expected the error \"boom\", got none"),
+                    "Execution error message mismatch. The actual message was \"No error was thrown\" where the expected message was:\"boom\""),
             new Probe("assertError-over-a-different-failure", "{|assertError(|assert(false, 'one'), 'two')}",
-                    "expected the error \"two\", got \"one\""),
+                    "Execution error message mismatch. The actual message was \"one\" where the expected message"
+                            + " was:\"two\""),
             new Probe("assertEmpty-holds", "{|assertEmpty([1, 2]->filter(x | $x > 5))}", null),
-            new Probe("assertSize-fails", "{|assertSize([1, 2], 3)}", "expected size 3, got 2"),
-            new Probe("assertContains-fails", "{|assertContains([1, 2], 3)}", "expected [1, 2] to contain 3"),
+            new Probe("assertSize-fails", "{|assertSize([1, 2], 3)}", "expected size: 3, actual size: 2"),
+            new Probe("assertContains-fails", "{|assertContains([1, 2], 3)}", "[1, 2] does not contain 3"),
             new Probe("assertSameElements-holds", "{|assertSameElements([2, 1], [1, 2])}", null),
             new Probe("assertEqWithinTolerance-holds", "{|assertEqWithinTolerance(1.0, 1.0005, 0.001)}", null),
             new Probe("second-assert-fails", "{|assertEquals(1, 1); assertEquals('a', 'b');}",
-                    "expected \"a\", got \"b\""),
+                    "expected: \"a\", actual: \"b\""),
             new Probe("class-value-property", "{|assertEquals('a', ^t::Person(name='a').name)}", null),
             // 2026-11-04, the wider probe: a caller's message that READS (a let, a variable) -- dropped by every judge
             // until the message split carried it
@@ -213,10 +231,10 @@ class AssertBarTest {
             // a DateTime written as upstream's toRepresentation writes it, '%' + its toString: a value with a minute
             // carries +0000, a written fraction its digits (the engine runner, 2026-11-04)
             new Probe("assertEquals-datetimes-message", "{|assertEquals(%2020-01-01T10:00:00, %2020-01-01T10:00:01)}",
-                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T10:00:01.000000000Z"),
+                    "expected: 2020-01-01T10:00:00.000000000Z, actual: 2020-01-01T10:00:01.000000000Z"),
             // register S399 (the user's ruling of 2026-11-22): lite's product compares a date by its kind and its
             // instant, so two date-times at one instant are equal whatever their written precision (legend-pure: not
-            // equal, AbstractPureDate.java:30-59; the compatibility routes keep Pure's answer, CompiledPureHostForms)
+            // equal, AbstractPureDate.java:30-59; every route lite's since B3's one rulebook, 2026-11-24)
             new Probe("assertEquals-datetime-precision-is-no-value",
                     "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}", null),
             new Probe("datetime-trailing-zeros-equal", "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
@@ -227,14 +245,14 @@ class AssertBarTest {
                     null),
             new Probe("datetime-literal-against-computed-fails",
                     "{|assertEquals(%2020-01-01T10:00:00, [%2020-01-01T10:00:01]->at(0))}",
-                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T10:00:01.000000000Z"),
+                    "expected: 2020-01-01T10:00:00.000000000Z, actual: 2020-01-01T10:00:01.000000000Z"),
             // the kinds stay apart (S399, as legend-pure): a day is no date-time, a year no year-month
-            new Probe("strictdate-is-no-datetime", "{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}",
-                    "expected 2020-01-01, got 2020-01-01T00:00:00.000000000Z"),
+            // (a written day against a written date-time is a compile error on lite's own door:
+            // anAssertOfTwoKnownTypesIsRefused...)
             new Probe("strictdate-against-computed", "{|assertEquals(%2020-01-02, [%2020-01-01, %2020-01-02]->at(1))}",
                     null),
             new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
-                    "expected 2020-01-01T10:00:00.000000000Z, got 2020-01-01T11:00:00.000000000Z"),
+                    "expected: 2020-01-01T10:00:00.000000000Z, actual: 2020-01-01T11:00:00.000000000Z"),
             // contains and the subset fold compare a date-time by its instant too (the dates audit's HIGH 1, 2026-11-22:
             // they compared the written texts on the database judge)
             new Probe("contains-datetime-by-instant", "{|assertContains([%2020-01-01T10:00:00.5,"
@@ -247,12 +265,12 @@ class AssertBarTest {
             // an empty side (Nil) against a typed one: the same only where both are empty (item 3's S4, 2026-11-22)
             new Probe("empty-against-filtered-empty", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
             new Probe("empty-against-filtered-values", "{|assertEquals([], [1, 2]->filter(x | $x > 1))}",
-                    "expected [], got [2]"),
+                    "expected: [], actual: [2]"),
             new Probe("empty-against-strings", "{|assertEquals([], ['a', 'b']->filter(x | $x == 'c'))}", null),
             new Probe("empty-against-dates", "{|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}", null),
             // a side the types say holds nothing (Nil), its emptiness typed (item 3's S4)
             new Probe("nil-side-empty", "{|assertEmpty([]->limit(2))}", null),
-            new Probe("nil-side-not-empty", "{|assertNotEmpty([]->drop(1))}", "expected at least one value, got none"),
+            new Probe("nil-side-not-empty", "{|assertNotEmpty([]->drop(1))}", "Expected non-empty collection"),
             // assertInstanceOf decided by the value's static type: the value and the type ride the failure, the
             // host's record (item 3's S4)
             new Probe("instanceOf-decided-holds", "{|assertInstanceOf(1 + 1, Integer)}", null),
@@ -263,17 +281,17 @@ class AssertBarTest {
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
             // '<id instanceOf path>', its path the raw class's
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
-                    "expected meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, got meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"b\"}"),
+                    "expected: meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, actual: meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"b\"}"),
             new Probe("assertEquals-pair-collections-message",
                     "{|assertEquals([pair(1, 'a'), pair(2, 'b')], [pair(1, 'b'), pair(2, 'b')])}",
-                    "expected [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}], got [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"b\"}, "
+                    "expected: [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}], actual: [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"b\"}, "
                             + "meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}]"),
             new Probe("assertSameElements-pairs-message",
                     "{|assertSameElements([pair(2, 'b'), pair(1, 'a')], [pair(1, 'a'), pair(3, 'c')])}",
                     "expected the elements [meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}, meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}] in any order, "
                             + "got [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, meta::pure::functions::collection::Pair {\"first\":3,\"second\":\"c\"}]"),
             new Probe("assertContains-pairs-message", "{|assertContains([pair(1, 'a')], pair(2, 'b'))}",
-                    "expected [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}] to contain meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}"),
+                    "[meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}] does not contain meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}"),
             new Probe("message-not-read-where-assertEmpty-holds",
                     "{|let x = [1, 2]; assertEmpty([], | $x->at(5)->toString());}", null),
             new Probe("format-message-reads-a-let",
@@ -289,32 +307,32 @@ class AssertBarTest {
             new Probe("assertSameElements-dates-message", "{|assertSameElements([%2020-01-02, %2019-05-01], [%2019-05-01])}",
                     "expected the elements [2020-01-02, 2019-05-01] in any order, got [2019-05-01]"),
             new Probe("assertEquals-strings-message", "{|assertEquals(['a', 'b'], ['b', 'c'])}",
-                    "expected [\"a\", \"b\"], got [\"b\", \"c\"]"),
-            new Probe("assertEquals-one-against-many", "{|assertEquals(1, [1, 2])}", "expected [1], got [1, 2]"),
-            new Probe("assertEquals-empty-against-one", "{|assertEquals([], [1])}", "expected [], got [1]"),
-            new Probe("assertEmpty-message", "{|assertEmpty([1, 2])}", "expected no values, got [1, 2]"),
-            new Probe("assertNotEmpty-message", "{|assertNotEmpty([])}", "expected at least one value, got none"),
-            new Probe("assertContains-strings-message", "{|assertContains(['a'], 'b')}", "expected [\"a\"] to contain \"b\""),
+                    "expected: [\"a\", \"b\"], actual: [\"b\", \"c\"]"),
+            new Probe("assertEquals-one-against-many", "{|assertEquals(1, [1, 2])}", "expected: [1], actual: [1, 2]"),
+            new Probe("assertEquals-empty-against-one", "{|assertEquals([], [1])}", "expected: [], actual: [1]"),
+            new Probe("assertEmpty-message", "{|assertEmpty([1, 2])}", "[1, 2] is not empty"),
+            new Probe("assertNotEmpty-message", "{|assertNotEmpty([])}", "Expected non-empty collection"),
+            new Probe("assertContains-strings-message", "{|assertContains(['a'], 'b')}", "[\"a\"] does not contain \"b\""),
             // assertIs over two primitives: compiled pure's `left == right`, their values (the engine runner)
             new Probe("assertIs-primitives-holds", "{|assertIs('a', 'a')}", null),
-            new Probe("assertIs-primitives-fails", "{|assertIs(1, 2)}", "expected 1, got 2"),
+            new Probe("assertIs-primitives-fails", "{|assertIs(1, 2)}", "expected: 1, actual: 2"),
             // the forAll-contains fold of an assert's condition fails as the condition does, under every judge (the
             // S2+S3 fixes' audit, 2026-11-21: the host wrote a contains record, the database judge a frame of its own)
             new Probe("assert-subset-fails", "{|assert([1, 3]->forAll(e | [1, 2]->contains($e)))}",
-                    "expected true, got false"),
+                    "Assert failed"),
             new Probe("assertFalse-subset-fails", "{|assertFalse([1]->forAll(e | [1, 2]->contains($e)))}",
-                    "expected false, got true"),
+                    "Assert failed"),
             // an if closing the body whose other side is the literal true
             new Probe("branch-true-side-last", "{|if(1 == 2, |assertEquals(1, 1), |true);}", null),
             new Probe("branch-true-side-last-fails", "{|if(1 == 1, |assertEquals(1, 2), |true);}",
-                    "expected 1, got 2"),
+                    "expected: 1, actual: 2"),
             // assertError when nothing is raised (item 3's S8, Q-B): legend-pure's matcher reads its own "nothing was
             // raised" text, so expecting it passes, the inner-assert form too; any other expected text fails NO_ERROR
             new Probe("assertError-expects-unraised", "{|assertError(|1, 'No error was thrown')}", null),
             new Probe("assertError-inner-assert-unraised",
                     "{|assertError(|assertEquals(1, 1), 'No error was thrown')}", null),
             new Probe("assertError-nothing-raised", "{|assertError(|1, 'boom')}",
-                    "expected the error \"boom\", got none"),
+                    "Execution error message mismatch. The actual message was \"No error was thrown\" where the expected message was:\"boom\""),
             // the table member (item 3's S4, 2026-11-22): the database's verdict over the typed cells, each grid's rows
             // riding its failure as typed row structs for the host's record -- one record under every judge, the
             // grids whose columns differ included (until then the database judge's sentence of its own)
@@ -394,6 +412,54 @@ class AssertBarTest {
         }
     }
 
+    /** AN ASSERT OF TWO KNOWN TYPES IS A COMPILE ERROR ON LITE'S OWN DOOR (the user's ruling of 2026-11-26, "yes compile
+     *  error": an assert that compares two different types is the mistake a comparison of them is; built with the
+     *  edition program's step 6): refused when the body is compiled, under every judge alike, naming the assert and
+     *  the two types. Numbers are of two families, so an Integer against a Decimal is by value and no mistake; a
+     *  written literal reads as the type of the value it is written against; sides typed only when the test runs (a
+     *  mixed list, a Number, an Any) are judged by the types they hold, as before. The compatibility doors judge an
+     *  assert as they did ({@code NumberKindsEdgeTest}, {@code EqualityCompatEdgeTest}). */
+    @Test
+    void anAssertOfTwoKnownTypesIsRefusedWhenTheBodyIsCompiled() throws Exception {
+        java.util.Map<String, String> refused = new java.util.LinkedHashMap<>();
+        refused.put("{|assertEquals(1, 1.0)}", "assertEquals compares Integer with Float");
+        refused.put("{|assertEquals(1.5, 1.5D)}", "assertEquals compares Float with Decimal");
+        refused.put("{|assertEquals([1, 2], [1.0, 2.0])}", "assertEquals compares Integer with Float");
+        refused.put("{|assertSameElements([2, 1], [2.0, 1.0])}", "assertSameElements compares Integer with Float");
+        refused.put("{|assertNotEquals(3, 3.0)}", "assertNotEquals compares Integer with Float");
+        refused.put("{|assertEq('a', 1)}", "assertEq compares String with Integer");
+        refused.put("{|assertEquals(1, 1.0, 'mine')}", "assertEquals compares Integer with Float");
+        refused.put("{|assertContains([1, 2], 1.0)}", "assertContains compares Integer with Float");
+        refused.put("{|let x = 1; assertEquals(1.5, $x);}", "assertEquals compares Float with Integer");
+        refused.put("{|assertEquals(%2020-01-01, %2020-01-01T00:00:00)}", "assertEquals compares StrictDate with DateTime");
+        refused.put("{|assertEquals('1', 1)}", "assertEquals compares String with Integer");
+        refused.put("{|assertEquals('1'->fromJson(), 1)}", "assertEquals compares " + "meta::pure::metamodel::variant::Variant" + " with Integer");
+        java.util.Map<String, String> judged = new java.util.LinkedHashMap<>();
+        judged.put("{|assertEquals(1D, 1)}", "pass");
+        judged.put("{|assertEquals([1, 2], [1D, 2.00D])}", "pass");
+        judged.put("{|let x = 1.0; assertEquals(1, $x);}", "pass");
+        judged.put("{|let x = 2.5D; assertEquals(2.5, $x);}", "pass");
+        judged.put("{|assertEquals([1, 'a'], [1, 'a'])}", "pass");
+        List<String> wrong = new ArrayList<>();
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                for (var e : refused.entrySet()) {
+                    String got = outcome(c, e.getKey(), mode);
+                    if (!got.contains(e.getValue()) || !got.contains("two values are equal only when")) {
+                        wrong.add(mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+                for (var e : judged.entrySet()) {
+                    String got = outcome(c, e.getKey(), mode);
+                    if (!got.equals(e.getValue())) {
+                        wrong.add(mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "\n  " + String.join("\n  ", wrong));
+    }
+
     @Test
     void everyAssertDoesWhatItSaysUnderEveryJudge() throws Exception {
         List<String> missed = new ArrayList<>();
@@ -434,9 +500,10 @@ class AssertBarTest {
     }
 
     /** A Decimal property over an INTEGER column (PR #118 fix round, 2026-11-18, G2): its value arrives as the column's
-     *  integer, its declaration says Decimal. Lite's own rule (register S127) compares two numbers by their DECLARED
-     *  kinds, so the Integer 1 and the property's Decimal 1 are never equal -- under the host judge as under the database
-     *  judge, and under both together: one outcome, and one message, per assert, on DuckDB, H2 and SQLite alike. Its row
+     *  integer, its declaration says Decimal. Lite's own rule (register S127 as amended 2026-11-27) calls an Integer and
+     *  a Decimal of one value equal, two exact numbers, so the Integer 1 and the property's Decimal 1 are equal -- under
+     *  the host judge as under the database judge, and under both together: one outcome, and one message, per assert,
+     *  on DuckDB, H2 and SQLite alike (until that ruling two kinds never equal, compared by their DECLARED kinds). Its row
      *  is the connection's declared test data, a load of the plan's; {@code %s} its database. */
     private static final String MAPPED_ON = """
             ###Pure
@@ -465,21 +532,23 @@ class AssertBarTest {
     void anEqOverADeclaredDecimalIsOneVerdictUnderEveryJudge() throws Exception {
         String d = "p::P.all()->filter(x | $x.id == 1)->toOne().d";
         String mapped = "p::P.all()->map(x | $x.d)->toOne()";
-        // the body, and its one outcome: the Integer 1 is not the Decimal 1 in lite's own runs (S127)
+        // the body, and its one outcome: the Integer 1 is the Decimal 1 in lite's own runs -- two exact numbers, equal
+        // by their value (S127 as amended by the user's ruling of 2026-11-27; until then two kinds never equal, and
+        // each of the four the opposite)
         java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
         for (String side : List.of(d, mapped)) {
-            want.put("{|assertEq(1, " + side + ")}", "AssertFailed: expected 1 (Integer), got 1 (Decimal)");
-            want.put("{|assertIs(1, " + side + ")}", "AssertFailed: expected 1 (Integer), got 1 (Decimal)");
-            want.put("{|assertNotEq(1, " + side + ")}", "pass");
-            want.put("{|assertIsNot(1, " + side + ")}", "pass");
+            want.put("{|assertEq(1, " + side + ")}", "pass");
+            want.put("{|assertIs(1, " + side + ")}", "pass");
+            want.put("{|assertNotEq(1, " + side + ")}", "AssertFailed: 1 should not equal 1");
+            want.put("{|assertIsNot(1, " + side + ")}", "AssertFailed: Should not be identical to: 1");
         }
         // the database judge's text of a store-read Decimal drops only its carrier's D: its sign and digits kept (a
         // DECIMAL(10,2) read decodes scale-canonical, 1.50 as 1.5, under both judges: LiteralSpelling.wireValueEgress's
         // R3), and a written literal keeps its scale
-        want.put("{|assertEq(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}", "AssertFailed: expected 1, got 1.5");
-        want.put("{|assertEq(2, p::Q.all()->filter(x | $x.id == 2)->toOne().e)}", "AssertFailed: expected 2, got -2");
-        want.put("{|assertEq(1, 1.50D)}", "AssertFailed: expected 1, got 1.50");
-        want.put("{|assertEq(2, -2D)}", "AssertFailed: expected 2, got -2");
+        want.put("{|assertEq(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}", "AssertFailed: expected: 1, actual: 1.5");
+        want.put("{|assertEq(2, p::Q.all()->filter(x | $x.id == 2)->toOne().e)}", "AssertFailed: expected: 2, actual: -2");
+        want.put("{|assertEq(1, 1.50D)}", "AssertFailed: expected: 1, actual: 1.50");
+        want.put("{|assertEq(2, -2D)}", "AssertFailed: expected: 2, actual: -2");
         List<String> wrong = new ArrayList<>();
         // the D's strip is the database judge's SQL, so on each database the platform runs in-process (the review of
         // PR #118's fix round, 2026-11-18: beyond the platform's, H2 and SQLite at least); the map's toOne reads a list,
@@ -617,11 +686,12 @@ class AssertBarTest {
             "{|assertFalse(1 == 1)}", "{|assertInstanceOf(1, String)}", "{|assert(1 == 2, | 'my message')}",
             "{|assertEquals([1, 'a'], [1, 'b'])}", "{|assertJsonStringsEqual('{\"a\":1}', '{\"a\":2}')}",
             "{|[1, 2]->forAll(i | assertEquals(1, $i))}",
-            "{|assertEquals('1'->fromJson(), 2)}",
+            "{|assertEquals('1'->fromJson()->cast(@Any), 2)}",
             // two primitives of different kinds, and an enumeration against its name's String (the final audit of
-            // c758fe95: the database judge's cross-kind gate had failed with a planned sentence and no record)
-            "{|assertEquals('1', 1)}", "{|assertSameElements(['1'], [1])}", "{|assertEq(true, 1)}",
-            "{|assertEquals(p::E.A, 'A')}",
+            // c758fe95: the database judge's cross-kind gate had failed with a planned sentence and no record), each
+            // typed only when the test runs: two WRITTEN types are a compile error on lite's own door (2026-11-27)
+            "{|assertEquals('1'->cast(@Any), 1)}", "{|assertSameElements(['1']->cast(@Any), [1])}",
+            "{|assertEq(true->cast(@Any), 1)}", "{|assertEquals(p::E.A->cast(@Any), 'A')}",
             "{|assertEquals(execute(|p::Q.all()->project([x | $x.id], ['id'])->sort('id'), p::M, p::RT.runtimeValue,"
                     + " []).values, [1, 3])}");
 
@@ -667,7 +737,7 @@ class AssertBarTest {
     }
 
     /** NO PROSE IN A STATEMENT (item 3's S5): the database judge plans no catalog sentence -- no template's fixed text
-     *  ("expected ", ", got ", " to contain ", ...) is in any planned statement or plan field of a failing assert's
+     *  ("expected: ", ", actual: ", " to contain ", ...) is in any planned statement or plan field of a failing assert's
      *  plan; the sentence is written from the record after the run, by the one printer. */
     @Test
     void noPlannedStatementHoldsACatalogSentence() throws Exception {
@@ -769,13 +839,13 @@ class AssertBarTest {
         java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
         want.put("{|assertEquals([1.50D, 2.0D], [1.50D, 2.0D])}", "pass");
         want.put("{|assertEquals(1.50D, 1.5D)}", "pass");
-        want.put("{|assertEquals([1.50D], [2.50D])}", "AssertFailed: expected 1.50, got 2.50");
-        want.put("{|assertEquals([1.50D, 2.25D], [1.50D])}", "AssertFailed: expected [1.50, 2.25], got [1.50]");
+        want.put("{|assertEquals([1.50D], [2.50D])}", "AssertFailed: expected: 1.50, actual: 2.50");
+        want.put("{|assertEquals([1.50D, 2.25D], [1.50D])}", "AssertFailed: expected: [1.50, 2.25], actual: [1.50]");
         // a list of Decimals at its database's own scale (S400 as amended by the user's ruling of 2026-11-22, the core
         // follows Pure and takes the database's native answer for a cosmetic difference): DuckDB and SQLite give the
         // list one type, H2 keeps each element's (Pure's answer); the verdict is the same everywhere (S139)
-        want.put("{|assertEquals([1.0D, 10.125D], [1.0D])}", "AssertFailed: expected [1.000, 10.125], got [1.0]"
-                + "|H2=AssertFailed: expected [1.0, 10.125], got [1.0]");
+        want.put("{|assertEquals([1.0D, 10.125D], [1.0D])}", "AssertFailed: expected: [1.000, 10.125], actual: [1.0]"
+                + "|H2=AssertFailed: expected: [1.0, 10.125], actual: [1.0]");
         want.put("{|assertEquals([1.0D, 10.125D], [1.000D, 10.125D])}", "pass");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
@@ -987,6 +1057,11 @@ class AssertBarTest {
                 "{|assert(pair(1, '1'->fromJson()->cast(@Any)) == pair(1, 1->cast(@Any)))}")) {
             want.put(two, refused);
         }
+        // a pair and a list are compared by the types inside them (2026-11-27): a Variant against an Integer inside is
+        // the compile error it is outside
+        want.put("{|assert(pair(1, '1'->fromJson()) == pair(1, 1))}", "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assertEquals(list(['1'->fromJson()]), list([1]))}",
+                "ModelException: assertEquals compares meta::pure::metamodel::variant::Variant with Integer");
         // an object literal holding a Variant in a property its equality never reads: a keyed class by its keys (the
         // review of a39883f3: every property had been read, and the comparison refused); H2 has no list encoding for
         // the keyed instances' rows, as before the change
@@ -997,43 +1072,78 @@ class AssertBarTest {
         // an index, a count and a map's parameter are not values of the side (the same review: they had been counted,
         // and the equality refused)
         want.put("{|assert(!(['1'->fromJson()]->cast(@Any)->at(0) == 'a'))}", "pass");
-        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}", "pass");
+        // (H2, 2026-11-28, step 6B's slice 5: the type the list holds is now read through `take`, so this is the plain
+        // `...->cast(@Any)->contains('a')` -- never a member, the list still evaluated (the user's ruling of 2026-11-27,
+        // "Build 3"), which H2 has no SQL for and refuses by name, as it always did for the plain form. Until then
+        // the take hid the list from that reading and a constant false answered with the list unread. Reported to
+        // the user as the slice's one passing-to-refusing: for-the-user-2026-11-28.md, section E)
+        want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->take(1)->contains('a'))}",
+                "pass|H2=DialectCapability");
         want.put("{|assert(!['1'->fromJson(), '2'->fromJson()]->cast(@Any)->map(x | $x)->contains('a'))}", "pass");
         // a Variant against an empty side: the two the same only where both are empty, its values written as JSON in
         // the record, a NULL among them JSON null (the audit of 8477c703); H2's JSON array aggregate drops a JSON null,
         // so its database judge's record lists none there -- recorded, the verdict the same
-        want.put("{|assertEquals([], 'null'->fromJson())}", "AssertFailed: expected [], got [null]"
+        want.put("{|assertEquals([], 'null'->fromJson())}", "AssertFailed: expected: [], actual: [null]"
                 + "|H2/DATABASE=AssertFailed|H2/BOTH=JudgesDisagree");
-        want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected [], got [1]");
+        want.put("{|assertEquals([], '1'->fromJson())}", "AssertFailed: expected: [], actual: [1]");
         // a Variant is never a value of another type, its text's included (the audit of c2217801; S401)
-        want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "AssertFailed");
-        want.put("{|assertEquals('1'->fromJson(), 1)}", "AssertFailed");
-        want.put("{|assert('1'->fromJson() == 1)}", "AssertFailed");
-        want.put("{|assertFalse('\"a\"'->fromJson() == 'a')}", "pass");
+        // (both judges fail it, and write the same record: expected "abc" (Variant), actual "abc" (String). Until the
+        // closing batch of step 6 the host judge read the Variant through Any decoded, wrote abc, and a both-judges
+        // run stopped on the two records' difference -- found 2026-11-27 by this line)
+        want.put("{|assertEquals('\"abc\"'->fromJson()->cast(@Any), 'abc')}", "AssertFailed");
+        want.put("{|assertEquals('1'->fromJson()->cast(@Any), 1)}", "AssertFailed");
+        // written as two types, the assert is the compile error a comparison of them is (the user's ruling of
+        // 2026-11-26, "yes compile error", built 2026-11-27; until then judged, as above)
+        want.put("{|assertEquals('\"abc\"'->fromJson(), 'abc')}", "ModelException: assertEquals compares meta::pure::metamodel::variant::Variant with String");
+        want.put("{|assertEquals('1'->fromJson(), 1)}", "ModelException: assertEquals compares meta::pure::metamodel::variant::Variant with Integer");
+        // a Variant and an Integer or a String are two types: the comparison is a compile error (B3 step 5, the one
+        // equality; the user's ruling of 2026-11-24 -- until then false by the types, S401)
+        want.put("{|assert('1'->fromJson() == 1)}", "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assertFalse('\"a\"'->fromJson() == 'a')}", "ModelException: == compares meta::pure::metamodel::variant::Variant with String");
         // decided by the types under every judge, read through casts, the record writing a Variant as JSON with its kind
         // (the audit of 581a93cb and 386db8fe: the database judge had answered UNJUDGED, the host "got \"1\" (String)")
-        String variantOne = "AssertFailed: expected 1 (Integer), got 1 (Variant)";
-        want.put("{|assertEquals(1, '1'->fromJson())}", variantOne);
+        String variantOne = "AssertFailed: expected: 1 (Integer), actual: 1 (Variant)";
+        want.put("{|assertEquals(1, '1'->fromJson())}", "ModelException: assertEquals compares Integer with meta::pure::metamodel::variant::Variant");
         want.put("{|assertEquals(1, '1'->fromJson()->cast(@Any))}", variantOne);
         want.put("{|assertEquals(1->cast(@Any), '1'->fromJson())}", variantOne);
-        want.put("{|assertEq(1, '1'->fromJson())}", variantOne);
-        want.put("{|assertNotEquals(1, '1'->fromJson())}", "pass");
-        want.put("{|assertNotEquals(true, 'true'->fromJson())}", "pass");
-        want.put("{|assert(!'1'->fromJson()->in([1, 2]))}", "pass");
-        want.put("{|assert(![1, 2]->contains('1'->fromJson()))}", "pass");
-        want.put("{|assert([1, 2]->indexOf('1'->fromJson()) == -1)}", "pass");
+        want.put("{|assertEq(1, '1'->fromJson())}", "ModelException: assertEq compares Integer with meta::pure::metamodel::variant::Variant");
+        // (until 2026-11-27 the host judge's identity held a Variant read through Any against the Integer of its
+        // text, where the database judge failed it: found by this line, fixed the same day -- assertEq reads a Variant
+        // side as assertEquals does)
+        want.put("{|assertEq(1, '1'->fromJson()->cast(@Any))}", variantOne);
+        // written as two types: the compile error (2026-11-27; until then held, a Variant never a value of another)
+        want.put("{|assertNotEquals(1, '1'->fromJson())}", "ModelException: assertNotEquals compares Integer with meta::pure::metamodel::variant::Variant");
+        want.put("{|assertNotEquals(true, 'true'->fromJson())}",
+                "ModelException: assertNotEquals compares Boolean with meta::pure::metamodel::variant::Variant");
+        want.put("{|assertNotEquals(1, '1'->fromJson()->cast(@Any))}", "pass");
+        want.put("{|assert(!'1'->fromJson()->in([1, 2]))}",
+                "ModelException: in compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assert(![1, 2]->contains('1'->fromJson()))}",
+                "ModelException: contains compares Integer with meta::pure::metamodel::variant::Variant");
+        want.put("{|assert([1, 2]->indexOf('1'->fromJson()) == -1)}",
+                "ModelException: indexOf compares Integer with meta::pure::metamodel::variant::Variant");
         want.put("{|assertFalse('1'->fromJson()->cast(@Any) == 1)}", "pass");
-        // two empty sides are equal whatever their types (Pure's [] == []; the same audit's M1)
-        want.put("{|assert('{}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
-        want.put("{|assertFalse('{\"a\":1}'->fromJson()->get('a') == []->cast(@Integer))}", "pass");
+        // a Variant against an Integer list is two types: a compile error even where both may be empty (B3 step 5, the
+        // one equality; until then two empty sides were equal whatever their types, Pure's [] == [], the same audit's M1)
+        want.put("{|assert('{}'->fromJson()->get('a') == []->cast(@Integer))}",
+                "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
+        want.put("{|assertFalse('{\"a\":1}'->fromJson()->get('a') == []->cast(@Integer))}",
+                "ModelException: == compares meta::pure::metamodel::variant::Variant with Integer");
         // two primitives of different kinds: one record under every judge (the database judge's typed pair, never a
         // planned sentence); an enumeration is never its name's String (register S169, the user's "false, matching")
-        want.put("{|assertEquals('1', 1)}", "AssertFailed: expected \"1\", got 1");
-        want.put("{|assertEquals(true, 1)}", "AssertFailed: expected true, got 1");
-        want.put("{|assertNotEquals('1', 1)}", "pass");
-        want.put("{|assertEquals(p::E.A, 'A')}", "AssertFailed: expected A, got \"A\"");
-        want.put("{|assertNotEquals(p::E.A, 'A')}", "pass");
-        want.put("{|assertEq(p::E.A, 'A')}", "AssertFailed: expected A, got \"A\"");
+        want.put("{|assertEquals('1'->cast(@Any), 1)}", "AssertFailed: expected: \"1\", actual: 1");
+        want.put("{|assertEquals(true->cast(@Any), 1)}", "AssertFailed: expected: true, actual: 1");
+        want.put("{|assertNotEquals('1'->cast(@Any), 1)}", "pass");
+        want.put("{|assertEquals(p::E.A->cast(@Any), 'A')}", "AssertFailed: expected: A, actual: \"A\"");
+        want.put("{|assertNotEquals(p::E.A->cast(@Any), 'A')}", "pass");
+        want.put("{|assertEq(p::E.A->cast(@Any), 'A')}", "AssertFailed: expected: A, actual: \"A\"");
+        // written as two types: the compile error (2026-11-27)
+        want.put("{|assertEquals('1', 1)}", "ModelException: assertEquals compares String with Integer");
+        want.put("{|assertEquals(true, 1)}", "ModelException: assertEquals compares Boolean with Integer");
+        want.put("{|assertNotEquals('1', 1)}", "ModelException: assertNotEquals compares String with Integer");
+        want.put("{|assertEquals(p::E.A, 'A')}", "ModelException: assertEquals compares p::E with String");
+        want.put("{|assertNotEquals(p::E.A, 'A')}", "ModelException: assertNotEquals compares p::E with String");
+        want.put("{|assertEq(p::E.A, 'A')}", "ModelException: assertEq compares p::E with String");
         want.put("{|assertEquals([p::E.A, p::E.B], [p::E.A, p::E.B])}", "pass");
         // a multiset of enumerations sorts them (the host's sort had no order for them: legend-engine's corpus on H2)
         want.put("{|assertSameElements([p::E.A, p::E.B], [p::E.B, p::E.A])}", "pass");
@@ -1042,15 +1152,17 @@ class AssertBarTest {
         String mixedDays = "NotImplementedException: values holding both days and date-times are not compared";
         want.put("{|assertContains([%2020-01-01T00:00, %2020-01-02]->map(x | $x), %2020-01-02T00:00)}", mixedDays);
         want.put("{|assertEquals(%2020-01-02T00:00, [%2020-01-02, %2020-01-01T00:00]->at(0))}",
-                "AssertFailed: expected 2020-01-02T00:00:00.000000000Z, got 2020-01-02");
+                "AssertFailed: expected: 2020-01-02T00:00:00.000000000Z, actual: 2020-01-02");
         want.put("{|assertContains([%2020-01-01T00:00, %2020-01-02], %2020-01-02T00:00)}", mixedDays);
         want.put("{|assertEquals([%2020-01-01T00:00, %2020-01-02], [%2020-01-01T00:00, %2020-01-02T00:00])}", mixedDays);
         // a Variant's membership among values of other types: the host's answer; the database judge has no typed form
         // for it, refused by name (recorded, register S401)
         String noTypedForm = "AssertFailed: assertNotContains: UNJUDGED in database mode";
-        want.put("{|assertNotContains([1, 2], '1'->fromJson())}", "pass|DuckDB/DATABASE=" + noTypedForm + "|DuckDB/BOTH="
+        want.put("{|assertNotContains([1, 2], '1'->fromJson()->cast(@Any))}", "pass|DuckDB/DATABASE=" + noTypedForm + "|DuckDB/BOTH="
                 + noTypedForm + "|H2/DATABASE=" + noTypedForm + "|H2/BOTH=" + noTypedForm + "|SQLite/DATABASE="
                 + noTypedForm + "|SQLite/BOTH=" + noTypedForm);
+        want.put("{|assertNotContains([1, 2], '1'->fromJson())}",
+                "ModelException: assertNotContains compares Integer with meta::pure::metamodel::variant::Variant");
         want.put("{|assertEquals(1.0, (0.5 + 0.5)->cast(@Any))}", "pass");
         want.put("{|assertEquals(true, 'true'->fromJson()->to(@Boolean))}", "pass");
         // a graph's size and emptiness (its root objects): typed, its failures the host's records
@@ -1095,6 +1207,33 @@ class AssertBarTest {
                 + " p::RT.runtimeValue, []).values";
         want.put("{|assertEquals([1, '1', 2, '2'], " + grid + ")}", "pass");
         want.put("{|assertEquals([1, '1', 2, '3'], " + grid + ")}", "AssertFailed");
+        // a table's values counted (the audit of the next batch, 2026-11-26, S1): a table is a relation, which
+        // upstream counts as ONE value, so lite refuses its size assert by name under every judge (register S137) --
+        // assertNotSize too, since the same day: it had missed the rule, the host judge refused it as a table, the
+        // database judge counted its rows, and under both the judges disagreed.
+        String relation = "ModelException: assertSize over a relation counts the relation as ONE value";
+        want.put("{|assertSize(" + grid + ", 4)}", relation);
+        want.put("{|assertSize(" + grid + ", 2)}", relation);
+        want.put("{|assertNotSize(" + grid + ", 2)}", relation.replace("assertSize", "assertNotSize"));
+        // the whole table's cells, <table>.rows.values (two rows of two columns: four values in Pure; a written
+        // ->size() of it is right, the typer's rewrite to rows times columns). A RECORDED DEFECT, older than the size
+        // slice (measured the same at its base, 2026-11-26): the typer keeps the bare read as the table's ROWS, so every
+        // judge on every database counts 2. One count everywhere; owned with the row's cells below
+        want.put("{|assertSize(" + grid + ".rows.values, 4)}", "AssertFailed: expected size: 4, actual size: 2");
+        // ONE ROW's cells (an Integer and a String here: two values in Pure). A RECORDED DEFECT, measured 2026-11-26
+        // and owned by the equality program's later slices (the plan record's carried-forward table): the typer keeps
+        // a row's bare .values as the row itself, one value, so the host judge counts 1; the database judge asks the
+        // product's size of it, whose value is the row's cells as a mixed list under a to-one stamp, and the lowering
+        // refuses that by name. A MOVE of the first slice, measured against its base: until it the database judge
+        // counted the side's rows itself and AGREED with the host on 1, the wrong count; it now refuses where it
+        // would have agreed on a wrong answer. Never a count of 2 from one judge and 1 from the other
+        String cells = grid.substring(0, grid.length() - ".values".length()) + ".values.rows->at(0).values";
+        String unlowered = "DialectCapability: a tagged list reached the renderer";
+        String everyDatabase = "|DuckDB/DATABASE=" + unlowered + "|DuckDB/BOTH=" + unlowered + "|H2/DATABASE=" + unlowered
+                + "|H2/BOTH=" + unlowered + "|SQLite/DATABASE=" + unlowered + "|SQLite/BOTH=" + unlowered;
+        want.put("{|assertSize(" + cells + ", 2)}", "AssertFailed: expected size: 2, actual size: 1" + everyDatabase);
+        want.put("{|assertSize(" + cells + ", 3)}", "AssertFailed" + everyDatabase);
+        want.put("{|assertNotSize(" + cells + ", 3)}", "pass" + everyDatabase);
         // the audit of 3f2fe452: a wider table's cells in the table's own order (a descending sort read descending); a
         // class reference against itself cast to Class<Any> one reference; a store-read Decimal carried as its text
         // against a Decimal literal refused by name, never its text joined against a number
@@ -1174,18 +1313,21 @@ class AssertBarTest {
                 "AssertFailed: expected the rows [[1], [2]] within 0.01, got [[1]]");
         want.put("{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#, 0.01)}",
                 "AssertFailed: expected the rows [[1]] within 0.01, got [[1]]");
-        // two grids compared by assertEquals: in any order unless the actual is sorted, each by its own columns
-        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}", "pass");
+        // two grids compared by assertEquals: in order, each by its own columns (B3 step 4's review, M4, 2026-11-24: a
+        // side with no defined order is refused before); by assertSameElements, as a multiset of rows (M5)
+        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}",
+                "AssertFailed: expected: [[1, \"x\"], [2, \"y\"]], actual: [[2, \"y\"], [1, \"x\"]]");
+        want.put("{|assertSameElements(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}", "pass");
         want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n#, #TDS\n  id, s\n  1, z\n#)}",
-                "AssertFailed: expected [[1, \"x\"]], got [[1, \"z\"]]");
+                "AssertFailed: expected: [[1, \"x\"]], actual: [[1, \"z\"]]");
         want.put("{|assertEquals(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n  2\n#->sort(~id->descending()))}",
-                "AssertFailed: expected [[1], [2]], got [[2], [1]]");
-        want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#)}", "AssertFailed: expected [[1]], got [[1]]");
+                "AssertFailed: expected: [[1], [2]], actual: [[2], [1]]");
+        want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#)}", "AssertFailed: expected: [[1]], actual: [[1]]");
         want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)}",
-                "AssertFailed: expected [[1]], got [[1.0]]");
+                "AssertFailed: expected: [[1]], actual: [[1.0]]");
         want.put("{|assertNotEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  2\n#)}", "pass");
         // a Float cell written as its carrier holds it, the host's rows' carrier (the table slice's audit, M1)
-        want.put("{|assertEquals(#TDS\n  v\n  2.50\n#, #TDS\n  v\n  2.6\n#)}", "AssertFailed: expected [[2.5]], got [[2.6]]");
+        want.put("{|assertEquals(#TDS\n  v\n  2.50\n#, #TDS\n  v\n  2.6\n#)}", "AssertFailed: expected: [[2.5]], actual: [[2.6]]");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             var database = backend.type();
@@ -1222,24 +1364,24 @@ class AssertBarTest {
         want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))}", "pass");
         want.put("{|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))}", "pass");
         want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))}",
-                "AssertFailed: expected 2015-04-16T14:00:00.000000000Z, got 2015-04-16T15:00:00.000000000Z");
+                "AssertFailed: expected: 2015-04-16T14:00:00.000000000Z, actual: 2015-04-16T15:00:00.000000000Z");
         want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
-                "AssertFailed: expected 2015-04-16T14:30:00.000000000Z, got 2015-04-16T14:31:00.000000000Z");
+                "AssertFailed: expected: 2015-04-16T14:30:00.000000000Z, actual: 2015-04-16T14:31:00.000000000Z");
         // register S399 (the user's ruling of 2026-11-22, superseding in the product the orchestrator's ruling 3 of
         // 2026-11-19): lite's product compares a date-time by its instant, so an hour equals its minute at one instant,
-        // under every judge (legend-pure: not equal, DateWithHour.getMinute() is -1 where a minute's is 0; the
-        // compatibility routes keep that answer, CompiledPureHostForms.equalDates)
+        // under every judge (legend-pure: not equal, DateWithHour.getMinute() is -1 where a minute's is 0; lite's rule
+        // on every route since B3's one rulebook, 2026-11-24)
         want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
         want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}",
-                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z");
+                "AssertFailed: 2015-04-16T14:00:00.000000000Z should not equal 2015-04-16T14:00:00.000000000Z");
         want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}",
-                "AssertFailed: expected a value other than 2015-04-16T14:00:00.000000000Z");
+                "AssertFailed: 2015-04-16T14:00:00.000000000Z should not equal 2015-04-16T14:00:00.000000000Z");
         // no text carrier holds a zone for the message's read to its minute to trip on (PR #127's review, 2026-11-19):
         // a zoned minute is normalised to GMT at parse (PureDateLiteral, as legend-pure's DateFormat.parsePureDate),
         // and a zone on an hour is refused at parse
         want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 13, 30))}", "pass");
         want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 14, 30))}",
-                "AssertFailed: expected 2015-04-16T13:30:00.000000000Z, got 2015-04-16T14:30:00.000000000Z");
+                "AssertFailed: expected: 2015-04-16T13:30:00.000000000Z, actual: 2015-04-16T14:30:00.000000000Z");
         want.put("{|assertEquals(%2015-04-16T14+0100, date(2015, 4, 16, 13))}", "ParseException: [1:16] invalid date"
                 + " literal '%2015-04-16T14+0100': expected ':' after hour at position 13 in '2015-04-16T14+0100'");
         List<String> wrong = new ArrayList<>();
@@ -1301,6 +1443,68 @@ class AssertBarTest {
         assertTrue(outcomes.size() == 1 && outcomes.iterator().next().startsWith("DataError: ")
                         && outcomes.iterator().next().contains("33803336-12-17"),
                 "one outcome under every judge, on every run: " + outcomes.stream().map(AssertBarTest::oneLine).toList());
+    }
+
+    /** A graph's size is its ROOT objects, whatever each root holds (the audit of the next batch, 2026-11-26, S2: since
+     *  the equality program's first slice the database judge asks the product's own {@code size} of a graph side, where
+     *  it had counted the graph's JSON documents itself; the host judge counts the root objects it decoded). A root with
+     *  three children and a root with none are two objects under every judge, on every database; the roots that have a
+     *  child past the first are one, never the two child rows that match. (A graph fetch inside a test body's
+     *  {@code execute} is not planned yet -- "class query under TypedGraphFetch is not resolvable" under every judge --
+     *  so the children are reached through a filter over the to-many property.) */
+    private static final String ROOTS_WITH_MANY = """
+            ###Pure
+            Class p::A { id: Integer[1]; bs: p::B[*]; }
+            Class p::B { id: Integer[1]; }
+            ###Relational
+            Database p::DB ( Table TA (ID INTEGER PRIMARY KEY) Table TB (ID INTEGER PRIMARY KEY, AID INTEGER)
+                Join AB(TA.ID = TB.AID) )
+            ###Mapping
+            Mapping p::M ( p::A: Relational { ~mainTable [p::DB] TA id: TA.ID, bs: [p::DB]@AB }
+                p::B: Relational { ~mainTable [p::DB] TB id: TB.ID } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nTA\\nID\\n1\\n2\\n-----\\ndefault\\nTB\\nID,AID\\n1,1\\n2,1\\n3,1\\n'; };
+                auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """;
+
+    @Test
+    void aGraphsSizeIsItsRootObjectsUnderEveryJudge() throws Exception {
+        String roots = "execute(|p::A.all(), p::M, p::RT.runtimeValue, []).values";
+        String withLaterChild = "execute(|p::A.all()->filter(a | $a.bs->exists(b | $b.id > 1)), p::M,"
+                + " p::RT.runtimeValue, []).values";
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertSize(" + roots + ", 2)}", "pass");
+        want.put("{|assertSize(" + roots + ", 3)}", "AssertFailed");
+        want.put("{|assertNotSize(" + roots + ", 3)}", "pass");
+        want.put("{|assertNotSize(" + roots + ", 2)}", "AssertFailed");
+        want.put("{|assertSize(" + withLaterChild + ", 1)}", "pass");
+        want.put("{|assertSize(" + withLaterChild + ", 2)}", "AssertFailed");
+        want.put("{|assertNotSize(" + withLaterChild + ", 2)}", "pass");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(ROOTS_WITH_MANY.formatted(database), e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!got.startsWith(e.getValue())) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "a graph's size, its root objects:\n  " + String.join("\n  ", wrong));
     }
 
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever

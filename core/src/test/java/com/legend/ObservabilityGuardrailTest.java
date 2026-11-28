@@ -79,7 +79,7 @@ class ObservabilityGuardrailTest {
     // stamp-discipline census instrument (counting family, same as the
     // [tol]/[ord] prints); both retire when the census flips to the
     // failing invariant at zero.
-    private static final int STDERR_PRINTS = 34;   // E4 census instrument removed at program close (was 33); re-pinned 2026-08-16 F1.2: harness left src/main (was 43)
+    private static final int STDERR_PRINTS = 30;   // 34 -> 30 (2026-11-26, the edition program's step 9, slice 1, by the orchestrator's word: set to the measurement, a ceiling with slack hides the next growth -- the count was 31 before this slice, and one print left core/src/main with CompiledPureHostForms, moved to the edge's test harness)  // E4 census instrument removed at program close (was 33); re-pinned 2026-08-16 F1.2: harness left src/main (was 43)
     // 111: ObjectRefs' extraction-plumbing recognizers (raw-AST harness
     // vocabulary — generateObjectReferences/decodePkMaps idioms match
     // engine test spellings structurally; reviewed)

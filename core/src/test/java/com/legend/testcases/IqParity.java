@@ -624,7 +624,11 @@ public final class IqParity {
 
     /** The island a run is: {@code #IQ{...}#} under the default profile, {@code #IQ:<profile>{...}#} under another. */
     public static String island(Run run, Set<String> tables) {
-        String sql = rewrite(run.c().sql(), tables, run.profile());
+        return island(run, rewrite(run.c().sql(), tables, run.profile()));
+    }
+
+    /** {@link #island(Run, Set)} of {@code sql}, the run's SQL with its tables rewritten. */
+    private static String island(Run run, String sql) {
         String island = run.profile() == IqProfile.DEFAULT ? "#IQ{" + sql + "}#"
                 : "#IQ:" + run.profile().spelling() + "{" + sql + "}#";
         // IQ island, 2026-10-14 (M1e): the variables a case binds, each a let before the island
@@ -1591,13 +1595,30 @@ public final class IqParity {
      * island's seam does it (SqlIslands: the schema's tables its sources, each column's store type, the case's
      * variables), printed, its variables let before it. A translation's refusal or error is thrown as the
      * {@code SqlTranslationException} it is.
+     *
+     * <p>B3 step 5a's client fix, 2026-11-25 (the user: "Shouldn't IQ be excluded exactly like #sql and #Ts"): an
+     * island compares by SQL's rule (an INTEGER against a NUMERIC is the database's comparison), so its translation is
+     * typed with the cross-type check off; the printed translation read back as an ordinary query is typed with it
+     * on, and twelve runs of the precision and divide_by_zero_error cases were refused there (Integer against
+     * Decimal). So a case whose every setting is an option IQ's SET statement sets runs as the island it stands for,
+     * the settings written as those statements before its SQL ({@link #setStatements}), which the island reads as
+     * {@code IqSettings.resolve} reads them (a database's option is its PUBLIC value, a query's the connection's
+     * temporary one). Settings are resolved first, so a setting's own error is thrown here as before. Only a case
+     * given a database property (CaseSensitive, Collation, BlankPadding, CommProtocol), which no statement sets,
+     * still runs its printed translation until the settings' Pure plumbing lands.
      */
     public static String query(Run run, List<SqlParity.Table> schema, Set<String> tables) {
         if (run.c().settings() == null) {
             return island(run, tables);
         }
+        List<com.legend.protocol.sql.iq.IqSettings.Setting> given =
+                settings(java.util.Objects.requireNonNull(run.c().settings()));
         com.legend.protocol.sql.iq.IqSettings settings = com.legend.protocol.sql.iq.IqSettings.resolve(run.profile(),
-                settings(java.util.Objects.requireNonNull(run.c().settings())));
+                given);
+        String set = setStatements(given, settings.base());
+        if (set != null) {
+            return island(run, set + rewrite(run.c().sql(), tables, settings));
+        }
         List<Param> params = params(run.c().params());
         String pure = parsedTds(com.legend.protocol.PureComposer.valueSpecification(
                 com.legend.testcases.SqlText.translate(rewrite(run.c().sql(), tables, settings),
@@ -1608,6 +1629,26 @@ public final class IqParity {
         StringBuilder lets = new StringBuilder("|");
         params.forEach(p -> lets.append("let ").append(p.name()).append(" = ").append(p.pure()).append("; "));
         return lets.append(pure).append(';').toString();
+    }
+
+    /** {@code given} as IQ's SET statements, each ended by ';': a database's option {@code SET OPTION PUBLIC.x = 'v'},
+     *  a query's {@code SET TEMPORARY OPTION x = 'v'}, the value as the string a setting's is read as; null when one
+     *  is no option such a statement sets (a database property, CommProtocol, a name IQ ignores, a PUBLIC-only option
+     *  given for the query). */
+    private static @com.legend.base.Nullable String setStatements(
+            List<com.legend.protocol.sql.iq.IqSettings.Setting> given, com.legend.protocol.sql.iq.IqSettings.Base base) {
+        StringBuilder out = new StringBuilder();
+        for (com.legend.protocol.sql.iq.IqSettings.Setting st : given) {
+            com.legend.protocol.sql.iq.IqOption o = com.legend.protocol.sql.iq.IqOption.named(st.name());
+            boolean database = st.level() == com.legend.protocol.sql.iq.IqSettings.Level.DATABASE;
+            if (o == null || !o.settable(base)
+                    || !database && o.level() != com.legend.protocol.sql.iq.IqOption.Level.OPTION) {
+                return null;
+            }
+            out.append(database ? "SET OPTION PUBLIC." : "SET TEMPORARY OPTION ").append(o.spelling()).append(" = '")
+                    .append(st.value().replace("'", "''")).append("'; ");
+        }
+        return out.toString();
     }
 
     /** {@code pure} with each TDS literal the printer writes {@code #TDS{...}#} written {@code #TDS...#}, the spelling

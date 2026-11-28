@@ -191,7 +191,11 @@ class NativeCatalogGovernanceTest {
         // 42 -> 42 (2026-11-23, item 3's S6; the user's Q-C = C1 and Q-S6): assertFailedText (37 -> 38 above) replaced
         // one for one by assertRaise(kind), the in-body guard's raise of its assert kind where its caller gives no
         // message -- a site the catalog words, so the plan carries no sentence
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 42,
+        // 42 -> 40 (2026-11-26, the edition program's step 5): substringAsGiven and substrAsGiven are no natives any
+        // more -- the door's table names a rule of the lowering's (lowering.NamedRule) where it named a native, a relic
+        // of the door's rewrite of the typed query (deleted 2026-11-25); the table's later rows (round and the rest)
+        // add rules and no native
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 40,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -230,7 +234,14 @@ class NativeCatalogGovernanceTest {
         // +1 2026-10-27 (the user's "look at legend-pure first but yeah lets def build some primitive like that",
         // docs/SEMANTICS_REGISTER.md S114): read -- a row's column through a column spec, typed as $r.col; upstream's
         // ColSpec is a name alone and a column is read only as a reflected Column evaluated on a row (typed Any)
-        assertTrue(Pure.LITE_SURFACE.size() <= 9,
+        // +1 2026-11-27 (the edition program's step 6; the user's word that day, to "should we be strict with 2 table
+        // equals and have a separate operator or function for multiset compare?": "Yeah or ~= if want to be cute, or
+        // setCompare()"; docs/SEMANTICS_REGISTER.md S430): hasSameElements -- two lists' elements or two tables' rows the
+        // same in any order, the comparison assertSameElements is judged by, as a value a query answers; upstream has
+        // the assert alone, and lite's == on two tables is strict (a side with no defined order is refused)
+        // (the pin's move confirmed by the user the same day, "Two pins fine"; the name theirs: "Should it be
+        // hasSameElements?")
+        assertTrue(Pure.LITE_SURFACE.size() <= 10,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

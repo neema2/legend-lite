@@ -203,6 +203,9 @@ public final class SubselectPrune {
             case SqlExpr.Membership m -> {
                 collectExpr(m.needle(), r);
                 collectExpr(m.collection(), r);
+                if (m.rows() != null) {
+                    collectExpr(m.rows(), r);
+                }
             }
             case SqlExpr.ReduceCollection rc -> {
                 collectExpr(rc.collection(), r);

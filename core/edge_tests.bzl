@@ -58,7 +58,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
-    # upstream's JSON grammar, the edge's form of JsonGrammar (census C1, 2026-11-17)
+    # the judges' strict JSON and the edge's test-body door cleaning the two goldens json-simple read past (register
+    # S144; until 2026-11-24, B3 step 2, upstream's JSON grammar, the edge's form of JsonGrammar, census C1)
     "src/test/java/com/legend/testplan/JudgeJsonTest.java",
     # the edge's refusal of a non-constant text side, recorded by its kind (train 17, 2026-11-18: NotAConstant moved to
     # com.legend.edge, raised by its text collector)
@@ -66,7 +67,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/PlannerSurfaceTest.java",
     # census C1's K14 (the orchestrator, 2026-11-17): upstream's behaviour tested on the edge's door
     "src/test/java/com/legend/RelationCountAssertsEdgeTest.java",
-    "src/test/java/com/legend/testplan/CompiledPureNumbersEdgeTest.java",
+    "src/test/java/com/legend/testplan/NumberKindsEdgeTest.java",
     "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
     # G10 (2026-11-17): an assert whose sides both raise, under the compatibility rules on the edge's door too
     "src/test/java/com/legend/testplan/HostSideOrderTest.java",
@@ -77,6 +78,14 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
     "src/test/java/com/legend/edge/EngineSpansTest.java",
+    # legend-pure's text of a relation in Java, each rule at the pinned sources' examples (stage B's B2b S1, 2026-11-24)
+    "src/test/java/com/legend/edge/PureRelationTextTest.java",
+    # a program's final toString/toCSV of a relation lifted at the doors (stage B's B2b S2, 2026-11-24)
+    "src/test/java/com/legend/edge/PrintedRelationsTest.java",
+    # the tail of a lifted print, its closed set pinned (the edition program's step 8, 2026-11-26)
+    "src/test/java/com/legend/edge/PrintTailTest.java",
+    # each member of the tail against lite's own SQL for the same call, on every lane
+    "src/test/java/com/legend/integration/PrintTailParityTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)
@@ -87,14 +96,20 @@ EDGE_TEST_SRCS = [
     # 2026-11-19: nothing pinned InProtocol's conditional refusal once its FreeMarker splice was deleted)
     "src/test/java/com/legend/edge/InCollectionSpliceRefusalTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
-    "src/test/java/com/legend/edge/PureMeaningCheckTest.java",
-    "src/test/java/com/legend/edge/PureMeaningRewriteTest.java",
+    "src/test/java/com/legend/edge/PureComparisonsTest.java",
+    "src/test/java/com/legend/edge/EngineTablePlacementTest.java",
+    "src/test/java/com/legend/edge/EngineTestsStyleTest.java",
+    # where equal numbers of different types land, at lite's door, legend-pure's and legend-engine's (the edition
+    # program's step 6, slice 6.2, 2026-11-26)
+    "src/test/java/com/legend/edge/UpstreamTiesTest.java",
     "src/test/java/com/legend/edge/PureMeaningEngineTest.java",
     # the edge's words of a raise site from its record (stage B's B1, 2026-11-20)
     "src/test/java/com/legend/edge/PureMessagesWordedTest.java",
     # a failure's words from its record, planned or live (stage B's B1, 2026-11-20)
     "src/test/java/com/legend/testexec/PlannedFailureWordsTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
+    # the lift: a relation's printed side read before the body and substituted (B3 step 2b, 2026-11-24)
+    "src/test/java/com/legend/edge/UpstreamPrintsTest.java",
     # the engine rewrite's substitute, typed as the typer types it, and the native it calls (A3, 2026-11-19)
     "src/test/java/com/legend/edge/EngineSubstitutesTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
@@ -115,6 +130,9 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/EmbeddedDataKindsTest.java",
     "src/test/java/com/legend/integration/FloatLiteralKindTest.java",
     "src/test/java/com/legend/integration/FloatTextTest.java",
+    # legend-pure's text of a relation in Java against the edge's SQL text, carrier by carrier, on each lane (stage B's
+    # B2b S1, 2026-11-24)
+    "src/test/java/com/legend/integration/PureRelationTextParityTest.java",
     "src/test/java/com/legend/integration/GraphKeyTextTest.java",
     "src/test/java/com/legend/integration/JoinedTextTest.java",
     # the edge golden net's missing cases, EDGE-1 to EDGE-3 on DuckDB and H2 under both edge styles (S0 of the

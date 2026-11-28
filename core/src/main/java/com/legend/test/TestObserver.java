@@ -38,17 +38,10 @@ public interface TestObserver extends AssertListener {
     default void privateWorkspace(boolean on) {
     }
 
-    /** The execution options the body and its setups run with — a recorder,
-     *  a test-resource resolver. {@code shared} says the body runs on the
-     *  package session (its statements join the session's seed ledger). */
-    default ExecuteOptions options(PureTests.TestCase test, boolean shared) {
-        return ExecuteOptions.NONE;
-    }
-
-    /** The run that hears this test's compatibility appeals (census C2, 2026-11-17): the edge's, or the product's,
-     *  which hears none ({@link com.legend.testexec.NoEdgeRun#NONE}). No default (census K6, 2026-11-18, G7): every
-     *  observer states its run, so no observer is the product's by omission. */
-    com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase test);
+    /** The audience {@code test}'s body and setups are run for: its options, its run hook and its door together (B3
+     *  step 2b, 2026-11-24: until then three methods, options, edgeRun and admitted, chosen apart). No default (census
+     *  K6, 2026-11-18, G7): every observer states its audience, so no observer is the product's by omission. */
+    Audience audience(PureTests.TestCase test);
 
     /** The body is about to execute; {@code effectful} says the platform
      *  found statement effects in it (an attempt a referee may mark). */
@@ -77,8 +70,8 @@ public interface TestObserver extends AssertListener {
     /** The observer of a caller that attaches no instrument: the product's run, stated (census K6, 2026-11-18). */
     TestObserver NONE = new TestObserver() {
         @Override
-        public com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase test) {
-            return com.legend.testexec.NoEdgeRun.NONE;
+        public Audience audience(PureTests.TestCase test) {
+            return Audience.PRODUCT;
         }
     };
 }

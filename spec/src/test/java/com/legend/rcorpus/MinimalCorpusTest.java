@@ -686,9 +686,7 @@ public class MinimalCorpusTest {
         // Printed only.
         com.legend.diagnostics.VerdictCensus.sqlCensus().forEach(
                 (k, v) -> System.out.println("[corpus2] sql-census " + k + "=" + v));
-        System.out.println("[corpus2] sql-census policy ulp="
-                + com.legend.testexec.CanonicalDivergence.sqlUlpPolicyCount()
-                + " decimal-scale-only=" + com.legend.testexec.CanonicalDivergence.decimalScaleOnlyCount()
+        System.out.println("[corpus2] sql-census policy"
                 + " batch-statements=" + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FUSED)
                 + " batch-fallbacks=" + com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FALLBACKS)
                 + " frames[" + com.legend.testplan.VerdictBatch.frameCensus() + "]");

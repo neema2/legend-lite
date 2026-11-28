@@ -1,0 +1,14 @@
+import java.sql.*;
+public class T {
+  public static void main(String[] a) throws Exception {
+    String[] texts = {"2020-01-01T10", "2020-01-01T10:00", "2020-01-01T10:00:00", "2020-01-01T10:00:00.000", "2020-01-01T10:00:00.5", "2020-01-01"};
+    for (String url : new String[]{"jdbc:h2:mem:t"}) {
+      Connection c = DriverManager.getConnection(url);
+      for (String t : texts) {
+        String q = "SELECT CAST('" + t + "' AS TIMESTAMP)";
+        try (ResultSet r = c.createStatement().executeQuery(q)) { r.next(); System.out.println(url.substring(5,9) + " OK  " + r.getObject(1) + "  <- " + t); }
+        catch (Exception e) { System.out.println(url.substring(5,9) + " ERR " + e.getMessage().split("\n")[0] + "  <- " + t); }
+      }
+    }
+  }
+}

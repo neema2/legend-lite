@@ -106,6 +106,9 @@ legend_java_library(
         "//core",
         # the edge's dialects (phase D's D1.0): both channels spell their plans as legend-pure does
         "//core:edge",
+        # the edge's test harness (2026-11-26, the edition program's step 9, slice 1: out of //core:edge): channel B's
+        # recorder (CompatEdge) and run hook (AppealRun), and the plan's codec for the edge's records
+        "//core:edge_harness",
         "//core:test_backends",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -202,15 +205,25 @@ test_suite(
 # run.
 # memory_mb 4096, not the rule's 4864 (live peak 3180 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
 # lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
-junit_test(
-    name = "pct_h2",
+#
+# ONE JVM PER SUITE (2026-11-26, the user's question "Should we run full h2 pct like duck?"), as DuckDB's and SQLite's:
+# //pct:pct_h2_<suite> runs Test_LegendLite_H2_<Suite>Functions_PCT, each with H2's own expected failures; //pct:pct_h2
+# is the five, and gate 7 (//gates:pct_h2) runs it: the four new suites joined the gate the same day, by the
+# orchestrator's decision on the measured lane (about 3 minutes of test time; every JVM's live peak under 1.9 GB).
+[junit_test(
+    name = "pct_h2_" + s.lower(),
     memory_mb = 4096,
     env = {"LEGENDLITE_PCT_BACKEND": "h2"},
-    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_RelationFunctions_PCT"],
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_%sFunctions_PCT" % s],
     runtime_deps = [
         ":pct_tests_lib",
         "@h2//jar",
     ],
+) for s in _SUITES]
+
+test_suite(
+    name = "pct_h2",
+    tests = [":pct_h2_" + s.lower() for s in _SUITES],
 )
 
 # GATE 7P — the five suites on POSTGRES 16 (leg P2; LEGENDLITE_PCT_BACKEND=postgres selects the
@@ -531,7 +544,9 @@ test_suite(
             # (2026-11-15, PR1's review: found in no lane)
             [":pct_channel_b_ledger_test", ":pct_channel_b_twice_guard_test"] +
             # channel A's one audience a run, its refusal planted (PR #127's review, 2026-11-19)
-            [":pct_route_audience_test"],
+            [":pct_route_audience_test"] +
+            # channel A's lifted print, end to end (stage B's B2b S2, 2026-11-24)
+            [":pct_route_print_test"],
 )
 
 # CHANNEL B ON EVERY LANE (2026-10-11, the user's ask): the same runner on each database a channel A lane runs on
@@ -728,6 +743,17 @@ junit_test(
     memory_mb = 512,
     size = "small",
     select = ["--select-class=org.finos.legend.lite.pct.extension.PctPlanRouteAudienceTest"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
+# channel A's lifted print (stage B's B2b S2, 2026-11-24): a case whose last step prints a relation answers legend-pure's
+# text, printed in Java from the relation's typed rows at legend-pure's door (edge.PrintedRelations); no PCT case ends in a
+# print today (measured 2026-11-24), so this test is the branch's one run
+junit_test(
+    name = "pct_route_print_test",
+    memory_mb = 1024,
+    size = "small",
+    select = ["--select-class=org.finos.legend.lite.pct.extension.PctPlanRoutePrintTest"],
     runtime_deps = [":pct_tests_lib"],
 )
 
