@@ -4,10 +4,20 @@
 audit of slices 3 and 4, its S2). Nothing here is committed by a lane: the two edits are temporary, in the lane's own
 Bazel tree.*
 
-**NOT VERIFIED (the work was paused, 2026-11-26): do not send this to a lane yet.** The first local try never
-selected the probe class (its name did not end in `Test`; renamed since), and the command below has not been run
-again: whether `--test_arg=--select-class=...` reaches the runner on a lane's target is not known. It is ready when it
-prints its `PROBE CASE` lines on DuckDB, H2 and SQLite in the step 8 session's own container.
+**VERIFIED HERE on 2026-11-28** (the step 8 session, on `claude/edition-step8` after the program branch's merge,
+`37e84d47`; the steps below as written, on `//pct:pct_duckdb_essential`, `//pct:pct_h2_essential` and
+`//pct:pct_sqlite_essential`): the probe class is selected and prints its four `PROBE CASE` lines on each. The target
+itself fails, as step 3 says it will. What it answered:
+
+| Database | The SQL lite sent | literal, a fraction | literal, no fraction | computed | the column's three rows |
+|---|---|---|---|---|---|
+| DuckDB | `SELECT CAST(TIMESTAMP '2014-01-01T00:00:00' AS VARCHAR) AS value`; `CAST(TIMESTAMP '2014-01-01T10:20:30.250' + to_hours(1) AS VARCHAR)`; `CAST(_tds0."at" AS VARCHAR)` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.25` | `2014-01-01 10:20:30.25`, `2014-01-01 10:20:30.123456`, `2014-01-02 00:00:00` |
+| H2 | `SELECT CAST(TIMESTAMP '2014-01-01T00:00:00.000' AS VARCHAR) AS "value"`; `CAST(dateadd(HOUR, 1, TIMESTAMP '2014-01-01T10:20:30.250') AS VARCHAR)`; `CAST("_tds0"."at" AS VARCHAR)` | `2014-01-01 00:00:00` | `2014-01-01 00:00:00` | `2014-01-01 11:20:30.25` | the same three as DuckDB |
+| SQLite (legend-engine has no SQLite: no row, the call's own rule) | a literal is the constant `'2014-01-01T00:00:00+0000'`; a computed value and a column are lite's own `strftime` text | `2014-01-01T00:00:00.000+0000` | `2014-01-01T00:00:00+0000` | `2014-01-01T11:20:30.250000000Z` | `2014-01-01T10:20:30.250000000Z`, `2014-01-01T10:20:30.123456000Z`, `2014-01-02T00:00:00.000000000Z` |
+
+DuckDB's and H2's answers are the ones "What to read in the answer" below expects. The six databases it was never
+run on (Postgres, Trino, Snowflake, ClickHouse, Databricks, BigQuery) are measured by the database lanes; their
+answers are added below when they report.
 
 ## The question
 
