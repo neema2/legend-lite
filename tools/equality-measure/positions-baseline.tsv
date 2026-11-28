@@ -53,6 +53,7 @@ database	matrix	comparison	what
 *	values	list with an empty slot	expected T: [1, 2]->map(x | if($x == 1, |1, |[])) == [1]
 *	values	list of empty slots and written empty	expected T: [1, 2]->map(x | if($x > 5, |1, |[])) == []
 *	values	boolean list with an empty slot	expected T: [1, 2]->map(x | if($x == 1, |true, |[])) == [true]
+*	values	built to the hour and a list built to the minute	expected T: date(2015, 4, 16, 14) == [date(2015, 4, 16, 14, 0), date(2015, 4, 16, 15, 0)]->take(1)
 *	values	computed empty and written empty	expected T: [1, 2]->filter(x | $x > 5) == []
 *	values	two computed empties	expected T: [1, 2]->filter(x | $x > 5) == [3]->filter(x | $x > 5)
 *	values	computed empty and value	expected F: [1, 2]->filter(x | $x > 5) == 1
@@ -157,6 +158,8 @@ H2	values	list of empty slots and written empty	refused by name everywhere
 H2	values	list of empty slots and written empty	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 H2	values	boolean list with an empty slot	refused by name everywhere
 H2	values	boolean list with an empty slot	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
+H2	values	built to the hour and a list built to the minute	refused by name everywhere
+H2	values	built to the hour and a list built to the minute	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 H2	values	optional none and value	refused by name everywhere
 H2	values	optional none and value	  refused DialectCapability [refused]: statement, not, if, and, or, not-equal, lets, list-filter, function-any, function-generic, table-filter, table-column, assertEquals (host), assertEquals (database), assert (host), assert (database)
 H2	values	two optionals none	refused by name everywhere
