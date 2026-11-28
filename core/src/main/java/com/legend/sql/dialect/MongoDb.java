@@ -1001,7 +1001,7 @@ public class MongoDb extends AnsiSqlRenderer {
     /** The "same values" instruction: its two-value form in order (step 6B, slice 1: two side values alone) is the
      *  equality this pipeline wrote for two list values before the slice; its rows form, a verdict over two sides'
      *  typed rows, is not a pipeline's to judge. */
-    private static SqlWriter sameValuesOfAPipeline(SqlWriter writer, SqlExpr.Call c) {
+    private static SqlWriter sameInOrderElseRefused(SqlWriter writer, SqlExpr.Call c) {
         if (c.fn() == SqlFn.SAME_IN_ORDER && c.args().size() == 2) {
             return MongoJson.guardedOp(writer, "$eq", c.args());
         }
@@ -1053,7 +1053,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case GREATER -> MongoJson.guardedOp(writer, "$gt", a);
             case GREATER_EQUAL -> MongoJson.guardedOp(writer, "$gte", a);
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> MongoJson.op(writer, "$ne", a);
-            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameValuesOfAPipeline(writer, c);
+            case SAME_IN_ORDER, SAME_IN_ANY_ORDER -> sameInOrderElseRefused(writer, c);
             case NULL_SAFE_EQUAL -> MongoJson.op(writer, "$eq", a);
             case XOR -> MongoJson.guardedOp(writer, "$ne", a);
             // ---- arithmetic: MongoDB's operators answer null for a null operand already
