@@ -199,6 +199,11 @@ final class Equalities {
             // row, whatever its declared multiplicity): its absence, as before
             SqlExpr other = args.get(le ? 1 : 0);
             // (a list's length with its empty slots dropped: [1, 2]->map(x | if($x > 5, |1, |[])) == [] is true)
+            // (the product's rule alone: at a door the line is as it was -- review 7 of slice 3)
+            if (numbers != NumberFamilies.TWO_FAMILIES) {
+                return other instanceof SqlExpr.TaggedList || aList(other)
+                        ? Scalars.emptiness(n.args().get(le ? 1 : 0), other) : SqlExpr.Call.of(SqlFn.IS_NULL, other);
+            }
             return other instanceof SqlExpr.TaggedList ? Scalars.emptiness(n.args().get(le ? 1 : 0), other)
                     : aList(other) ? holdsNothing(n.args().get(le ? 1 : 0), other)
                     : SqlExpr.Call.of(SqlFn.IS_NULL, other);
@@ -540,6 +545,15 @@ final class Equalities {
         // abstract Date a text may be a year, which no instant reads: that raises when the query runs, as it did
         // before this arm -- restricting the arm to sides declared DateTime, review 6's note 1, was tried and
         // withdrawn: it left a Date-declared list of date-time texts to the database's `=`, which answered false)
+        // (ONE date-time written as its text beside a list of such texts, both sides declared DateTime: the list of
+        // its instant against the list's -- review 7 of slice 3: the planner stands aside for the pair, and compared
+        // as texts '...T14' never equalled '...T14:00')
+        if (lists && lTexts != rTexts && carriedAs(lTexts ? r : l, SqlType.Scalar.TEMPORAL_TEXT)
+                && n.args().get(0).info().type() == Type.Primitive.DATE_TIME
+                && n.args().get(1).info().type() == Type.Primitive.DATE_TIME) {
+            SqlExpr one = PureSql.asList(SideEqualities.instantOfText(lTexts ? r : l), false);
+            return lTexts ? List.of(instantsOfTexts(l), one) : List.of(one, instantsOfTexts(r));
+        }
         if (lists && lTexts != rTexts) {
             SqlExpr a = lTexts ? instantsOfTexts(l) : instantListOf(l);
             SqlExpr b = rTexts ? instantsOfTexts(r) : instantListOf(r);

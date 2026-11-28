@@ -434,6 +434,9 @@ public final class EqualityMeasure {
         out.add(new Sides("list with an empty slot", "T", "[1, 2]->map(x | if($x == 1, |1, |[]))", "[1]"));
         out.add(new Sides("list of empty slots and written empty", "T", "[1, 2]->map(x | if($x > 5, |1, |[]))", "[]"));
         out.add(new Sides("boolean list with an empty slot", "T", "[1, 2]->map(x | if($x == 1, |true, |[]))", "[true]"));
+        // (review 7 of slice 3: one date-time written as its text against a computed list of such texts)
+        out.add(new Sides("built to the hour and a list built to the minute", "T", "date(2015, 4, 16, 14)",
+                "[date(2015, 4, 16, 14, 0), date(2015, 4, 16, 15, 0)]->take(1)"));
         out.add(new Sides("computed empty and written empty", "T", "[1, 2]->filter(x | $x > 5)", "[]"));
         out.add(new Sides("two computed empties", "T", "[1, 2]->filter(x | $x > 5)", "[3]->filter(x | $x > 5)"));
         out.add(new Sides("computed empty and value", "F", "[1, 2]->filter(x | $x > 5)", "1"));
