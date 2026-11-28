@@ -3454,7 +3454,7 @@ core	DuckDB	TypedRename	4	473	15468	0	0	0
 core	DuckDB	TypedSelect	143	24410	619606	22	1710	0
 core	DuckDB	TypedSerialize	68	29529	455144	70	1515	0
 core	DuckDB	TypedSlice	12	1831	38619	3	0	0
-core	DuckDB	TypedSort	231	70846	1417034	105	7691	0
+core	DuckDB	TypedSort	231	70912	1417386	105	7724	0
 core	DuckDB	TypedSortBy	1	149	3197	1	0	0
 core	DuckDB	TypedTableReference	3	274	7314	0	0	0
 core	DuckDB	TypedTds	8	767	14658	0	0	0
