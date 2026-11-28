@@ -37,9 +37,11 @@ class ComparisonDoorReadsRatchetTest {
 
     private static Map<String, Integer> pins() {
         Map<String, Integer> pins = new LinkedHashMap<>();
-        // the lookup's declaration, its one use in Scalars.lower and four in Lowerer (==, membership's rows, the two
-        // whole-side entries)
-        pins.put("doorsRule\\(", 6);
+        // the lookup's declaration, its one use in Scalars.lower and ONE in Lowerer (Lowerer.productsOwn, which every
+        // comparison arm of the lowering asks)
+        // 6 -> 3, 2026-11-28, step 6B part 2: the arms for objects, memberships and maps would have made it 9; the
+        // seven reads in Lowerer became the one
+        pins.put("doorsRule\\(", 3);
         // Lowerer.written, the one call
         pins.put("\\.emptySideIsFalse\\(", 1);
         // Scalars 9, Equalities 9, SideEqualities 2, HeldKinds 1, TaggedLists 1

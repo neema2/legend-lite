@@ -162,3 +162,56 @@ two scales, compared where the sides read the row, are refused by name (they ans
 there still compares texts (the database follow-up's row D8). `removeDuplicates` and `isDistinct` over a keyed class
 no longer ask the layout for an identity (they are by the keys). A single-object pick for a side bound once is a
 sub-query with `LIMIT 1` (H2 2.5 has no `ANY_VALUE`).
+
+## The grid, and objects inside containers (2026-11-28, about 16:00 to 18:00 UTC; the no-Bazel loop)
+
+**The user's questions that made it:** "we should check Pairs with objects and Pairs with value+object mixed. And Maps
+as well? That's only key equality or key and value match. ... Do we have a full matrix of types and container types
+that we should check each combination?" There was none: the measure's rows had been added as problems were found.
+
+**The grid** (`EqualityMeasure.grid`): 13 kinds of value (Integer, Decimal, Float, String, Boolean, an enumeration, a
+day, a date-time, a year, a keyed object, an object with no key, a child under its parent's type, a Pair) in 8
+containers (a Pair's first, a Pair's second, a Pair in a Pair, a map's value, a map's key, `list([...])`, a computed
+list, a computed list of Pairs), each as two comparisons: two writings of one value (equal) and two values (not).
+The containers that build one value are asked of the other comparing functions too. 350 more rows; the measure is
+600 comparisons in 20 places on three databases.
+
+**What its first run showed on DuckDB:** every plain kind right in every place in a Pair and in a list; the failures
+were objects inside containers, and smaller items below.
+
+**Objects inside containers, the root cause and the fix.** A carrier that holds an object in a slot had no layout:
+`LayoutTypes.sqlTypeOf` handed a Pair, a list or a map to the layoutless mapping, which raised "no SQL type for Pure
+class" at the object. So such a value could be no statement's answer and no assert's side, and where it was compared
+as a value the database compared every field (a keyed object in a Pair was "not equal" to one with the same keys).
+`LayoutTypes.sqlTypeOf` now builds the carrier's shape over each slot's own type, a class by its layout. With it:
+
+| | Before | Now (DuckDB, SQLite; H2 where it holds no list) |
+|---|---|---|
+| `pair(^Q(id=1, note='a'), 1) == pair(^Q(id=1, note='b'), 1)` | false | true: the object by its keys |
+| the same as an assert, either checker | an internal error | judged, the two checkers agree, one record |
+| a Pair holding an object with no key | by every field, by luck right | by the object's identity (`SideEqualities.leaves`: a slot declared a model class with no key) |
+| `indexOf` of a Pair holding an object | by every field | by the reduction (`InstanceEquality.claims`) |
+| `list([^Q(...), ...]) == list([...])` | by every field | as its instances (`InstanceEquality.instancesOf`); never by a side's rows: a List is one value |
+| two maps to objects | an internal error | as values, entries sorted by key, each object reduced (`InstanceEquality.sameMapsOfInstances`) |
+| an object as a map's key | an internal error | refused by name |
+
+**Maps** (the user's question): keys AND values must match; the order the entries were written in is no part of it.
+Probed: a value differs, a key differs, one more entry: false; the other order: true; whole-number keys: fine.
+
+**Also built here:** an assert's membership over sides declared the abstract `Date` is the product's own (two days,
+or a day and a date-time: `SideEqualities.heldDateKind` reads the kind off the query's text or the column;
+`VerdictQueries.heldAs` shows it). Two date-times under `Date` stay with the old member until their rows ride read
+as instants. The database checker judges two sides of model classes declared of two classes
+(`SideEqualities.instancesOfTwoClasses`); the host checker compares each such object by the class it actually is
+(`HostJudgments.asEqualSees`). The lowering asks the door's table in one place (`Lowerer.productsOwn`; the ratchet's
+pin 6 to 3).
+
+**Found by the grid, open:**
+- `list([1, 1])->in([list([1, 1])])` raises a data error on DuckDB (a list among lists); `assertEquals` of two
+  `list(...)` values is unjudged by the database checker.
+- A map whose keys are Decimals written at two scales: the host checker says "not equal" (the product refuses the
+  pair by name).
+- A year inside a Pair or a map: answered in some places only.
+- Reading a list of a child and a parent as a RESULT fails in exec ("a struct cell of 7 attributes under a slot of 6
+  fields": the plan types the list by its declared class).
+- On SQLite, `indexOf` over Pairs of plain values still compares texts.

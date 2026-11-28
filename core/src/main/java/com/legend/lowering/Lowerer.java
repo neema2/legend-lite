@@ -440,7 +440,7 @@ public final class Lowerer {
             return NullSemantics.verbatim(true, e);
         }
         if (isFamily(call, Pure.AT_BOOLEAN_EQUAL) && call.args().size() == 2
-                && Scalars.doorsRule(call, features, styled()) == null) {
+                && productsOwn(call)) {
             // the product's own == of two lists of one compared kind: the one "same values" instruction over the
             // two side values (step 6B, slice 1); a door's rule keeps its own writing
             WholeComparisons planner = wholeComparisons;
@@ -448,7 +448,7 @@ public final class Lowerer {
                     boundSides != null);
         }
         if (boundSides != null && wholeComparisons != null && Equalities.membershipList(call) instanceof TypedSpec list
-                && Scalars.doorsRule(call, features, styled()) == null
+                && productsOwn(call)
                 && wholeComparisons.sideRows(list) instanceof SqlQuery rows) {
             // the product's own contains or in over a list side BOUND ONCE (an assert as the membership it means):
             // the bound rows ride the membership, for a database that has no list membership to read
@@ -512,6 +512,13 @@ public final class Lowerer {
                 side -> planner == null ? null : planner.sideRows(side));
     }
 
+    /** Whether {@code call} is lowered by the product's own rule: the door that admitted the code named no rule
+     *  for it ({@link Scalars#doorsRule}). The ONE place the lowering's comparison arms ask the door's table
+     *  (step 6B part 2: seven arms each asked it themselves). */
+    private boolean productsOwn(TypedNativeCall call) {
+        return Scalars.doorsRule(call, features, styled()) == null;
+    }
+
     /** {@code n}'s two sides of instances of one class as the one "same values" instruction over the two lists
      *  ({@link InstanceEquality#sameInstances}); null for any other pair, and where the door named a rule for the
      *  call (it is lowered by that rule). */
@@ -519,7 +526,7 @@ public final class Lowerer {
             ColumnResolver columns) {
         if (instanceKeysOf == null || n.args().size() != 2 || verbatimEquality || legacyNullUnsafeEquals
                 || !SideEqualities.comparableInstances(n.args().get(0), n.args().get(1))
-                || Scalars.doorsRule(n, features, styled()) != null) {
+                || !productsOwn(n)) {
             return null;
         }
         WholeComparisons planner = wholeComparisons;
@@ -535,7 +542,7 @@ public final class Lowerer {
                 || !PlatformTypes.isMapCarrier(n.args().get(0).info().type())
                 || !PlatformTypes.isMapCarrier(n.args().get(1).info().type())
                 || n.args().get(0).info().multiplicity().isMany() || n.args().get(1).info().multiplicity().isMany()
-                || Scalars.doorsRule(n, features, styled()) != null) {
+                || !productsOwn(n)) {
             return null;
         }
         WholeComparisons planner = wholeComparisons;
@@ -567,7 +574,7 @@ public final class Lowerer {
     private @com.legend.base.Nullable SqlExpr memberInstances(TypedNativeCall n, ColumnResolver columns) {
         if (instanceKeysOf == null || n.args().size() != 2 || Equalities.membershipList(n) == null
                 || !SideEqualities.comparableInstances(n.args().get(0), n.args().get(1))
-                || Scalars.doorsRule(n, features, styled()) != null) {
+                || !productsOwn(n)) {
             return null;
         }
         WholeComparisons planner = wholeComparisons;
@@ -582,7 +589,7 @@ public final class Lowerer {
      *  value; null where the door named a rule for the call (it is lowered by that rule), or the planner has no
      *  statement for it. */
     private @com.legend.base.Nullable SqlExpr wholeSides(TypedNativeCall n) {
-        if (wholeComparisons == null || Scalars.doorsRule(n, features, styled()) != null) {
+        if (wholeComparisons == null || !productsOwn(n)) {
             return null;
         }
         @com.legend.base.Nullable SqlQuery planned = wholeComparisons.insideAnExpression(n);
@@ -607,7 +614,7 @@ public final class Lowerer {
         if (!(root instanceof TypedNativeCall comparison) || comparison.args().size() != 2
                 || !isFamily(comparison, Pure.AT_BOOLEAN_EQUAL)
                         && !Pure.AT_LEGEND_LITE_HAS_SAME_ELEMENTS.contains(comparison.callee().id())
-                || Scalars.doorsRule(comparison, features, styled()) != null) {
+                || !productsOwn(comparison)) {
             return null;
         }
         return wholeComparisons.asTheStatement(comparison, negated);
