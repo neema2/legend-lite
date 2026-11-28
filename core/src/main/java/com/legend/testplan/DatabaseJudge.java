@@ -281,12 +281,7 @@ public final class DatabaseJudge {
      *  one: a view of its own type over it (never lowered: the side is bound, {@code Lowerer.overSides}); any other
      *  side as it is. */
     private static TypedSpec atMostOneView(TypedSpec side) {
-        return side.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                && b.lower() >= 1 && b.upper() != null && b.upper() <= 1
-                ? new com.legend.compiler.spec.typed.TypedCast(side, side.info().type(),
-                        new com.legend.compiler.element.type.ExprType(side.info().type(),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE), false)
-                : side;
+        return com.legend.compiler.spec.VerdictQueries.atMostOne(side);
     }
 
     /** Whether {@code side} is declared to hold at most one value. */

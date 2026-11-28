@@ -561,7 +561,7 @@ final class MixedEncoding {
         // a take, a deduplication, toOne, first, at -- the one list of them is the type-checker's,
         // EqualityClasses.valuesOf; step 6B, slice 5: read past a sort, [2, 1]->cast(@Number)->sort() against Floats
         // was the database's own = and answered true)
-        TypedSpec of = com.legend.compiler.spec.EqualityClasses.valuesOf(spec);
+        TypedSpec of = com.legend.compiler.spec.typed.HeldValues.valuesOf(spec);
         if (of != null) {
             return kindOfElements(of);
         }

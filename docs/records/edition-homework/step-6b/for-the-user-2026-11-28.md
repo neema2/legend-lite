@@ -87,7 +87,7 @@ characters in a statement, for a fix of a wrong answer, each rise listed to the 
   door reads for a comparison (6, 1, 22) so they can only shrink. The choice put to the user: close 6B today
   without it and build it next, or build it now and close a day later.
 - **The "test checker only shrinks" ledger went up** (`JavaEvalLedgerTest`, pins moved with the reason):
-  `DatabaseJudge` 827 to 912 stripped lines, `SidePlanner` 102 to 108, `JudgmentFacts` 237 to 240, `VerdictSql` 1,119
+  `DatabaseJudge` 827 to 907 stripped lines, `SidePlanner` 102 to 108, `JudgmentFacts` 237 to 240, `VerdictSql` 1,119
   to 1,120. The new path (an assert as the product's own comparison over sides bound once) stands BESIDE the judge's
   old member until the kinds it does not take yet move too (class instances, tables, mixed lists, values typed at run
   time: part 2); the old member is deleted then and the pins come down. Told to the user in the session the same

@@ -237,6 +237,9 @@ class SqlFnSortedTest {
             // comparison of two types that can never be equal still evaluates both its sides, so a side that raises still
             // raises as Pure says (Equalities.neverEqualButEvaluated: each side's text behind a different letter, compared)
             Map.entry("COALESCE", Set.of(
+                    // 2026-11-28, step 6B's slice 6: a side's folded list as the empty list where it has no row, beside
+                    // a side bound as its one value (SideEqualities.boundOnce)
+                    "com.legend.lowering.SideEqualities",
                     "com.legend.lowering.Equalities",
                     "com.legend.lowering.ProductRelationText",   // 2026-11-25, B2b S5a: lite's relation toString
                     // (lowering.LiteVerdictWords, census J29's lite verdict sentences: gone 2026-11-22, item 3's S4 step 4)
@@ -733,7 +736,8 @@ class SqlFnSortedTest {
             Map.entry("MIN", Set.of(
                     "com.legend.lowering.SideEqualities",   // 2026-11-27, the edition program's step 6: the judge's comparison of two sides is the product's equality, moved from VerdictSql as it stood
                     "com.legend.lowering.Aggregates", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.VerdictSql", "com.legend.planner.DataSources",
+                    // (lowering.VerdictSql: gone 2026-11-28, a shrink -- a side's one value is read by SideEqualities.single)
+                    "com.legend.planner.DataSources",
                     "com.legend.sql.dialect.AsOfAsPick", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.ExplosionMarkers")),
             // LIST: + VerdictSql (2026-11-22, item 3's S4 step 2, by the user's word, "Yes, add it": the database
