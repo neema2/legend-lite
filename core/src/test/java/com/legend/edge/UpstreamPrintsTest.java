@@ -126,6 +126,9 @@ class UpstreamPrintsTest {
             java.util.Map<String, Object> bodies = new java.util.LinkedHashMap<>();
             bodies.put("|assertEquals('0.000000013421', (1.3421e-8 * 1.0)->toString());", "0.000000013421");
             bodies.put("|assertEquals(14, (1.3421e-8 * 1.0)->toString()->length());", 14L);
+            // + with literal Strings, a step of the tail since 2026-11-28
+            bodies.put("|assertEquals('<0.000000013421>', '<' + (1.3421e-8 * 1.0)->toString() + '>');",
+                    "<0.000000013421>");
             bodies.put("|let r = " + REL + "; assertEquals(31, $r->toString()->length());", 31L);
             bodies.put("|let r = " + REL + "; assert($r->toString()->replace('\n', ';')->contains(';   1,A;'));",
                     true);
@@ -249,7 +252,8 @@ class UpstreamPrintsTest {
             throw new AssertionError("nothing is read: " + query.body());
         };
         for (String body : List.of(
-                "|assertEquals('3.0;', (1.5 * 2.0)->toString() + ';');",
+                // (joined to a LITERAL text it is a step of the tail since 2026-11-28, and lifted: below)
+                "|assertEquals('3.0;4', (1.5 * 2.0)->toString() + ';' + (2 + 2)->toString());",
                 "|let s = (1.5 * 2.0)->toString(); assertEquals('3.0', $s);",
                 "|assertEquals(['3.0'], [(1.5 * 2.0)->toString()]);",
                 "|assertEquals('3.0', (1.5 * 2.0)->toString()->toUpper());",

@@ -23,10 +23,13 @@ class PrintTailTest {
     /** The members, exactly: {@code replace} since 2026-11-24 (the user: "also do the replace in java too"); the rest
      *  ruled by the user on 2026-11-26 (~13:57), put to them as these seven with the guard exception they need (Java
      *  computes a length, an index or a true/false over text the edge printed): "yes should add guard". {@code +}
-     *  with literal Strings is not a member. */
+     *  with literal Strings ({@code Joined}) was proposed with them and kept out until its typed shape was read; a
+     *  member since 2026-11-28, by the user's word of that day ("continue with section 7 item 7: the TDSNull row,
+     *  \"+\" in the tail, and the last-step format lift"). */
     @Test
     void theClosedSetIsExactlyThese() {
-        assertEquals(new TreeSet<>(List.of("Contains", "EndsWith", "IndexOf", "Length", "Replace", "StartsWith", "Trim")),
+        assertEquals(new TreeSet<>(List.of("Contains", "EndsWith", "IndexOf", "Joined", "Length", "Replace",
+                        "StartsWith", "Trim")),
                 new TreeSet<>(Arrays.stream(PrintTail.class.getPermittedSubclasses()).map(Class::getSimpleName)
                         .toList()));
     }
@@ -36,6 +39,10 @@ class PrintTailTest {
     void eachMemberIsLegendPuresJava() {
         // replace: every occurrence, left to right; an empty target inserts the replacement at every position
         assertEquals("a,b,", new PrintTail.Replace("\n", ",").applied("a\nb\n"));
+        // + is the texts one after another (plus.pure: $strings->joinStrings('', '', ''))
+        assertEquals("<a>", new PrintTail.Joined("<", ">").applied("a"));
+        assertEquals("a", new PrintTail.Joined("", "").applied("a"));
+        assertEquals("x", new PrintTail.Joined("x", "").applied(""));
         assertEquals("xax", new PrintTail.Replace("", "x").applied("a"));
         // length: UTF-16 units (a character outside the basic plane counts two, as legend-pure's String.length does)
         assertEquals(3L, new PrintTail.Length().applied("a😀"));

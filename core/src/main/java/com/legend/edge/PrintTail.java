@@ -27,7 +27,10 @@ import java.util.List;
  * (a {@code StringTokenizer}, and it answers a list), {@code reverseString}, {@code size}, {@code toOne}, and the
  * functions legend-engine defines in Pure ({@code lpad}, {@code rpad}, {@code repeatString}). The user ruled the
  * set's seven members and the guard exception they need on 2026-11-26: "yes should add guard". They are pinned
- * ({@code PrintTailTest}): one is added with the user's word or not at all.
+ * ({@code PrintTailTest}): one is added with the user's word or not at all. The eighth, {@code +} with literal
+ * Strings ({@link Joined}), was proposed with the seven, kept out "until its typed shape is read" (the proposal's
+ * section 9), and added by the user's word of 2026-11-28 ("continue with section 7 item 7: the TDSNull row, \"+\" in
+ * the tail, and the last-step format lift").
  *
  * <p>{@code replace} is {@link Replace}, the set's first member.
  *
@@ -49,7 +52,7 @@ import java.util.List;
  * asked of it ({@code PrintedRelations.lift}).
  */
 public sealed interface PrintTail permits PrintTail.Replace, PrintTail.Length, PrintTail.Trim,
-        PrintTail.StartsWith, PrintTail.EndsWith, PrintTail.Contains, PrintTail.IndexOf {
+        PrintTail.StartsWith, PrintTail.EndsWith, PrintTail.Contains, PrintTail.IndexOf, PrintTail.Joined {
 
     /** This step applied to {@code text}. */
     Object applied(String text);
@@ -120,6 +123,24 @@ public sealed interface PrintTail permits PrintTail.Replace, PrintTail.Length, P
         }
     }
 
+    /** {@code +} with literal Strings: the text between the literals written before it and after it, in the
+     *  program's order. A String's {@code +} is {@code plus(strings: String[*])}, which legend-pure defines as
+     *  {@code $strings->joinStrings('', '', '')} (legend-pure 5.99.0, {@code plus.pure}:25-28): the texts one after
+     *  another, nothing between. The typer writes {@code 'a' + x + 'b'} as ONE call over the run of its operands, so
+     *  a step is that run with exactly one operand that is no literal -- the text beneath, one value -- and every
+     *  other a String literal ({@link #joined}). */
+    record Joined(String before, String after) implements PrintTail {
+        public Joined {
+            java.util.Objects.requireNonNull(before, "before");
+            java.util.Objects.requireNonNull(after, "after");
+        }
+
+        @Override
+        public Object applied(String text) {
+            return before + text + after;
+        }
+    }
+
     /** The Pure type a tail of {@code steps} answers over a text: the last step's, a String's where there is none. */
     static String answers(List<PrintTail> steps) {
         if (steps.isEmpty()) {
@@ -128,6 +149,7 @@ public sealed interface PrintTail permits PrintTail.Replace, PrintTail.Length, P
         return switch (steps.get(steps.size() - 1)) {
             case PrintTail.Replace r -> "String";
             case Trim t -> "String";
+            case Joined j -> "String";
             case Length l -> "Integer";
             case IndexOf i -> "Integer";
             case StartsWith s -> "Boolean";
@@ -187,6 +209,47 @@ public sealed interface PrintTail permits PrintTail.Replace, PrintTail.Length, P
         return null;
     }
 
+    /** The place in {@code c}'s run of operands of the one operand that is no String literal, where {@code c} is a
+     *  String's {@code +} over a run of two or more operands, every other a String literal, and that operand one
+     *  value; -1 otherwise (a call that is no such {@code +}, a run of literals alone, two operands that are no
+     *  literal, an operand that may be empty or many). */
+    static int joined(TypedNativeCall c) {
+        if (!c.callee().id().equals(Declared.PLUS) || c.args().size() != 1
+                || !(c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCollection run)
+                || run.elements().size() < 2) {
+            return -1;
+        }
+        int at = -1;
+        for (int i = 0; i < run.elements().size(); i++) {
+            if (run.elements().get(i) instanceof TypedCString) {
+                continue;
+            }
+            if (at >= 0) {
+                return -1;
+            }
+            at = i;
+        }
+        if (at < 0 || !com.legend.compiler.element.type.Multiplicity.Bounded.ONE.equals(
+                run.elements().get(at).info().multiplicity())) {
+            return -1;
+        }
+        return at;
+    }
+
+    /** The {@link Joined} step of a {@code +} whose one operand that is no literal stands at {@code at}
+     *  ({@link #joined}). */
+    private static Joined joined(TypedNativeCall c, int at) {
+        List<TypedSpec> run = ((com.legend.compiler.spec.typed.TypedCollection) c.args().get(0)).elements();
+        StringBuilder before = new StringBuilder();
+        StringBuilder after = new StringBuilder();
+        for (int i = 0; i < run.size(); i++) {
+            if (i != at) {
+                (i < at ? before : after).append(((TypedCString) run.get(i)).value());
+            }
+        }
+        return new Joined(before.toString(), after.toString());
+    }
+
     /** The set's declarations, each identity computed once: legend-pure's string natives, from the catalog. */
     final class Declared {
         private Declared() {
@@ -206,21 +269,27 @@ public sealed interface PrintTail permits PrintTail.Replace, PrintTail.Length, P
                 com.legend.model.FunctionId.of(com.legend.builtin.Pure.CONTAINS__STRING_1__STRING_1);
         static final com.legend.model.FunctionId INDEX_OF =
                 com.legend.model.FunctionId.of(com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1);
+        static final com.legend.model.FunctionId PLUS =
+                com.legend.model.FunctionId.of(com.legend.builtin.Pure.STRING_PLUS__STRING_MANY);
         static final com.legend.model.FunctionId INDEX_OF_FROM =
                 com.legend.model.FunctionId.of(com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1__INTEGER_1);
     }
 
     /** {@code e} beneath its tail, each step added to {@code steps} in the program's order; {@code e} itself where its
-     *  root is no step of the set. A step that answers no String is taken only at the root. */
+     *  root is no step of the set. A step that answers no String is taken only at the root. A {@code +} is a step
+     *  whatever is beneath it: the caller takes the tail only where that is a print ({@code PrintedRelations.side}). */
     static TypedSpec beneath(TypedSpec e, List<PrintTail> steps) {
         TypedSpec last = e;
         while (last instanceof TypedNativeCall c && !c.args().isEmpty()) {
-            PrintTail step = step(c);
+            // a + reads the text among its operands; every other step reads it as its first argument
+            int among = joined(c);
+            PrintTail step = among >= 0 ? joined(c, among) : step(c);
             if (step == null || (!steps.isEmpty() && !answers(List.of(step)).equals("String"))) {
                 break;
             }
             steps.add(0, step);
-            last = c.args().get(0);
+            last = among >= 0 ? ((com.legend.compiler.spec.typed.TypedCollection) c.args().get(0)).elements().get(among)
+                    : c.args().get(0);
         }
         return last;
     }

@@ -223,6 +223,33 @@ class PrintedRelationsTest {
         assertEquals(PureRelationTextWriter.Form.TDS_CSV, form("|" + REL + ".csv"));
     }
 
+    /** {@code +} WITH LITERAL STRINGS IS A STEP OF THE TAIL (the user's word of 2026-11-28): the typer writes
+     *  {@code 'a' + x + 'b'} as one call over the run of its operands, and the step is that run with exactly one
+     *  operand that is no literal -- the print, or the text beneath more of the tail. Two operands that are no
+     *  literal, and a {@code +} over no print, are not a tail. */
+    @Test
+    void aPlusOfLiteralsAroundAPrintIsAStepOfTheTail() {
+        PrintedRelations.Lifted lifted = PrintedRelations.lift(typed("|'<' + " + REL + "->toString() + '>' + ';'"), true);
+        assertNotNull(lifted);
+        assertEquals(PureRelationTextWriter.Form.TO_STRING, lifted.form());
+        assertEquals(List.of(new PrintTail.Joined("<", ">;")), lifted.tail());
+        assertEquals("<x>;", lifted.answer("x"));
+        // beneath more of the tail, and above it
+        assertEquals(List.of(new PrintTail.Replace("\n", ","), new PrintTail.Joined("", ";"), new PrintTail.Length()),
+                PrintedRelations.lift(typed("|(" + REL + "->toString()->replace('\n', ',') + ';')->length()"), true)
+                        .tail());
+        // a Float's print at a last step, joined
+        PrintedRelations.Lifted value = PrintedRelations.lift(typed("|(1.5 * 2.0)->toString() + ';'"), true);
+        assertNotNull(value);
+        assertEquals(PureRelationTextWriter.Form.VALUE, value.form());
+        assertEquals(List.of(new PrintTail.Joined("", ";")), value.tail());
+        // not a tail: two operands that are no literal, a + over no print, and at legend-engine's door (which lifts a
+        // relation's print with its replaces alone)
+        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString() + " + REL + "->toString()"), true));
+        assertNull(PrintedRelations.lift(typed("|'a' + 'b'->toUpper() + 'c'"), true));
+        assertNull(PrintedRelations.lift(typed("|" + REL + "->toString() + ';'")));
+    }
+
     /** The one rule, read off one expression (B3's test-body lift reads it too): a print and its literal replaces, or
      *  null. */
     @Test
